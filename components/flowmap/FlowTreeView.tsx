@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { PlanItem, PlanLevel } from '@/lib/types'
 import { STATUS_CONFIG, PRIORITY_CONFIG, getMonthWeeks, getWeekDays } from '@/lib/types'
 import { getPlanItems, createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
@@ -59,19 +59,64 @@ function getChildPeriods(level: PlanLevel, periodKey: string): { level: PlanLeve
   return []
 }
 
+// ── Today auto-expand keys ──────────────────────────
+
+function getTodayKeys(year: number): { expandKeys: Set<string>; todayKey: string } {
+  const now = new Date()
+  const y = now.getFullYear()
+  if (y !== year) return { expandKeys: new Set(), todayKey: '' }
+
+  const m = now.getMonth() + 1
+  const d = now.getDate()
+  const q = Math.ceil(m / 3)
+
+  const quarterKey = `${y}-Q${q}`
+  const monthKey = `${y}-${String(m).padStart(2, '0')}`
+  const dayKey = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+
+  // 오늘이 속한 주 찾기
+  let todayWeekKey = ''
+  try {
+    const weekKeys = getMonthWeeks(y, m)
+    for (const wk of weekKeys) {
+      const [wy, ww] = wk.split('-W')
+      const days = getWeekDays(parseInt(wy), parseInt(ww))
+      if (days.includes(dayKey)) { todayWeekKey = wk; break }
+    }
+  } catch { /* ignore */ }
+
+  const expandKeys = new Set([quarterKey, monthKey])
+  if (todayWeekKey) expandKeys.add(todayWeekKey)
+
+  return { expandKeys, todayKey: dayKey }
+}
+
 // ── Main ────────────────────────────────────────────
 
 export function FlowTreeView({ year, annualItems, itemsByQuarter, searchQuery, filterStatus, onTopLevelChanged }: FlowTreeViewProps) {
   const [copiedItem, setCopiedItem] = useState<PlanItem | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const { expandKeys, todayKey } = getTodayKeys(year)
+
+  // 오늘 섹션으로 자동 스크롤
+  useEffect(() => {
+    if (!todayKey) return
+    const timer = setTimeout(() => {
+      const el = scrollRef.current?.querySelector('[data-today="true"]')
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 600) // 레이지 로딩 완료 후 스크롤
+    return () => clearTimeout(timer)
+  }, [todayKey])
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', padding: '12px 16px 80px', position: 'relative' }}>
+    <div ref={scrollRef} style={{ height: '100%', overflowY: 'auto', padding: '12px 16px 80px', position: 'relative' }}>
       <SectionNode
         key={`${year}-annual`} level="annual" periodKey={`${year}`}
         label={`${year}년 연간계획`} depth={0} initialItems={annualItems}
         searchQuery={searchQuery} filterStatus={filterStatus}
         onTopLevelChanged={onTopLevelChanged}
         copiedItem={copiedItem} onCopy={setCopiedItem}
+        autoExpandKeys={expandKeys} todayKey={todayKey}
       />
       {['Q1', 'Q2', 'Q3', 'Q4'].map((q, i) => {
         const key = `${year}-${q}`
@@ -82,6 +127,7 @@ export function FlowTreeView({ year, annualItems, itemsByQuarter, searchQuery, f
             searchQuery={searchQuery} filterStatus={filterStatus}
             onTopLevelChanged={onTopLevelChanged}
             copiedItem={copiedItem} onCopy={setCopiedItem}
+            autoExpandKeys={expandKeys} todayKey={todayKey}
           />
         )
       })}
@@ -121,10 +167,12 @@ interface SectionNodeProps {
   initialItems?: PlanItem[]; searchQuery: string; filterStatus: string | null
   onTopLevelChanged: () => void
   copiedItem: PlanItem | null; onCopy: (item: PlanItem | null) => void
+  autoExpandKeys: Set<string>; todayKey: string
 }
 
-function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery, filterStatus, onTopLevelChanged, copiedItem, onCopy }: SectionNodeProps) {
-  const [expanded, setExpanded] = useState(depth === 0)
+function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery, filterStatus, onTopLevelChanged, copiedItem, onCopy, autoExpandKeys, todayKey }: SectionNodeProps) {
+  const [expanded, setExpanded] = useState(depth === 0 || autoExpandKeys.has(periodKey))
+  const isToday = level === 'daily' && periodKey === todayKey
   const [items, setItems] = useState<PlanItem[]>(initialItems ?? [])
   const [loaded, setLoaded] = useState(!!initialItems)
   const [loading, setLoading] = useState(false)
@@ -180,23 +228,28 @@ function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery
   }
 
   return (
-    <div style={{ marginBottom: isTop ? 12 : depth === 1 ? 6 : 3 }}>
+    <div style={{ marginBottom: isTop ? 12 : depth === 1 ? 6 : 3 }} data-today={isToday ? 'true' : undefined}>
       {/* Header */}
       <div onClick={() => setExpanded(e => !e)}
         style={{
           display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none',
           padding: isTop ? '9px 14px' : depth === 1 ? '6px 10px' : '4px 8px',
           borderRadius: isTop ? 10 : 6,
-          backgroundColor: isTop ? st.hBg : 'transparent',
-          color: isTop ? st.hColor : st.hBg,
-          borderLeft: !isTop ? `3px solid ${st.leftBorder}` : 'none',
+          backgroundColor: isToday ? '#fef3c7' : (isTop ? st.hBg : 'transparent'),
+          color: isToday ? '#92400e' : (isTop ? st.hColor : st.hBg),
+          borderLeft: !isTop ? `3px solid ${isToday ? '#f59e0b' : st.leftBorder}` : 'none',
+          border: isToday ? '2px solid #f59e0b' : 'none',
           transition: 'background-color 0.1s',
+          boxShadow: isToday ? '0 0 12px rgba(245,158,11,0.25)' : 'none',
         }}
-        onMouseEnter={e => { if (!isTop) e.currentTarget.style.backgroundColor = '#f3f4f6' }}
-        onMouseLeave={e => { if (!isTop) e.currentTarget.style.backgroundColor = 'transparent' }}
+        onMouseEnter={e => { if (!isTop && !isToday) e.currentTarget.style.backgroundColor = '#f3f4f6' }}
+        onMouseLeave={e => { if (!isTop && !isToday) e.currentTarget.style.backgroundColor = 'transparent' }}
       >
         {expanded ? <ChevronDown size={isTop ? 15 : 13} style={{ flexShrink: 0 }} /> : <ChevronRight size={isTop ? 15 : 13} style={{ flexShrink: 0 }} />}
-        <span style={{ fontWeight: isTop ? 700 : 600, fontSize: isTop ? 13 : depth === 1 ? 12 : 11, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+        <span style={{ fontWeight: isTop ? 700 : 600, fontSize: isTop ? 13 : depth === 1 ? 12 : 11, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {label}
+          {isToday && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, backgroundColor: '#f59e0b', color: '#fff', padding: '1px 6px', borderRadius: 8 }}>오늘</span>}
+        </span>
         {loaded && <span style={{ fontSize: 10, opacity: 0.6, flexShrink: 0 }}>{items.length}개</span>}
         {selCount > 0 && (
           <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 8, backgroundColor: isTop ? 'rgba(255,255,255,0.2)' : '#dbeafe', color: isTop ? '#fff' : '#1d4ed8', flexShrink: 0 }}>
@@ -259,7 +312,8 @@ function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery
               {childPeriods.map(child => (
                 <SectionNode key={child.periodKey} level={child.level} periodKey={child.periodKey} label={child.label}
                   depth={depth + 1} searchQuery={searchQuery} filterStatus={filterStatus}
-                  onTopLevelChanged={onTopLevelChanged} copiedItem={copiedItem} onCopy={onCopy} />
+                  onTopLevelChanged={onTopLevelChanged} copiedItem={copiedItem} onCopy={onCopy}
+                  autoExpandKeys={autoExpandKeys} todayKey={todayKey} />
               ))}
             </div>
           )}
@@ -283,12 +337,16 @@ function actionBtn(isTop: boolean, active: boolean, isDel: boolean): React.CSSPr
 
 // ── Annual Dashboard Card ───────────────────────────
 
-const FLOW_STEPS = [
-  { key: 'pending', label: '계획', color: '#9ca3af' },
-  { key: 'in_progress', label: '진행', color: '#3b82f6' },
-  { key: 'on_hold', label: '검토', color: '#f97316' },
-  { key: 'completed', label: '완료', color: '#22c55e' },
-]
+const DEFAULT_FLOW_STEPS = ['계획 수립', '진행 중', '검토', '완료']
+const STEP_COLORS = ['#9ca3af', '#3b82f6', '#f97316', '#22c55e', '#8b5cf6', '#ec4899', '#14b8a6', '#ef4444']
+
+// categories 필드에 플로우 단계를 저장 (JSON 배열)
+function parseFlowSteps(item: PlanItem): { labels: string[]; currentIdx: number } {
+  const labels = item.categories && item.categories.length > 0 ? item.categories : DEFAULT_FLOW_STEPS
+  const progress = PROGRESS[item.status] ?? 0
+  const currentIdx = Math.min(Math.round((progress / 100) * (labels.length - 1)), labels.length - 1)
+  return { labels, currentIdx }
+}
 
 function AnnualItemCard({ item, isSelected, onSelect, onUpdated, onDeleted, onCopy }: {
   item: PlanItem; isSelected: boolean
@@ -306,7 +364,9 @@ function AnnualItemCard({ item, isSelected, onSelect, onUpdated, onDeleted, onCo
 
   const dot = STATUS_DOT[item.status] ?? '#9ca3af'
   const progress = PROGRESS[item.status] ?? 0
-  const stepIdx = FLOW_STEPS.findIndex(s => s.key === item.status)
+  const { labels: flowLabels, currentIdx: stepIdx } = parseFlowSteps(item)
+  const [editingFlow, setEditingFlow] = useState(false)
+  const [flowDraft, setFlowDraft] = useState<string[]>(flowLabels)
 
   const handleSave = async () => {
     if (!title.trim()) return
@@ -390,9 +450,9 @@ function AnnualItemCard({ item, isSelected, onSelect, onUpdated, onDeleted, onCo
 
       {/* 대시보드 */}
       {showDash && (
-        <div style={{ padding: '14px', borderTop: '1px solid #e5e7eb', animation: 'flowFadeIn 0.15s ease' }}>
+        <div style={{ padding: '16px 18px', borderTop: '1px solid #e5e7eb', animation: 'flowFadeIn 0.15s ease' }}>
           {/* 진행률 바 */}
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>진행률</span>
               <span style={{ fontSize: 12, fontWeight: 700, color: dot }}>{progress}%</span>
@@ -402,37 +462,77 @@ function AnnualItemCard({ item, isSelected, onSelect, onUpdated, onDeleted, onCo
             </div>
           </div>
 
-          {/* 플랜 플로우 */}
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 8 }}>플랜 플로우</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-              {FLOW_STEPS.map((step, idx) => {
-                const reached = idx <= stepIdx
-                const isCurrent = idx === stepIdx
-                return (
-                  <div key={step.key} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, position: 'relative', zIndex: 1 }}>
-                      <div style={{
-                        width: isCurrent ? 28 : 20, height: isCurrent ? 28 : 20, borderRadius: '50%',
-                        backgroundColor: reached ? step.color : '#e5e7eb',
-                        border: isCurrent ? `3px solid ${step.color}40` : 'none',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        transition: 'all 0.3s', boxShadow: isCurrent ? `0 0 12px ${step.color}40` : 'none',
-                      }}>
-                        {reached && <Check size={isCurrent ? 14 : 10} color="#fff" strokeWidth={3} />}
-                      </div>
-                      <span style={{ fontSize: 9, fontWeight: isCurrent ? 700 : 400, color: reached ? step.color : '#9ca3af' }}>{step.label}</span>
-                    </div>
-                    {idx < FLOW_STEPS.length - 1 && (
-                      <div style={{ flex: 1, height: 3, backgroundColor: idx < stepIdx ? FLOW_STEPS[idx + 1].color : '#e5e7eb', borderRadius: 2, marginTop: -16, transition: 'background-color 0.3s' }} />
+          {/* 플랜 플로우 (편집 가능) */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>플랜 플로우</span>
+              <button onClick={() => { if (editingFlow) { setEditingFlow(false) } else { setFlowDraft([...flowLabels]); setEditingFlow(true) } }}
+                style={{ padding: '2px 7px', borderRadius: 4, border: '1px solid #e5e7eb', background: editingFlow ? '#eff6ff' : '#fff', fontSize: 9, color: editingFlow ? '#1d4ed8' : '#6b7280', cursor: 'pointer', fontWeight: editingFlow ? 600 : 400 }}>
+                {editingFlow ? '완료' : '단계 편집'}
+              </button>
+            </div>
+
+            {/* 편집 모드 */}
+            {editingFlow ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 12px', borderRadius: 8, backgroundColor: '#f8fafc', border: '1px solid #e5e7eb' }}>
+                {flowDraft.map((label, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: STEP_COLORS[idx % STEP_COLORS.length], flexShrink: 0 }} />
+                    <input value={label} onChange={e => { const n = [...flowDraft]; n[idx] = e.target.value; setFlowDraft(n) }}
+                      style={{ flex: 1, padding: '4px 6px', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 11, outline: 'none' }} />
+                    {flowDraft.length > 2 && (
+                      <button onClick={() => setFlowDraft(p => p.filter((_, i) => i !== idx))}
+                        style={{ padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444', fontSize: 12, fontWeight: 700 }}>×</button>
                     )}
                   </div>
-                )
-              })}
-            </div>
+                ))}
+                <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                  <button onClick={() => setFlowDraft(p => [...p, `단계 ${p.length + 1}`])}
+                    style={{ padding: '3px 8px', borderRadius: 4, border: '1px dashed #bfdbfe', background: '#eff6ff', fontSize: 10, color: '#1d4ed8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <Plus size={10} /> 단계 추가
+                  </button>
+                  <button onClick={async () => {
+                    const filtered = flowDraft.filter(l => l.trim())
+                    if (filtered.length < 2) return
+                    try { const u = await updatePlanItem(item.id, { categories: filtered }); onUpdated(u); setEditingFlow(false) } catch {}
+                  }}
+                    style={{ padding: '3px 10px', borderRadius: 4, border: 'none', background: '#3b82f6', color: '#fff', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                    저장
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* 플로우 시각화 */
+              <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                {flowLabels.map((label, idx) => {
+                  const reached = idx <= stepIdx
+                  const isCurrent = idx === stepIdx
+                  const color = STEP_COLORS[idx % STEP_COLORS.length]
+                  return (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, position: 'relative', zIndex: 1 }}>
+                        <div style={{
+                          width: isCurrent ? 28 : 20, height: isCurrent ? 28 : 20, borderRadius: '50%',
+                          backgroundColor: reached ? color : '#e5e7eb',
+                          border: isCurrent ? `3px solid ${color}40` : 'none',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          transition: 'all 0.3s', boxShadow: isCurrent ? `0 0 12px ${color}40` : 'none',
+                        }}>
+                          {reached && <Check size={isCurrent ? 14 : 10} color="#fff" strokeWidth={3} />}
+                        </div>
+                        <span style={{ fontSize: 9, fontWeight: isCurrent ? 700 : 400, color: reached ? color : '#9ca3af', textAlign: 'center', maxWidth: 56, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                      </div>
+                      {idx < flowLabels.length - 1 && (
+                        <div style={{ flex: 1, height: 3, backgroundColor: idx < stepIdx ? STEP_COLORS[(idx + 1) % STEP_COLORS.length] : '#e5e7eb', borderRadius: 2, marginTop: -16, transition: 'background-color 0.3s' }} />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
-          {/* 진행 메모 */}
+          {/* 진행 메모 (넓은 영역) */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>진행 메모</span>
@@ -442,12 +542,12 @@ function AnnualItemCard({ item, isSelected, onSelect, onUpdated, onDeleted, onCo
               value={desc}
               onChange={e => setDesc(e.target.value)}
               onBlur={handleSaveDesc}
-              placeholder="계획 진행 상황을 기록하세요..."
+              placeholder="계획 진행 상황, 주요 성과, 다음 단계 등을 자유롭게 기록하세요..."
               style={{
-                width: '100%', minHeight: 60, padding: '8px 10px', borderRadius: 8,
-                border: '1.5px solid #e5e7eb', fontSize: 12, lineHeight: 1.5,
+                width: '100%', minHeight: 120, padding: '12px 14px', borderRadius: 10,
+                border: '1.5px solid #e5e7eb', fontSize: 13, lineHeight: 1.7,
                 outline: 'none', resize: 'vertical', boxSizing: 'border-box',
-                fontFamily: 'inherit',
+                fontFamily: 'inherit', backgroundColor: '#fafbfc',
               }}
             />
           </div>
