@@ -239,39 +239,82 @@ export function FlowNode({
         <div
           style={{
             position: 'absolute',
-            right: -14,
-            top: height / 2 - 14,
-            width: 28,
-            height: 28,
+            right: -18,
+            top: height / 2 - 16,
+            width: 32,
+            height: 32,
             borderRadius: '50%',
-            backgroundColor: isExpanded ? '#3b82f6' : '#ffffff',
-            border: `2px solid ${isExpanded ? '#3b82f6' : '#d1d5db'}`,
+            backgroundColor: isLoading
+              ? '#f3f4f6'
+              : isExpanded
+              ? '#3b82f6'
+              : '#ffffff',
+            border: `2px solid ${
+              isLoading ? '#d1d5db' : isExpanded ? '#3b82f6' : '#9ca3af'
+            }`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
             zIndex: 10,
-            boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
             transition: 'all 0.15s',
           }}
           onClick={(e) => {
             e.stopPropagation()
             onToggleExpand(e)
           }}
+          title={isExpanded ? '접기' : '하위 계획 펼치기'}
         >
           {isLoading ? (
             <Loader2
-              size={12}
-              color={isExpanded ? '#fff' : '#6b7280'}
+              size={14}
+              color="#6b7280"
               style={{ animation: 'spin 1s linear infinite' }}
             />
-          ) : childCount !== undefined && childCount === 0 && !isExpanded ? (
-            <Plus size={12} color="#6b7280" />
           ) : isExpanded ? (
-            <ChevronDown size={12} color="#fff" />
+            <ChevronDown size={14} color="#fff" />
           ) : (
-            <ChevronRight size={12} color="#6b7280" />
+            <ChevronRight size={14} color="#374151" />
           )}
+        </div>
+      )}
+
+      {/* 로딩 중 텍스트 */}
+      {isLoading && (
+        <div
+          style={{
+            position: 'absolute',
+            right: -80,
+            top: height / 2 - 9,
+            fontSize: 10,
+            color: '#6b7280',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none',
+          }}
+        >
+          불러오는 중…
+        </div>
+      )}
+
+      {/* 하위 계획 없음 표시 */}
+      {!isLeaf && isExpanded && childCount === 0 && !isLoading && (
+        <div
+          style={{
+            position: 'absolute',
+            right: -110,
+            top: height / 2 - 12,
+            fontSize: 10,
+            color: '#9ca3af',
+            backgroundColor: '#f9fafb',
+            border: '1px dashed #d1d5db',
+            borderRadius: 6,
+            padding: '3px 8px',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none',
+          }}
+        >
+          하위 계획 없음
         </div>
       )}
 

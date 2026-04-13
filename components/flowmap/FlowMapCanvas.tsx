@@ -236,6 +236,10 @@ export function FlowMapCanvas({
                 onSelect={(e) => {
                   e.stopPropagation()
                   onSelectNode(item, level)
+                  // 카드 클릭 시 하위 계획도 함께 펼치기 (일일 제외)
+                  if (level !== 'daily') {
+                    onToggleExpand(item, level)
+                  }
                 }}
               />
             </div>
