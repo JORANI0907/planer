@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { PlanItem, PlanLevel } from '@/lib/types'
 import { getCurrentYear } from '@/lib/types'
-import { getPlanItems, getMappingsForParent } from '@/lib/api'
+import { getPlanItems, getAllPlanItems, getMappingsForParent } from '@/lib/api'
 import { NEXT_LEVEL, calculateLayout, isTodayPeriod } from '@/lib/flowmap-layout'
 import { FlowMapCanvas } from '@/components/flowmap/FlowMapCanvas'
 import { FlowMapToolbar } from '@/components/flowmap/FlowMapToolbar'
@@ -33,9 +33,13 @@ export default function FlowMapPage() {
     setExpandedIds(new Set())
     setSelectedItem(null)
 
-    getPlanItems('annual', String(year))
+    // getAllPlanItems로 전체 조회 후 해당 연도만 필터링 (period_key 포맷 차이 대응)
+    getAllPlanItems('annual')
       .then((items) => {
-        setAnnualItems(items)
+        const filtered = items.filter(
+          (item) => item.period_key === String(year) || item.period_key.startsWith(String(year))
+        )
+        setAnnualItems(filtered)
       })
       .catch(() => {})
       .finally(() => setLoadingInitial(false))
@@ -181,13 +185,12 @@ export default function FlowMapPage() {
   const isSelectedExpanded = selectedItem ? expandedIds.has(selectedItem.id) : false
 
   return (
+    // fixed로 main의 padding을 벗어나 전체 화면 사용
+    // 데스크탑: 사이드바 너비(256px) 만큼 왼쪽 여백
+    // 모바일: 하단 BottomNav(56px) 만큼 여백
     <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100dvh',
-        overflow: 'hidden',
-      }}
+      className="fixed inset-0 z-[5] flex flex-col md:pl-64 pb-14 md:pb-0"
+      style={{ backgroundColor: '#f8fafc' }}
     >
       {/* Toolbar */}
       <FlowMapToolbar
