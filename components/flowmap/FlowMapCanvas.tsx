@@ -271,7 +271,7 @@ export function FlowMapCanvas({
   )
 }
 
-// Build flat list of all visible items with their levels
+// Build flat list — 실제 item.level 사용 (분기 폴백 대응)
 function buildFlatList(
   annualItems: PlanItem[],
   childrenByParentId: Map<string, PlanItem[]>,
@@ -279,20 +279,18 @@ function buildFlatList(
 ): { item: PlanItem; level: PlanLevel }[] {
   const result: { item: PlanItem; level: PlanLevel }[] = []
 
-  function traverse(items: PlanItem[], level: PlanLevel) {
+  function traverse(items: PlanItem[]) {
     for (const item of items) {
+      const level = item.level as PlanLevel
       result.push({ item, level })
       if (expandedIds.has(item.id)) {
-        const nextLevel = NEXT_LEVEL[level]
-        if (nextLevel) {
-          const children = childrenByParentId.get(item.id) ?? []
-          traverse(children, nextLevel)
-        }
+        const children = childrenByParentId.get(item.id) ?? []
+        traverse(children)
       }
     }
   }
 
-  traverse(annualItems, 'annual')
+  traverse(annualItems)
   return result
 }
 
@@ -303,19 +301,16 @@ function getVisibleLevels(
 ): PlanLevel[] {
   const visible = new Set<PlanLevel>(['annual'])
 
-  function traverse(items: PlanItem[], level: PlanLevel) {
+  function traverse(items: PlanItem[]) {
     for (const item of items) {
+      visible.add(item.level as PlanLevel)
       if (expandedIds.has(item.id)) {
-        const nextLevel = NEXT_LEVEL[level]
-        if (nextLevel) {
-          visible.add(nextLevel)
-          const children = childrenByParentId.get(item.id) ?? []
-          traverse(children, nextLevel)
-        }
+        const children = childrenByParentId.get(item.id) ?? []
+        traverse(children)
       }
     }
   }
 
-  traverse(annualItems, 'annual')
+  traverse(annualItems)
   return LEVELS.filter((l) => visible.has(l))
 }

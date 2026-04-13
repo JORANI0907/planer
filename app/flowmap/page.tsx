@@ -45,23 +45,49 @@ export default function FlowMapPage() {
       .finally(() => setLoadingInitial(false))
   }, [year])
 
-  // Load children for a node — 시간 계층 기반 (매핑 테이블 불필요)
+  // Load children — 분기 없으면 월간으로 자동 폴백
   const loadChildren = useCallback(
     async (item: PlanItem, level: PlanLevel) => {
-      const nextLevel = NEXT_LEVEL[level]
-      if (!nextLevel) return
-
+      if (!NEXT_LEVEL[level]) return
       if (childrenByParentId.has(item.id)) return
 
       setLoadingIds((prev) => new Set([...prev, item.id]))
 
       try {
-        const childKeys = getChildPeriodKeys(item.period_key, level)
-        const childArrays = await Promise.all(
-          childKeys.map((pk) => getPlanItems(nextLevel, pk))
-        )
-        // 계획이 있는 기간만 표시
-        const allChildren = childArrays.flat()
+        let allChildren: PlanItem[] = []
+
+        if (level === 'annual') {
+          // 1순위: 분기 (Q1~Q4)
+          const quarterKeys = [1, 2, 3, 4].map((q) => `${item.period_key}-Q${q}`)
+          const qArrays = await Promise.all(quarterKeys.map((k) => getPlanItems('quarterly', k)))
+          allChildren = qArrays.flat()
+
+          // 분기 없으면 2순위: 월간 (1~12월)
+          if (allChildren.length === 0) {
+            const year = parseInt(item.period_key)
+            const monthKeys = Array.from({ length: 12 }, (_, i) =>
+              `${year}-${String(i + 1).padStart(2, '0')}`
+            )
+            const mArrays = await Promise.all(monthKeys.map((k) => getPlanItems('monthly', k)))
+            allChildren = mArrays.flat()
+          }
+
+          // 월간도 없으면 3순위: 주간 전체 조회
+          if (allChildren.length === 0) {
+            const year = parseInt(item.period_key)
+            const weekKeys = Array.from({ length: 52 }, (_, i) =>
+              `${year}-W${String(i + 1).padStart(2, '0')}`
+            )
+            const wArrays = await Promise.all(weekKeys.map((k) => getPlanItems('weekly', k)))
+            allChildren = wArrays.flat()
+          }
+        } else {
+          // quarterly/monthly/weekly는 기존 시간 계층 유지
+          const nextLevel = NEXT_LEVEL[level]!
+          const childKeys = getChildPeriodKeys(item.period_key, level)
+          const arrays = await Promise.all(childKeys.map((pk) => getPlanItems(nextLevel, pk)))
+          allChildren = arrays.flat()
+        }
 
         setChildrenByParentId((prev) => new Map([...prev, [item.id, allChildren]]))
       } catch {

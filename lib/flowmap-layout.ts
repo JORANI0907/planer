@@ -82,8 +82,7 @@ function layoutNode(
 
   positions.set(node.id, { x, y: startY, width, height })
 
-  const nextLevel = NEXT_LEVEL[level]
-  if (!nextLevel || !expandedIds.has(node.id)) {
+  if (!expandedIds.has(node.id)) {
     return startY + height + ROW_GAP
   }
 
@@ -92,9 +91,12 @@ function layoutNode(
     return startY + height + ROW_GAP
   }
 
+  // 실제 자식 아이템의 level 필드를 사용 (분기 폴백 시 monthly가 될 수 있음)
+  const childLevel = children[0].level as PlanLevel
+
   let childY = startY
   for (const child of children) {
-    childY = layoutNode(child, nextLevel, childY, childrenByParentId, expandedIds, positions)
+    childY = layoutNode(child, childLevel, childY, childrenByParentId, expandedIds, positions)
   }
 
   return Math.max(startY + height + ROW_GAP, childY)
