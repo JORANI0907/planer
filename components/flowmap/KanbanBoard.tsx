@@ -3,7 +3,7 @@
 import { useRef, useState, useCallback } from 'react'
 import type { PlanItem } from '@/lib/types'
 import { PlanCard } from './PlanCard'
-import { ChevronDown, ChevronRight, Plus } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Pencil, Loader2 } from 'lucide-react'
 
 const QUARTER_CONFIG: Record<string, {
   label: string; months: string
@@ -23,13 +23,14 @@ interface KanbanBoardProps {
   onCardClick: (item: PlanItem) => void
   onAddItem: (quarterKey: string) => void
   onMoveItem: (item: PlanItem, targetKey: string) => void
+  onEditItem: (item: PlanItem) => void
+  onDeleteItems: (ids: string[]) => void
 }
 
 export function KanbanBoard({
   year, itemsByQuarter, searchQuery, filterStatus,
-  onCardClick, onAddItem, onMoveItem,
+  onCardClick, onAddItem, onMoveItem, onEditItem, onDeleteItems,
 }: KanbanBoardProps) {
-  // 현재 드래그 중인 아이템을 ref로 관리 (리렌더 없이 안전하게 유지)
   const draggingItem = useRef<PlanItem | null>(null)
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
@@ -42,7 +43,6 @@ export function KanbanBoard({
   }, [])
 
   const handleDragEnd = useCallback(() => {
-    // 드래그가 어디서 끝나든 상태 초기화
     draggingItem.current = null
     setDraggingId(null)
     setDragOverKey(null)
@@ -50,9 +50,7 @@ export function KanbanBoard({
 
   const handleDrop = useCallback((targetKey: string) => {
     const item = draggingItem.current
-    if (item) {
-      onMoveItem(item, targetKey)
-    }
+    if (item) onMoveItem(item, targetKey)
     draggingItem.current = null
     setDraggingId(null)
     setDragOverKey(null)
@@ -62,7 +60,6 @@ export function KanbanBoard({
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* Board header */}
       <div style={{
         padding: '8px 20px', borderBottom: '1px solid #e5e7eb', backgroundColor: '#fff',
         display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0,
@@ -74,7 +71,6 @@ export function KanbanBoard({
         </span>
       </div>
 
-      {/* Columns */}
       <div style={{
         flex: 1, display: 'flex', overflowX: 'auto', overflowY: 'hidden',
         padding: '20px', gap: 16, alignItems: 'flex-start',
@@ -95,7 +91,6 @@ export function KanbanBoard({
           <div style={{ width: '100%', height: 2, backgroundColor: '#e2e8f0', borderRadius: 1, marginTop: 8 }} />
         </div>
 
-        {/* Quarter columns */}
         {quarterKeys.map(key => {
           const q = key.split('-')[1]
           const cfg = QUARTER_CONFIG[q]
@@ -119,14 +114,13 @@ export function KanbanBoard({
               dimmed={dimmed}
               onCardClick={onCardClick}
               onAddItem={() => onAddItem(key)}
+              onEditItem={onEditItem}
+              onDeleteItems={onDeleteItems}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
               onDragEnter={() => setDragOverKey(key)}
               onDragLeave={(e) => {
-                // 자식 요소로 진입 시 오발동 방지: 컬럼 바깥으로 나갈 때만 해제
-                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                  setDragOverKey(null)
-                }
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverKey(null)
               }}
               onDrop={() => handleDrop(key)}
             />
@@ -139,6 +133,65 @@ export function KanbanBoard({
   )
 }
 
+// ── 삭제 확인 다이얼로그 ─────────────────────────────────────────
+interface DeleteConfirmProps {
+  count: number
+  deleting: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}
+function DeleteConfirm({ count, deleting, onConfirm, onCancel }: DeleteConfirmProps) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 80, backgroundColor: 'rgba(0,0,0,0.45)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+    }}>
+      <div style={{
+        backgroundColor: '#fff', borderRadius: 14, padding: '24px 28px',
+        boxShadow: '0 16px 48px rgba(0,0,0,0.2)', maxWidth: 300, width: '100%', textAlign: 'center',
+      }}>
+        <div style={{ fontSize: 30, marginBottom: 10 }}>🗑️</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 6 }}>계획 삭제</div>
+        <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 20 }}>
+          <strong style={{ color: '#ef4444' }}>{count}개</strong> 계획을 삭제하시겠습니까?<br />
+          <span style={{ fontSize: 11 }}>이 작업은 되돌릴 수 없습니다.</span>
+        </div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+          <button onClick={onCancel}
+            style={{ padding: '9px 18px', borderRadius: 8, border: '1.5px solid #e5e7eb', background: '#fff', fontSize: 13, color: '#374151', cursor: 'pointer', fontWeight: 500 }}>
+            취소
+          </button>
+          <button onClick={onConfirm} disabled={deleting}
+            style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: '#ef4444', color: '#fff', fontSize: 13, fontWeight: 700, cursor: deleting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: deleting ? 0.7 : 1 }}>
+            {deleting && <Loader2 size={13} style={{ animation: 'kbSpin 1s linear infinite' }} />}
+            삭제
+          </button>
+        </div>
+      </div>
+      <style>{`@keyframes kbSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </div>
+  )
+}
+
+// ── 체크박스 ──────────────────────────────────────────────────────
+function Checkbox({ checked, onChange }: { checked: boolean; onChange: () => void }) {
+  return (
+    <div
+      onClick={e => { e.stopPropagation(); onChange() }}
+      style={{
+        width: 15, height: 15, borderRadius: 4, flexShrink: 0, marginTop: 4,
+        border: `2px solid ${checked ? '#3b82f6' : 'rgba(255,255,255,0.5)'}`,
+        backgroundColor: checked ? '#3b82f6' : 'transparent',
+        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        transition: 'all 0.12s', userSelect: 'none',
+      }}
+    >
+      {checked && <span style={{ color: '#fff', fontSize: 8, lineHeight: 1, fontWeight: 900 }}>✓</span>}
+    </div>
+  )
+}
+
+// ── 분기 컬럼 ─────────────────────────────────────────────────────
 interface QuarterColumnProps {
   quarterKey: string
   config: typeof QUARTER_CONFIG[string]
@@ -149,6 +202,8 @@ interface QuarterColumnProps {
   dimmed: boolean
   onCardClick: (item: PlanItem) => void
   onAddItem: () => void
+  onEditItem: (item: PlanItem) => void
+  onDeleteItems: (ids: string[]) => void
   onDragStart: (item: PlanItem) => void
   onDragEnd: () => void
   onDragEnter: () => void
@@ -158,99 +213,172 @@ interface QuarterColumnProps {
 
 function QuarterColumn({
   config, items, allCount, isDragOver, draggingId, dimmed,
-  onCardClick, onAddItem, onDragStart, onDragEnd,
-  onDragEnter, onDragLeave, onDrop,
+  onCardClick, onAddItem, onEditItem, onDeleteItems,
+  onDragStart, onDragEnd, onDragEnter, onDragLeave, onDrop,
 }: QuarterColumnProps) {
   const [collapsed, setCollapsed] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const handleToggle = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const handleDeleteConfirmed = async () => {
+    setDeleting(true)
+    const ids = [...selectedIds]
+    setSelectedIds(new Set())
+    setShowDeleteConfirm(false)
+    setDeleting(false)
+    onDeleteItems(ids)
+  }
+
+  const selCount = selectedIds.size
 
   return (
-    <div
-      style={{
-        width: 250,
-        flexShrink: 0,
-        borderRadius: 14,
-        border: `2px solid ${isDragOver ? config.headerBg : config.colBorder}`,
-        backgroundColor: isDragOver ? config.dragBg : config.colBg,
-        transition: 'border-color 0.12s, background-color 0.12s',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        opacity: dimmed ? 0.35 : 1,
-        // 드래그 오버 시 살짝 스케일업
-        transform: isDragOver ? 'scale(1.01)' : 'scale(1)',
-      }}
-      onDragEnter={e => { e.preventDefault(); onDragEnter() }}
-      onDragOver={e => { e.preventDefault() }} // drop 허용에 필수
-      onDragLeave={onDragLeave}
-      onDrop={e => { e.preventDefault(); onDrop() }}
-    >
-      {/* Header */}
-      <div style={{ padding: '12px 14px', backgroundColor: config.headerBg, display: 'flex', alignItems: 'center', gap: 8 }}>
-        <button
-          onClick={() => setCollapsed(c => !c)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#fff', display: 'flex' }}
-        >
-          {collapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-        </button>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{config.label}</div>
-          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, marginTop: 1 }}>{config.months}</div>
+    <>
+      <div
+        style={{
+          width: 260, flexShrink: 0, borderRadius: 14,
+          border: `2px solid ${isDragOver ? config.headerBg : config.colBorder}`,
+          backgroundColor: isDragOver ? config.dragBg : config.colBg,
+          transition: 'border-color 0.12s, background-color 0.12s',
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          opacity: dimmed ? 0.35 : 1,
+          transform: isDragOver ? 'scale(1.01)' : 'scale(1)',
+        }}
+        onDragEnter={e => { e.preventDefault(); onDragEnter() }}
+        onDragOver={e => { e.preventDefault() }}
+        onDragLeave={onDragLeave}
+        onDrop={e => { e.preventDefault(); onDrop() }}
+      >
+        {/* Header */}
+        <div style={{ padding: '10px 12px', backgroundColor: config.headerBg, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button
+            onClick={() => setCollapsed(c => !c)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#fff', display: 'flex', flexShrink: 0 }}
+          >
+            {collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>{config.label}</div>
+            <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 10, marginTop: 1 }}>{config.months}</div>
+          </div>
+
+          {/* 선택 카운트 */}
+          {selCount > 0 && (
+            <span style={{ fontSize: 10, color: '#fff', backgroundColor: 'rgba(0,0,0,0.25)', borderRadius: 10, padding: '1px 6px', fontWeight: 600 }}>
+              {selCount}선택
+            </span>
+          )}
+
+          {/* 전체 카운트 */}
+          <span style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: '#fff', borderRadius: 20, padding: '2px 7px', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+            {allCount}
+          </span>
+
+          {/* − 버튼 */}
+          <button
+            onClick={() => selCount > 0 && setShowDeleteConfirm(true)}
+            title={selCount > 0 ? `${selCount}개 삭제` : '항목을 선택하세요'}
+            style={{
+              width: 22, height: 22, borderRadius: 5, flexShrink: 0,
+              border: `1.5px solid ${selCount > 0 ? 'rgba(255,100,100,0.7)' : 'rgba(255,255,255,0.25)'}`,
+              background: selCount > 0 ? 'rgba(255,80,80,0.2)' : 'transparent',
+              color: selCount > 0 ? '#fca5a5' : 'rgba(255,255,255,0.4)',
+              cursor: selCount > 0 ? 'pointer' : 'default',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 16, fontWeight: 700, lineHeight: 1, transition: 'all 0.12s',
+            }}
+          >−</button>
+
+          {/* + 버튼 */}
+          <button
+            onClick={onAddItem}
+            title="계획 추가"
+            style={{
+              width: 22, height: 22, borderRadius: 5, flexShrink: 0,
+              border: '1.5px solid rgba(255,255,255,0.35)', background: 'rgba(255,255,255,0.15)',
+              color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <Plus size={13} />
+          </button>
         </div>
-        <span style={{
-          backgroundColor: 'rgba(255,255,255,0.2)', color: '#fff',
-          borderRadius: 20, padding: '2px 8px', fontSize: 12, fontWeight: 700, flexShrink: 0,
-        }}>
-          {allCount}
-        </span>
-        <button
-          onClick={onAddItem}
-          title="계획 추가"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'rgba(255,255,255,0.8)', display: 'flex', flexShrink: 0 }}
-        >
-          <Plus size={14} />
-        </button>
+
+        {/* Cards area */}
+        {!collapsed ? (
+          <div style={{
+            padding: 10, display: 'flex', flexDirection: 'column', gap: 7,
+            maxHeight: 'calc(100vh - 220px)', overflowY: 'auto', minHeight: 80,
+          }}>
+            {items.length === 0 ? (
+              <div style={{
+                textAlign: 'center', color: isDragOver ? config.headerBg : '#9ca3af',
+                fontSize: 12, padding: '24px 8px',
+                border: `1.5px dashed ${isDragOver ? config.headerBg : '#d1d5db'}`,
+                borderRadius: 8, transition: 'all 0.12s',
+              }}>
+                {isDragOver ? '여기에 놓기 ↓' : '계획 없음'}
+              </div>
+            ) : (
+              items.map(item => {
+                const isSelected = selectedIds.has(item.id)
+                return (
+                  <div key={item.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                    <Checkbox checked={isSelected} onChange={() => handleToggle(item.id)} />
+                    <div style={{ flex: 1, position: 'relative' }}>
+                      <PlanCard
+                        item={item}
+                        onDragStart={onDragStart}
+                        onDragEnd={onDragEnd}
+                        onClick={onCardClick}
+                        isDragging={draggingId === item.id}
+                      />
+                      {/* 수정 버튼 */}
+                      <button
+                        onClick={e => { e.stopPropagation(); onEditItem(item) }}
+                        title="수정"
+                        style={{
+                          position: 'absolute', top: 5, right: 5,
+                          padding: 4, border: 'none', background: 'rgba(255,255,255,0.9)',
+                          borderRadius: 5, cursor: 'pointer', display: 'flex',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                        }}
+                      >
+                        <Pencil size={10} color="#6b7280" />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        ) : (
+          <div style={{
+            padding: '8px 10px', textAlign: 'center', fontSize: 11,
+            color: isDragOver ? config.headerBg : '#9ca3af',
+            backgroundColor: isDragOver ? config.dragBg : 'transparent',
+            transition: 'all 0.12s',
+          }}>
+            {isDragOver ? '여기에 놓기 ↓' : `${allCount}개 (접힘)`}
+          </div>
+        )}
       </div>
 
-      {/* Cards area — 접힌 상태에서도 드롭 가능하도록 최소 높이 유지 */}
-      {!collapsed ? (
-        <div style={{
-          padding: 10, display: 'flex', flexDirection: 'column', gap: 8,
-          maxHeight: 'calc(100vh - 220px)', overflowY: 'auto', minHeight: 80,
-        }}>
-          {items.length === 0 ? (
-            <div style={{
-              textAlign: 'center', color: isDragOver ? config.headerBg : '#9ca3af',
-              fontSize: 12, padding: '24px 8px',
-              border: `1.5px dashed ${isDragOver ? config.headerBg : '#d1d5db'}`,
-              borderRadius: 8,
-              transition: 'all 0.12s',
-            }}>
-              {isDragOver ? '여기에 놓기 ↓' : '계획 없음'}
-            </div>
-          ) : (
-            items.map(item => (
-              <PlanCard
-                key={item.id}
-                item={item}
-                onDragStart={onDragStart}
-                onDragEnd={onDragEnd}
-                onClick={onCardClick}
-                isDragging={draggingId === item.id}
-              />
-            ))
-          )}
-        </div>
-      ) : (
-        // 접힌 상태: 드래그 힌트 표시
-        <div style={{
-          padding: '8px 10px', textAlign: 'center', fontSize: 11,
-          color: isDragOver ? config.headerBg : '#9ca3af',
-          backgroundColor: isDragOver ? config.dragBg : 'transparent',
-          transition: 'all 0.12s',
-        }}>
-          {isDragOver ? '여기에 놓기 ↓' : `${allCount}개 (접힘)`}
-        </div>
+      {showDeleteConfirm && (
+        <DeleteConfirm
+          count={selCount}
+          deleting={deleting}
+          onConfirm={handleDeleteConfirmed}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
       )}
-    </div>
+    </>
   )
 }

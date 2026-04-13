@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { PlanItem } from '@/lib/types'
 import { getCurrentYear } from '@/lib/types'
-import { getPlanItems, updatePlanItem } from '@/lib/api'
+import { getPlanItems, updatePlanItem, deletePlanItem } from '@/lib/api'
 import { formatPeriodKey } from '@/lib/flowmap-layout'
 import { KanbanBoard } from '@/components/flowmap/KanbanBoard'
 import { FlowMapToolbar } from '@/components/flowmap/FlowMapToolbar'
@@ -88,6 +88,24 @@ export default function FlowMapPage() {
     setFormTarget({ mode: 'create', level: 'quarterly', periodKey: quarterKey })
   }, [])
 
+  // 칸반 카드 편집 버튼
+  const handleEditItem = useCallback((item: PlanItem) => {
+    setFormTarget({ mode: 'edit', level: item.level, periodKey: item.period_key, editItem: item })
+  }, [])
+
+  // 칸반 카드 bulk 삭제 (optimistic)
+  const handleDeleteItems = useCallback(async (ids: string[]) => {
+    setItemsByQuarter(prev => {
+      const next = new Map(prev)
+      for (const [key, items] of prev.entries()) {
+        const filtered = items.filter(i => !ids.includes(i.id))
+        if (filtered.length !== items.length) next.set(key, filtered)
+      }
+      return next
+    })
+    await Promise.allSettled(ids.map(id => deletePlanItem(id)))
+  }, [])
+
   // 팝업 내 드릴다운 push
   const handlePushFrame = useCallback((frame: PopupFrame) => {
     setPopupFrames(prev => [...prev, frame])
@@ -142,6 +160,8 @@ export default function FlowMapPage() {
             onCardClick={handleCardClick}
             onAddItem={handleAddItem}
             onMoveItem={handleMoveItem}
+            onEditItem={handleEditItem}
+            onDeleteItems={handleDeleteItems}
           />
         )}
       </div>
