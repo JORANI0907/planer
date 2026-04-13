@@ -3,7 +3,7 @@
 import { useRef, useState, useCallback } from 'react'
 import type { PlanItem } from '@/lib/types'
 import { PlanCard } from './PlanCard'
-import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react'
 
 const QUARTER_CONFIG: Record<string, { label: string; months: string; headerBg: string; colBg: string; colBorder: string }> = {
   'Q1': { label: '1분기', months: '1 · 2 · 3월', headerBg: '#1d4ed8', colBg: '#eff6ff', colBorder: '#bfdbfe' },
@@ -17,11 +17,12 @@ interface KanbanBoardProps {
   itemsByQuarter: Map<string, PlanItem[]>
   searchQuery: string
   filterStatus: string | null
-  onDrillDown: (quarterKey: string) => void
+  onCardClick: (item: PlanItem) => void
+  onAddItem: (quarterKey: string) => void
   onMoveItem: (item: PlanItem, targetKey: string) => void
 }
 
-export function KanbanBoard({ year, itemsByQuarter, searchQuery, filterStatus, onDrillDown, onMoveItem }: KanbanBoardProps) {
+export function KanbanBoard({ year, itemsByQuarter, searchQuery, filterStatus, onCardClick, onAddItem, onMoveItem }: KanbanBoardProps) {
   const draggingItem = useRef<PlanItem | null>(null)
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
 
@@ -47,7 +48,7 @@ export function KanbanBoard({ year, itemsByQuarter, searchQuery, filterStatus, o
       <div style={{ padding: '8px 20px', borderBottom: '1px solid #e5e7eb', backgroundColor: '#fff', display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{year}년 분기별 계획</span>
         <span style={{ fontSize: 12, color: '#6b7280' }}>총 {totalItems}개 계획</span>
-        <span style={{ fontSize: 11, color: '#9ca3af' }}>• 카드를 드래그하여 분기 간 이동 • 📋 아이콘으로 월간 상세 확인</span>
+        <span style={{ fontSize: 11, color: '#9ca3af' }}>• 카드를 드래그하여 분기 간 이동 • 카드 클릭으로 월간 상세 확인</span>
       </div>
 
       {/* Kanban columns */}
@@ -105,7 +106,8 @@ export function KanbanBoard({ year, itemsByQuarter, searchQuery, filterStatus, o
               allCount={allItems.length}
               isDragOver={dragOverKey === key}
               dimmed={!!dimmed}
-              onDrillDown={() => onDrillDown(key)}
+              onCardClick={onCardClick}
+              onAddItem={() => onAddItem(key)}
               onDragStart={handleDragStart}
               onDragOver={() => setDragOverKey(key)}
               onDragLeave={() => { if (dragOverKey === key) setDragOverKey(null) }}
@@ -127,14 +129,15 @@ interface QuarterColumnProps {
   allCount: number
   isDragOver: boolean
   dimmed: boolean
-  onDrillDown: () => void
+  onCardClick: (item: PlanItem) => void
+  onAddItem: () => void
   onDragStart: (item: PlanItem) => void
   onDragOver: () => void
   onDragLeave: () => void
   onDrop: () => void
 }
 
-function QuarterColumn({ config, items, allCount, isDragOver, dimmed, onDrillDown, onDragStart, onDragOver, onDragLeave, onDrop }: QuarterColumnProps) {
+function QuarterColumn({ config, items, allCount, isDragOver, dimmed, onCardClick, onAddItem, onDragStart, onDragOver, onDragLeave, onDrop }: QuarterColumnProps) {
   const [collapsed, setCollapsed] = useState(false)
 
   return (
@@ -167,8 +170,8 @@ function QuarterColumn({ config, items, allCount, isDragOver, dimmed, onDrillDow
         <span style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: '#fff', borderRadius: 20, padding: '2px 8px', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
           {allCount}
         </span>
-        <button onClick={onDrillDown} title="월간 상세 보기" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'rgba(255,255,255,0.8)', display: 'flex', flexShrink: 0 }}>
-          <ExternalLink size={14} />
+        <button onClick={onAddItem} title="계획 추가" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'rgba(255,255,255,0.8)', display: 'flex', flexShrink: 0 }}>
+          <Plus size={14} />
         </button>
       </div>
 
@@ -190,7 +193,12 @@ function QuarterColumn({ config, items, allCount, isDragOver, dimmed, onDrillDow
             </div>
           ) : (
             items.map(item => (
-              <PlanCard key={item.id} item={item} onDragStart={() => onDragStart(item)} />
+              <PlanCard
+                key={item.id}
+                item={item}
+                onDragStart={() => onDragStart(item)}
+                onClick={() => onCardClick(item)}
+              />
             ))
           )}
         </div>
