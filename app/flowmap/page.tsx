@@ -34,14 +34,34 @@ export default function FlowMapPage() {
     setSelectedItem(null)
 
     // getAllPlanItems로 전체 조회 후 해당 연도만 필터링 (period_key 포맷 차이 대응)
+    // DB에 annual 레코드가 없으면 가상 연간 노드 생성 (분기 계획이 최상위인 경우)
+    const makeVirtualAnnual = (): PlanItem => ({
+      id: `virtual-annual-${year}`,
+      level: 'annual',
+      period_key: String(year),
+      title: `${year}년 계획`,
+      description: null,
+      categories: [],
+      status: 'in_progress',
+      priority: 'medium',
+      sort_order: 0,
+      parent_plan_item_id: null,
+      section_id: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+
     getAllPlanItems('annual')
       .then((items) => {
         const filtered = items.filter(
           (item) => item.period_key === String(year) || item.period_key.startsWith(String(year))
         )
-        setAnnualItems(filtered)
+        // 연간 레코드가 없으면 가상 노드로 대체 (분기가 최상위인 구조 대응)
+        setAnnualItems(filtered.length > 0 ? filtered : [makeVirtualAnnual()])
       })
-      .catch(() => {})
+      .catch(() => {
+        setAnnualItems([makeVirtualAnnual()])
+      })
       .finally(() => setLoadingInitial(false))
   }, [year])
 
@@ -102,6 +122,17 @@ export default function FlowMapPage() {
     },
     [childrenByParentId]
   )
+
+  // 가상 연간 노드가 세팅되면 자동으로 펼쳐서 분기 항목 즉시 표시
+  useEffect(() => {
+    if (annualItems.length !== 1) return
+    const item = annualItems[0]
+    if (!item.id.startsWith('virtual-annual-')) return
+
+    loadChildren(item, 'annual').then(() => {
+      setExpandedIds((prev) => new Set([...prev, item.id]))
+    })
+  }, [annualItems, loadChildren])
 
   // Toggle expand/collapse
   const handleToggleExpand = useCallback(
