@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import type { PlanItem, PlanLevel } from '@/lib/types'
-import { getCurrentYear } from '@/lib/types'
-import { getPlanItems, getAllPlanItems, getMappingsForParent } from '@/lib/api'
+import { getCurrentYear, getMonthWeeks, getWeekDays } from '@/lib/types'
+import { getPlanItems, getAllPlanItems } from '@/lib/api'
 import { NEXT_LEVEL, calculateLayout, isTodayPeriod } from '@/lib/flowmap-layout'
 import { FlowMapCanvas } from '@/components/flowmap/FlowMapCanvas'
 import { FlowMapToolbar } from '@/components/flowmap/FlowMapToolbar'
@@ -45,7 +45,7 @@ export default function FlowMapPage() {
       .finally(() => setLoadingInitial(false))
   }, [year])
 
-  // Load children for a node
+  // Load children for a node — 시간 계층 기반 (매핑 테이블 불필요)
   const loadChildren = useCallback(
     async (item: PlanItem, level: PlanLevel) => {
       const nextLevel = NEXT_LEVEL[level]
@@ -56,16 +56,11 @@ export default function FlowMapPage() {
       setLoadingIds((prev) => new Set([...prev, item.id]))
 
       try {
-        const mappings = await getMappingsForParent(item.id)
-
-        if (mappings.length === 0) {
-          setChildrenByParentId((prev) => new Map([...prev, [item.id, []]]))
-          return
-        }
-
+        const childKeys = getChildPeriodKeys(item.period_key, level)
         const childArrays = await Promise.all(
-          mappings.map((m) => getPlanItems(nextLevel, m.child_period_key))
+          childKeys.map((pk) => getPlanItems(nextLevel, pk))
         )
+        // 계획이 있는 기간만 표시
         const allChildren = childArrays.flat()
 
         setChildrenByParentId((prev) => new Map([...prev, [item.id, allChildren]]))
@@ -311,6 +306,40 @@ function collapseSubtree(
   for (const child of children) {
     collapseSubtree(child.id, expanded, childrenByParentId)
   }
+}
+
+// 시간 계층 기반으로 하위 period_key 목록 계산
+function getChildPeriodKeys(periodKey: string, level: PlanLevel): string[] {
+  if (level === 'annual') {
+    // 연간 → 분기 (Q1~Q4)
+    const year = parseInt(periodKey)
+    return [1, 2, 3, 4].map((q) => `${year}-Q${q}`)
+  }
+
+  if (level === 'quarterly') {
+    // 분기 → 월간 (해당 분기의 3개월)
+    const [yearStr, qPart] = periodKey.split('-Q')
+    const year = parseInt(yearStr)
+    const q = parseInt(qPart)
+    const startMonth = (q - 1) * 3 + 1
+    return [startMonth, startMonth + 1, startMonth + 2].map(
+      (m) => `${year}-${String(m).padStart(2, '0')}`
+    )
+  }
+
+  if (level === 'monthly') {
+    // 월간 → 주간 (해당 월의 주차들)
+    const [yearStr, monthStr] = periodKey.split('-')
+    return getMonthWeeks(parseInt(yearStr), parseInt(monthStr))
+  }
+
+  if (level === 'weekly') {
+    // 주간 → 일일 (해당 주의 7일)
+    const [yearStr, weekPart] = periodKey.split('-W')
+    return getWeekDays(parseInt(yearStr), parseInt(weekPart))
+  }
+
+  return []
 }
 
 function findTodayNode(
