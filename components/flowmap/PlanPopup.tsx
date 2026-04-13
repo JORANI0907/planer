@@ -53,11 +53,19 @@ const QUARTER_MONTHS: Record<string, string[]> = {
 }
 
 const PARENT_LEVEL: Partial<Record<PlanLevel, PlanLevel>> = {
-  monthly: 'quarterly', weekly: 'monthly', daily: 'weekly',
+  quarterly: 'annual', monthly: 'quarterly', weekly: 'monthly', daily: 'weekly',
 }
 
 function getChildSections(frame: PopupFrame): { periodKey: string; label: string; quarterGroup?: 'Q1' | 'Q2' | 'Q3' | 'Q4' }[] {
   const { periodKey, childLevel } = frame
+
+  if (childLevel === 'quarterly') {
+    // periodKey = '2026' (annual)
+    return ['Q1', 'Q2', 'Q3', 'Q4'].map((q, i) => ({
+      periodKey: `${periodKey}-${q}`,
+      label: `${i + 1}분기`,
+    }))
+  }
 
   if (childLevel === 'monthly') {
     const year = parseInt(periodKey.split('-')[0])
@@ -166,7 +174,12 @@ export function PlanPopup({ frames, onPush, onPopTo, onClose, onQuarterlyCreated
 
     const parentLevel = PARENT_LEVEL[currentFrame.childLevel]
     if (parentLevel) {
-      if (currentFrame.childLevel === 'monthly') {
+      if (currentFrame.childLevel === 'quarterly') {
+        // 연간 상위: annual 아이템 로드
+        getPlanItems('annual', currentFrame.periodKey)
+          .then(setParentItems)
+          .catch(() => setParentItems([]))
+      } else if (currentFrame.childLevel === 'monthly') {
         const year = currentFrame.periodKey.split('-')[0]
         Promise.all(['Q1', 'Q2', 'Q3', 'Q4'].map(q => getPlanItems('quarterly', `${year}-${q}`)))
           .then(results => setParentItems(results.flat()))
@@ -335,6 +348,7 @@ export function PlanPopup({ frames, onPush, onPopTo, onClose, onQuarterlyCreated
 
   const totalCount = sections.reduce((s, sec) => s + sec.items.length, 0)
   const isMonthly = currentFrame.childLevel === 'monthly'
+  const isQuarterly = currentFrame.childLevel === 'quarterly'
 
   return (
     <>
@@ -384,6 +398,8 @@ export function PlanPopup({ frames, onPush, onPopTo, onClose, onQuarterlyCreated
             <span style={{ fontSize: 14, fontWeight: 700, color: '#111827', flex: 1 }}>
               {isMonthly
                 ? `${parseInt(currentFrame.periodKey.split('-')[0])}년 전체 월간 계획`
+                : isQuarterly
+                ? `${currentFrame.label} — 분기별 계획`
                 : `${currentFrame.label} — ${LEVEL_LABEL[currentFrame.childLevel]} 계획`}
             </span>
             <span style={{ fontSize: 11, color: '#9ca3af' }}>총 {totalCount}개</span>

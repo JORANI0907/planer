@@ -14,6 +14,7 @@ import type { FormTarget } from '@/components/flowmap/PlanFormModal'
 
 export default function FlowMapPage() {
   const [year, setYear] = useState(getCurrentYear())
+  const [annualItems, setAnnualItems] = useState<PlanItem[]>([])
   const [itemsByQuarter, setItemsByQuarter] = useState<Map<string, PlanItem[]>>(new Map())
   const [loading, setLoading] = useState(true)
   const [popupFrames, setPopupFrames] = useState<PopupFrame[]>([])
@@ -21,28 +22,36 @@ export default function FlowMapPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState<string | null>(null)
 
+  // 연간 + 분기 데이터 로드
   useEffect(() => {
     setLoading(true)
     setPopupFrames([])
     const quarterKeys = [1, 2, 3, 4].map(q => `${year}-Q${q}`)
 
-    Promise.all(quarterKeys.map(key => getPlanItems('quarterly', key)))
-      .then(results => {
+    Promise.all([
+      getPlanItems('annual', `${year}`),
+      ...quarterKeys.map(key => getPlanItems('quarterly', key)),
+    ])
+      .then(([annual, ...quarterly]) => {
+        setAnnualItems(annual)
         const map = new Map<string, PlanItem[]>()
-        quarterKeys.forEach((key, i) => map.set(key, results[i]))
+        quarterKeys.forEach((key, i) => map.set(key, quarterly[i]))
         setItemsByQuarter(map)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [year])
 
-  // 분기별 계획 리로드 (신규 생성 후)
-  const reloadQuarter = useCallback(() => {
+  const reloadAll = useCallback(() => {
     const quarterKeys = [1, 2, 3, 4].map(q => `${year}-Q${q}`)
-    Promise.all(quarterKeys.map(key => getPlanItems('quarterly', key)))
-      .then(results => {
+    Promise.all([
+      getPlanItems('annual', `${year}`),
+      ...quarterKeys.map(key => getPlanItems('quarterly', key)),
+    ])
+      .then(([annual, ...quarterly]) => {
+        setAnnualItems(annual)
         const map = new Map<string, PlanItem[]>()
-        quarterKeys.forEach((key, i) => map.set(key, results[i]))
+        quarterKeys.forEach((key, i) => map.set(key, quarterly[i]))
         setItemsByQuarter(map)
       })
       .catch(() => {})
@@ -69,9 +78,10 @@ export default function FlowMapPage() {
     })
   }, [])
 
-  // 카드 클릭 → 팝업 열기
+  // 카드 "하위 보기" 버튼 → 팝업 열기 (annual→quarterly, quarterly→monthly 등)
   const handleCardClick = useCallback((item: PlanItem) => {
     const NEXT: Partial<Record<string, string>> = {
+      annual: 'quarterly',
       quarterly: 'monthly', monthly: 'weekly', weekly: 'daily',
     }
     const childLevel = NEXT[item.level]
@@ -83,18 +93,24 @@ export default function FlowMapPage() {
     }])
   }, [])
 
-  // 칸반 "+" 버튼 → 분기 계획 추가 폼
+  // 연간 "+" 버튼
+  const handleAddAnnual = useCallback(() => {
+    setFormTarget({ mode: 'create', level: 'annual', periodKey: `${year}` })
+  }, [year])
+
+  // 분기 "+" 버튼
   const handleAddItem = useCallback((quarterKey: string) => {
     setFormTarget({ mode: 'create', level: 'quarterly', periodKey: quarterKey })
   }, [])
 
-  // 칸반 카드 편집 버튼
+  // 편집 버튼
   const handleEditItem = useCallback((item: PlanItem) => {
     setFormTarget({ mode: 'edit', level: item.level, periodKey: item.period_key, editItem: item })
   }, [])
 
-  // 칸반 카드 bulk 삭제 (optimistic)
+  // bulk 삭제 (연간 + 분기 통합 처리)
   const handleDeleteItems = useCallback(async (ids: string[]) => {
+    setAnnualItems(prev => prev.filter(i => !ids.includes(i.id)))
     setItemsByQuarter(prev => {
       const next = new Map(prev)
       for (const [key, items] of prev.entries()) {
@@ -106,20 +122,23 @@ export default function FlowMapPage() {
     await Promise.allSettled(ids.map(id => deletePlanItem(id)))
   }, [])
 
-  // 팝업 내 드릴다운 push
   const handlePushFrame = useCallback((frame: PopupFrame) => {
     setPopupFrames(prev => [...prev, frame])
   }, [])
 
-  // 브레드크럼 클릭으로 특정 depth로 이동
   const handlePopTo = useCallback((index: number) => {
     setPopupFrames(prev => prev.slice(0, index + 1))
   }, [])
 
-  // 폼 저장 후
+  // 폼 저장 → 연간/분기 모두 처리
   const handleFormSaved = useCallback((item: PlanItem) => {
     setFormTarget(null)
-    if (item.level === 'quarterly') {
+    if (item.level === 'annual') {
+      setAnnualItems(prev => {
+        const idx = prev.findIndex(i => i.id === item.id)
+        return idx >= 0 ? prev.map(i => i.id === item.id ? item : i) : [...prev, item]
+      })
+    } else if (item.level === 'quarterly') {
       setItemsByQuarter(prev => {
         const next = new Map(prev)
         const existing = next.get(item.period_key) ?? []
@@ -154,10 +173,12 @@ export default function FlowMapPage() {
         ) : (
           <KanbanBoard
             year={year}
+            annualItems={annualItems}
             itemsByQuarter={itemsByQuarter}
             searchQuery={searchQuery}
             filterStatus={filterStatus}
             onCardClick={handleCardClick}
+            onAddAnnual={handleAddAnnual}
             onAddItem={handleAddItem}
             onMoveItem={handleMoveItem}
             onEditItem={handleEditItem}
@@ -172,7 +193,7 @@ export default function FlowMapPage() {
           onPush={handlePushFrame}
           onPopTo={handlePopTo}
           onClose={() => setPopupFrames([])}
-          onQuarterlyCreated={reloadQuarter}
+          onQuarterlyCreated={reloadAll}
         />
       )}
 
@@ -181,7 +202,7 @@ export default function FlowMapPage() {
           target={formTarget}
           onClose={() => setFormTarget(null)}
           onSaved={handleFormSaved}
-          onDeleted={reloadQuarter}
+          onDeleted={reloadAll}
         />
       )}
 
