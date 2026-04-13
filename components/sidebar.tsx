@@ -8,7 +8,6 @@ const navItems = [
   { href: '/profile', label: '인적사항', icon: '👤' },
   { href: '/decade', label: '10년 계획', icon: '🚀' },
   { href: '/flowmap', label: '플로우맵', icon: '🗺️' },
-  { href: '/daily', label: '일일 계획', icon: '✅' },
 ]
 
 export function Sidebar() {
