@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef } from 'react'
 import type { PlanItem } from '@/lib/types'
 import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/types'
 import { formatPeriodKey } from '@/lib/flowmap-layout'
@@ -7,10 +8,12 @@ import { ChevronRight } from 'lucide-react'
 
 interface PlanCardProps {
   item: PlanItem
-  onDragStart?: () => void
+  onDragStart?: (item: PlanItem) => void
+  onDragEnd?: () => void
   onClick?: (item: PlanItem) => void
   compact?: boolean
   showDrillDown?: boolean
+  isDragging?: boolean
 }
 
 const SC: Record<string, { dot: string; bg: string; border: string }> = {
@@ -23,46 +26,58 @@ const PI: Record<string, string> = { high: '↑', medium: '→', low: '↓' }
 const PC: Record<string, string> = { high: '#ef4444', medium: '#f59e0b', low: '#9ca3af' }
 const PROG: Record<string, number> = { completed: 100, in_progress: 50, on_hold: 20, pending: 0 }
 
-export function PlanCard({ item, onDragStart, onClick, compact = false, showDrillDown }: PlanCardProps) {
+export function PlanCard({
+  item, onDragStart, onDragEnd, onClick,
+  compact = false, showDrillDown, isDragging = false,
+}: PlanCardProps) {
   const sc = SC[item.status] ?? SC.pending
   const si = STATUS_CONFIG[item.status]
   const pi = PRIORITY_CONFIG[item.priority]
   const progress = PROG[item.status] ?? 0
   const periodLabel = formatPeriodKey(item.period_key, item.level)
   const isDrillable = showDrillDown ?? item.level !== 'daily'
-  const isClickable = !!onClick
+  const isDraggable = !!onDragStart
 
-  // 드래그 vs 클릭 구분을 위한 mousedown 좌표 추적
-  let mouseDownPos = { x: 0, y: 0 }
+  // 브라우저 네이티브 drag/click 구분: dragstart 발생 시 click 이벤트는 자동 취소됨
+  const dragStartFired = useRef(false)
 
   return (
     <div
-      draggable={!!onDragStart}
+      draggable={isDraggable}
       onDragStart={e => {
+        dragStartFired.current = true
         e.dataTransfer.effectAllowed = 'move'
-        onDragStart?.()
+        // 드래그 중인 item ID를 dataTransfer에 저장 (drop zone에서 검증용)
+        e.dataTransfer.setData('text/plain', item.id)
+        onDragStart?.(item)
       }}
-      onMouseDown={e => { mouseDownPos = { x: e.clientX, y: e.clientY } }}
-      onMouseUp={e => {
-        if (!onClick) return
-        const dx = Math.abs(e.clientX - mouseDownPos.x)
-        const dy = Math.abs(e.clientY - mouseDownPos.y)
-        if (dx < 5 && dy < 5) onClick(item)
+      onDragEnd={() => {
+        dragStartFired.current = false
+        onDragEnd?.()
+      }}
+      onClick={() => {
+        // dragstart가 발생했으면 클릭 무시 (드래그 후 mouseup과의 충돌 방지)
+        if (!dragStartFired.current) {
+          onClick?.(item)
+        }
+        dragStartFired.current = false
       }}
       style={{
         backgroundColor: sc.bg,
         border: `1.5px solid ${sc.border}`,
         borderRadius: 10,
         padding: compact ? '8px 10px' : '10px 12px',
-        cursor: isClickable ? 'pointer' : (onDragStart ? 'grab' : 'default'),
+        cursor: isDraggable ? 'grab' : (onClick ? 'pointer' : 'default'),
         userSelect: 'none',
         WebkitUserSelect: 'none',
-        transition: 'box-shadow 0.15s, transform 0.1s',
+        transition: 'box-shadow 0.15s, transform 0.1s, opacity 0.15s',
         position: 'relative',
+        opacity: isDragging ? 0.4 : 1,
       }}
       onMouseEnter={e => {
+        if (isDragging) return
         e.currentTarget.style.boxShadow = '0 3px 12px rgba(0,0,0,0.1)'
-        if (isClickable) e.currentTarget.style.transform = 'translateY(-1px)'
+        if (onClick) e.currentTarget.style.transform = 'translateY(-1px)'
       }}
       onMouseLeave={e => {
         e.currentTarget.style.boxShadow = 'none'
@@ -104,7 +119,7 @@ export function PlanCard({ item, onDragStart, onClick, compact = false, showDril
         <span style={{ fontSize: 10, color: sc.dot, fontWeight: 600 }}>● {si.label}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 10, color: PC[item.priority], fontWeight: 600 }}>{PI[item.priority]} {pi.label}</span>
-          {isDrillable && isClickable && <ChevronRight size={11} color="#d1d5db" />}
+          {isDrillable && !!onClick && <ChevronRight size={11} color="#d1d5db" />}
         </div>
       </div>
     </div>
