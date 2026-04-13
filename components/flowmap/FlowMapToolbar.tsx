@@ -1,304 +1,110 @@
 'use client'
 
-import { CATEGORIES, STATUS_CONFIG } from '@/lib/types'
-import {
-  Home,
-  ChevronsLeft,
-  Minus,
-  Plus,
-  Maximize2,
-  Search,
-  X,
-} from 'lucide-react'
+import { STATUS_CONFIG } from '@/lib/types'
+import { Search, X, ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface FlowMapToolbarProps {
   year: number
-  scale: number
-  filterCategory: string | null
-  filterStatus: string | null
   searchQuery: string
+  filterStatus: string | null
   onYearChange: (year: number) => void
-  onGoToday: () => void
-  onCollapseAll: () => void
-  onFilterCategory: (cat: string | null) => void
-  onFilterStatus: (status: string | null) => void
   onSearchChange: (q: string) => void
-  onZoomIn: () => void
-  onZoomOut: () => void
-  onFitView: () => void
+  onFilterStatus: (s: string | null) => void
 }
 
-export function FlowMapToolbar({
-  year,
-  scale,
-  filterCategory,
-  filterStatus,
-  searchQuery,
-  onYearChange,
-  onGoToday,
-  onCollapseAll,
-  onFilterCategory,
-  onFilterStatus,
-  onSearchChange,
-  onZoomIn,
-  onZoomOut,
-  onFitView,
-}: FlowMapToolbarProps) {
-  const currentYear = new Date().getFullYear()
-  const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - 1 + i)
-
+export function FlowMapToolbar({ year, searchQuery, filterStatus, onYearChange, onSearchChange, onFilterStatus }: FlowMapToolbarProps) {
   return (
-    <div
-      style={{
-        height: 52,
-        backgroundColor: '#ffffff',
-        borderBottom: '1px solid #e5e7eb',
-        display: 'flex',
-        alignItems: 'center',
-        padding: '0 16px',
-        gap: 8,
-        flexShrink: 0,
-        zIndex: 20,
-        overflowX: 'auto',
-      }}
-    >
-      {/* Year selector */}
-      <select
-        value={year}
-        onChange={(e) => onYearChange(Number(e.target.value))}
-        style={{
-          padding: '5px 10px',
-          borderRadius: 8,
-          border: '1px solid #e5e7eb',
-          fontSize: 13,
-          fontWeight: 600,
-          color: '#374151',
-          backgroundColor: '#f9fafb',
-          cursor: 'pointer',
-          outline: 'none',
-          flexShrink: 0,
-        }}
-      >
-        {yearOptions.map((y) => (
-          <option key={y} value={y}>
-            {y}년
-          </option>
-        ))}
-      </select>
+    <div style={{
+      height: 52,
+      backgroundColor: '#ffffff',
+      borderBottom: '1px solid #e5e7eb',
+      display: 'flex',
+      alignItems: 'center',
+      padding: '0 16px',
+      gap: 10,
+      flexShrink: 0,
+      zIndex: 20,
+      overflowX: 'auto',
+    }}>
+      {/* Year nav */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+        <button onClick={() => onYearChange(year - 1)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+          <ChevronLeft size={14} color="#6b7280" />
+        </button>
+        <span style={{ fontWeight: 700, fontSize: 15, padding: '0 8px', color: '#111827' }}>{year}년</span>
+        <button onClick={() => onYearChange(year + 1)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+          <ChevronRight size={14} color="#6b7280" />
+        </button>
+      </div>
 
-      {/* Divider */}
-      <div style={{ width: 1, height: 24, backgroundColor: '#e5e7eb', flexShrink: 0 }} />
+      <div style={{ width: 1, height: 22, backgroundColor: '#e5e7eb', flexShrink: 0 }} />
 
-      {/* Go to today */}
-      <ToolbarButton onClick={onGoToday} title="오늘로 이동">
-        <Home size={14} />
-        <span>오늘</span>
-      </ToolbarButton>
+      {/* Status filter chips */}
+      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+        {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
+          const active = filterStatus === key
+          const colors: Record<string, { bg: string; border: string; text: string }> = {
+            pending: { bg: '#f3f4f6', border: '#d1d5db', text: '#374151' },
+            in_progress: { bg: '#dbeafe', border: '#93c5fd', text: '#1d4ed8' },
+            completed: { bg: '#dcfce7', border: '#86efac', text: '#15803d' },
+            on_hold: { bg: '#ffedd5', border: '#fdba74', text: '#c2410c' },
+          }
+          const c = colors[key] ?? colors.pending
+          return (
+            <button
+              key={key}
+              onClick={() => onFilterStatus(active ? null : key)}
+              style={{
+                padding: '4px 12px',
+                borderRadius: 20,
+                fontSize: 12,
+                border: `1.5px solid ${active ? c.border : '#e5e7eb'}`,
+                cursor: 'pointer',
+                fontWeight: active ? 700 : 400,
+                backgroundColor: active ? c.bg : '#fff',
+                color: active ? c.text : '#6b7280',
+                transition: 'all 0.15s',
+              }}
+            >
+              {cfg.label}
+            </button>
+          )
+        })}
+      </div>
 
-      {/* Collapse all */}
-      <ToolbarButton onClick={onCollapseAll} title="전체 접기">
-        <ChevronsLeft size={14} />
-        <span>접기</span>
-      </ToolbarButton>
-
-      {/* Divider */}
-      <div style={{ width: 1, height: 24, backgroundColor: '#e5e7eb', flexShrink: 0 }} />
-
-      {/* Category filter */}
-      <select
-        value={filterCategory ?? ''}
-        onChange={(e) => onFilterCategory(e.target.value || null)}
-        style={{
-          padding: '5px 10px',
-          borderRadius: 8,
-          border: `1px solid ${filterCategory ? '#3b82f6' : '#e5e7eb'}`,
-          fontSize: 12,
-          color: filterCategory ? '#2563eb' : '#6b7280',
-          backgroundColor: filterCategory ? '#eff6ff' : '#f9fafb',
-          cursor: 'pointer',
-          outline: 'none',
-          flexShrink: 0,
-          fontWeight: filterCategory ? 600 : 400,
-        }}
-      >
-        <option value="">카테고리 전체</option>
-        {CATEGORIES.map((c) => (
-          <option key={c.value} value={c.value}>
-            {c.label}
-          </option>
-        ))}
-      </select>
-
-      {/* Status filter */}
-      <select
-        value={filterStatus ?? ''}
-        onChange={(e) => onFilterStatus(e.target.value || null)}
-        style={{
-          padding: '5px 10px',
-          borderRadius: 8,
-          border: `1px solid ${filterStatus ? '#8b5cf6' : '#e5e7eb'}`,
-          fontSize: 12,
-          color: filterStatus ? '#7c3aed' : '#6b7280',
-          backgroundColor: filterStatus ? '#f5f3ff' : '#f9fafb',
-          cursor: 'pointer',
-          outline: 'none',
-          flexShrink: 0,
-          fontWeight: filterStatus ? 600 : 400,
-        }}
-      >
-        <option value="">상태 전체</option>
-        {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-          <option key={key} value={key}>
-            {cfg.label}
-          </option>
-        ))}
-      </select>
-
-      {/* Divider */}
-      <div style={{ width: 1, height: 24, backgroundColor: '#e5e7eb', flexShrink: 0 }} />
+      <div style={{ width: 1, height: 22, backgroundColor: '#e5e7eb', flexShrink: 0 }} />
 
       {/* Search */}
       <div style={{ position: 'relative', flexShrink: 0 }}>
-        <Search
-          size={13}
-          color="#9ca3af"
-          style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)' }}
-        />
+        <Search size={13} color="#9ca3af" style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)' }} />
         <input
           type="text"
           placeholder="계획 검색..."
           value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
+          onChange={e => onSearchChange(e.target.value)}
           style={{
-            padding: '5px 28px 5px 26px',
+            paddingLeft: 26,
+            paddingRight: searchQuery ? 26 : 10,
+            height: 32,
             borderRadius: 8,
             border: `1px solid ${searchQuery ? '#3b82f6' : '#e5e7eb'}`,
             fontSize: 12,
-            color: '#374151',
             backgroundColor: searchQuery ? '#eff6ff' : '#f9fafb',
             outline: 'none',
-            width: 140,
+            width: 150,
+            color: '#374151',
           }}
         />
         {searchQuery && (
-          <button
-            onClick={() => onSearchChange('')}
-            style={{
-              position: 'absolute',
-              right: 6,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              padding: 2,
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              color: '#9ca3af',
-              display: 'flex',
-              alignItems: 'center',
-            }}
-          >
-            <X size={11} />
+          <button onClick={() => onSearchChange('')} style={{ position: 'absolute', right: 7, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}>
+            <X size={12} color="#9ca3af" />
           </button>
         )}
       </div>
 
-      {/* Spacer */}
       <div style={{ flex: 1 }} />
 
-      {/* Zoom controls */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 4,
-          backgroundColor: '#f9fafb',
-          border: '1px solid #e5e7eb',
-          borderRadius: 8,
-          padding: '2px 4px',
-          flexShrink: 0,
-        }}
-      >
-        <button
-          onClick={onZoomOut}
-          style={{
-            padding: '3px 6px',
-            border: 'none',
-            background: 'transparent',
-            cursor: 'pointer',
-            color: '#6b7280',
-            display: 'flex',
-            alignItems: 'center',
-            borderRadius: 4,
-          }}
-        >
-          <Minus size={12} />
-        </button>
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: '#374151',
-            minWidth: 40,
-            textAlign: 'center',
-          }}
-        >
-          {Math.round(scale * 100)}%
-        </span>
-        <button
-          onClick={onZoomIn}
-          style={{
-            padding: '3px 6px',
-            border: 'none',
-            background: 'transparent',
-            cursor: 'pointer',
-            color: '#6b7280',
-            display: 'flex',
-            alignItems: 'center',
-            borderRadius: 4,
-          }}
-        >
-          <Plus size={12} />
-        </button>
-      </div>
-
-      {/* Fit view */}
-      <ToolbarButton onClick={onFitView} title="화면 맞춤">
-        <Maximize2 size={14} />
-      </ToolbarButton>
+      <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>카드를 드래그하여 분기 이동 가능</span>
     </div>
-  )
-}
-
-function ToolbarButton({
-  onClick,
-  title,
-  children,
-}: {
-  onClick: () => void
-  title: string
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      style={{
-        padding: '5px 10px',
-        borderRadius: 8,
-        border: '1px solid #e5e7eb',
-        backgroundColor: '#f9fafb',
-        color: '#374151',
-        fontSize: 12,
-        fontWeight: 500,
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 4,
-        flexShrink: 0,
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {children}
-    </button>
   )
 }
