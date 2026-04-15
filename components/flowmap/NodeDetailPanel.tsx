@@ -38,7 +38,6 @@ export function NodeDetailPanel({
   const nextLevel = NEXT_LEVEL[level]
 
   const editHref =
-    level === 'annual' ? '/annual' :
     level === 'daily' ? '/daily' :
     '/plan'
 

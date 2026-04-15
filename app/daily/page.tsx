@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import Link from 'next/link'
 import {
   getPlanItems, createPlanItem, updatePlanItem, deletePlanItem,
   getTasksForItem, createTask, updateTask, deleteTask,
@@ -351,11 +350,6 @@ export default function DailyPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      {/* 연간계획으로 */}
-      <Link href="/annual" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-blue-600 mb-4 transition-colors">
-        ← 연간 계획으로
-      </Link>
-
       {/* 날짜 헤더 */}
       <div className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5 mb-4 md:mb-5 shadow-sm">
         <div className="flex items-center justify-between">
