@@ -40,7 +40,7 @@ export default function DashboardPage() {
   // 월간 캘린더
   const calYear = selectedDate.getFullYear()
   const calMonth = selectedDate.getMonth() + 1
-  const [calendarItems, setCalendarItems] = useState<Map<string, PlanItem[]>>(new Map())
+  const [calendarItems, setCalendarItems] = useState<Record<string, PlanItem[]>>({})
 
   const periodKey = fmtDay(selectedDate)
   const isToday = fmtDay(selectedDate) === fmtDay(today)
@@ -68,18 +68,17 @@ export default function DashboardPage() {
   // 월간 캘린더 데이터 로드
   useEffect(() => {
     getDailyItemsForMonth(calYear, calMonth).then(data => {
-      const map = new Map<string, PlanItem[]>()
+      const rec: Record<string, PlanItem[]> = {}
       data.forEach(item => {
-        const existing = map.get(item.period_key)
-        map.set(item.period_key, existing ? [...existing, item] : [item])
+        rec[item.period_key] = [...(rec[item.period_key] ?? []), item]
       })
-      setCalendarItems(map)
+      setCalendarItems(rec)
     }).catch(() => {})
   }, [calYear, calMonth])
 
-  // 일일계획 변경 시 캘린더 맵 동기화
+  // 일일계획 변경 시 캘린더 동기화
   useEffect(() => {
-    setCalendarItems(prev => new Map(prev).set(periodKey, items))
+    setCalendarItems(prev => ({ ...prev, [periodKey]: items }))
   }, [items, periodKey])
 
   const sensors = useSensors(
@@ -251,7 +250,7 @@ export default function DashboardPage() {
 
 function MonthCalendar({ year, month, selectedDate, calendarItems, onSelectDate }: {
   year: number; month: number; selectedDate: Date
-  calendarItems: Map<string, PlanItem[]>
+  calendarItems: Record<string, PlanItem[]>
   onSelectDate: (d: Date) => void
 }) {
   const today = new Date()
@@ -289,7 +288,7 @@ function MonthCalendar({ year, month, selectedDate, calendarItems, onSelectDate 
             {week.map((date, di) => {
               if (!date) return <div key={di} />
               const key = fmtDay(date)
-              const dayItems = calendarItems.get(key) ?? []
+              const dayItems = calendarItems[key] ?? []
               const total = dayItems.length
               const doneCount = dayItems.filter(i => i.status === 'completed').length
               const inProgressCount = dayItems.filter(i => i.status === 'in_progress').length
