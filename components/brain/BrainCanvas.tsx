@@ -11,7 +11,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import type { ThoughtNode, ThoughtEdge, EdgeRelationType } from '@/lib/brain-types'
-import { mapRelationType } from '@/lib/brain-types'
+import { mapRelationType, EDGE_RELATION_CONFIG } from '@/lib/brain-types'
 import {
   getCanvasNodes, getCanvasEdges, createModule, createWing,
   updateNode, updateNodePosition, deleteNode, createEdge, updateEdge, deleteEdge,
@@ -46,8 +46,21 @@ function toRFEdge(e: ThoughtEdge): Edge<ThoughtEdgeData> {
     source: e.source_id,
     target: e.target_id,
     type: 'thought',
+    sourceHandle: e.source_handle ?? undefined,
+    targetHandle: e.target_handle ?? undefined,
     data: { label: e.label ?? '', relationType: relType },
   }
+}
+
+// 두 노드 상대 위치로 최적 핸들 쌍 계산
+function getBestHandles(sourceNode: Node, targetNode: Node): { sh: string; th: string } {
+  const sc = nodeCenter(sourceNode)
+  const tc = nodeCenter(targetNode)
+  const dx = tc.x - sc.x
+  const dy = tc.y - sc.y
+  return Math.abs(dx) >= Math.abs(dy)
+    ? (dx >= 0 ? { sh: 'right', th: 'left-t' } : { sh: 'left', th: 'right-t' })
+    : (dy >= 0 ? { sh: 'bottom', th: 'top-t' } : { sh: 'top', th: 'bottom-t' })
 }
 
 // 날개 자동 연결선
@@ -92,6 +105,7 @@ interface CtxMenu {
   nodeId?: string
   isWing?: boolean
   edgeId?: string
+  edgeRelationType?: EdgeRelationType
   canvasPos?: { x: number; y: number }
 }
 
@@ -103,6 +117,7 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge<ThoughtEdgeData>>([])
   const [nodeDataMap, setNodeDataMap] = useState<Record<string, ThoughtNode>>({})
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null)
+  const [ctxEdgeLabel, setCtxEdgeLabel] = useState('')
   const [proximityId, setProximityId] = useState<string | null>(null)
 
   // 로드
@@ -205,16 +220,22 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
         (e.source === proximityId && e.target === node.id)
       )
       if (!alreadyConnected) {
+        const targetNode = nodes.find(n => n.id === proximityId)
+        const { sh, th } = targetNode ? getBestHandles(node, targetNode) : { sh: 'right', th: 'left-t' }
         const dbEdge = await createEdge({
           source_id: node.id,
           target_id: proximityId,
           relation_type: 'center',
+          source_handle: sh,
+          target_handle: th,
         })
         setEdges(es => addEdge({
           id: dbEdge.id,
           source: dbEdge.source_id,
           target: dbEdge.target_id,
           type: 'thought',
+          sourceHandle: sh,
+          targetHandle: th,
           data: { label: '', relationType: 'center' },
         }, es))
       }
@@ -233,18 +254,22 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
 
   // 핸들 드래그로 연결
   const handleConnect = useCallback(async (conn: Connection) => {
+    const sh = conn.sourceHandle ?? 'right'
+    const th = conn.targetHandle ?? 'left-t'
     const dbEdge = await createEdge({
       source_id: conn.source!,
       target_id: conn.target!,
       relation_type: 'center',
-      source_handle: conn.sourceHandle ?? 'right',
-      target_handle: conn.targetHandle ?? 'left',
+      source_handle: sh,
+      target_handle: th,
     })
     setEdges(es => addEdge({
       id: dbEdge.id,
       source: dbEdge.source_id,
       target: dbEdge.target_id,
       type: 'thought',
+      sourceHandle: sh,
+      targetHandle: th,
       data: { label: '', relationType: 'center' },
     }, es))
   }, [])
@@ -260,7 +285,13 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
   const handleEdgeContextMenu = useCallback((e: MouseEvent | React.MouseEvent, edge: Edge) => {
     e.preventDefault()
     if ((edge.data as ThoughtEdgeData)?.isWingEdge) return
-    setCtxMenu({ x: e.clientX, y: e.clientY, type: 'edge', edgeId: edge.id })
+    const edgeData = (edge.data ?? {}) as ThoughtEdgeData
+    setCtxEdgeLabel(edgeData.label ?? '')
+    setCtxMenu({
+      x: e.clientX, y: e.clientY,
+      type: 'edge', edgeId: edge.id,
+      edgeRelationType: edgeData.relationType ?? 'center',
+    })
   }, [])
 
   // 컨텍스트 메뉴 닫기
@@ -311,7 +342,7 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
           {/* 힌트 */}
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
             <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-full px-4 py-1.5 text-xs text-gray-500 shadow-sm">
-              우클릭: 모듈 생성 · 모듈 끌기: 근접 자동 연결 · 핸들 드래그: 직접 연결
+              우클릭: 모듈 생성 · 모듈/선 우클릭: 옵션 · 모듈 클릭 후 핸들 드래그: 연결
             </div>
           </div>
 
@@ -383,16 +414,68 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
             )}
 
             {ctxMenu.type === 'edge' && (
-              <button
-                onClick={async () => {
-                  await brainCtxValue.onEdgeDelete(ctxMenu.edgeId!)
-                  setCtxMenu(null)
-                }}
-                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
-                className="hover:bg-red-50"
-              >
-                연결 끊기
-              </button>
+              <>
+                <div style={{ padding: '7px 14px 5px', fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>선 종류</div>
+                {(['center', 'assist', 'negative'] as EdgeRelationType[]).map(rt => {
+                  const c = EDGE_RELATION_CONFIG[rt]
+                  const isActive = ctxMenu.edgeRelationType === rt
+                  return (
+                    <button
+                      key={rt}
+                      onClick={async () => {
+                        await brainCtxValue.onEdgeChangeType(ctxMenu.edgeId!, rt)
+                        setCtxMenu(m => m ? { ...m, edgeRelationType: rt } : null)
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        width: '100%', textAlign: 'left', padding: '7px 14px',
+                        fontSize: 12, color: isActive ? c.color : '#374151',
+                        background: isActive ? `${c.color}18` : 'none',
+                        border: 'none', cursor: 'pointer', fontWeight: isActive ? 700 : 400,
+                      }}
+                      className="hover:bg-gray-50"
+                    >
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: c.color, display: 'inline-block', flexShrink: 0 }} />
+                      {c.label}
+                    </button>
+                  )
+                })}
+                <div style={{ height: 1, background: '#f1f5f9', margin: '4px 0' }} />
+                <div style={{ padding: '4px 10px 6px' }}>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 4 }}>선 내용</div>
+                  <input
+                    value={ctxEdgeLabel}
+                    onChange={e => setCtxEdgeLabel(e.target.value)}
+                    onKeyDown={async e => {
+                      if (e.key === 'Enter') {
+                        await brainCtxValue.onEdgeChangeLabel(ctxMenu.edgeId!, ctxEdgeLabel)
+                        setCtxMenu(null)
+                      }
+                      if (e.key === 'Escape') setCtxMenu(null)
+                    }}
+                    onBlur={async () => { await brainCtxValue.onEdgeChangeLabel(ctxMenu.edgeId!, ctxEdgeLabel) }}
+                    placeholder="내용 입력 후 Enter..."
+                    autoFocus
+                    style={{
+                      width: '100%', fontSize: 11,
+                      border: '1px solid #e2e8f0', borderRadius: 6,
+                      padding: '4px 8px', outline: 'none', color: '#374151',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+                <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
+                <button
+                  onClick={async () => {
+                    await brainCtxValue.onEdgeDelete(ctxMenu.edgeId!)
+                    setCtxMenu(null)
+                  }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
+                  className="hover:bg-red-50"
+                >
+                  연결 끊기
+                </button>
+              </>
             )}
           </div>
         )}

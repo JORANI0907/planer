@@ -11,20 +11,19 @@ export type ModuleNodeData = {
   autoFocus?: boolean
 }
 
-// 투명 핸들: 연결 드래그용, 호버 시 표시
 const HANDLE_BASE: React.CSSProperties = {
   width: 12,
   height: 12,
   borderRadius: '50%',
   border: '2px solid #94a3b8',
   background: '#ffffff',
-  opacity: 0,
   transition: 'opacity 0.15s',
   zIndex: 10,
 }
 
 function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeData; selected: boolean }) {
   const { onUpdateTitle, onUpdateContent, onContextMenu } = useContext(BrainCtx)
+  const [nodeHovered, setNodeHovered] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
   const [editingContent, setEditingContent] = useState(false)
   const [titleVal, setTitleVal] = useState(data.label)
@@ -89,6 +88,7 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
 
   const handleStyle = (pos: Position): React.CSSProperties => ({
     ...HANDLE_BASE,
+    opacity: (nodeHovered || selected) ? 1 : 0,
     ...(pos === Position.Top    && { top: -7 }),
     ...(pos === Position.Right  && { right: -7 }),
     ...(pos === Position.Bottom && { bottom: -7 }),
@@ -110,6 +110,8 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
 
         <div
           onContextMenu={handleContextMenu}
+          onMouseEnter={() => setNodeHovered(true)}
+          onMouseLeave={() => setNodeHovered(false)}
           className="nodrag-prevent"
           style={{
             width: 80,
@@ -183,6 +185,8 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
 
       <div
         onContextMenu={handleContextMenu}
+        onMouseEnter={() => setNodeHovered(true)}
+        onMouseLeave={() => setNodeHovered(false)}
         style={{
           width: 150,
           minHeight: 60,
