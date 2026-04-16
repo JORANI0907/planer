@@ -1,27 +1,23 @@
 'use client'
 
 import { useState } from 'react'
-import type { ThoughtNode, ThoughtNodeType } from '@/lib/brain-types'
-import { NODE_TYPE_CONFIG } from '@/lib/brain-types'
-
-const TYPE_OPTIONS: ThoughtNodeType[] = ['idea', 'logic', 'concern', 'action', 'business', 'memo']
+import type { ThoughtNode } from '@/lib/brain-types'
 
 interface Props {
   topics: ThoughtNode[]
   onSelect: (topic: ThoughtNode) => void
-  onCreate: (title: string, type: ThoughtNodeType) => void
+  onCreate: (title: string) => void
   onDelete: (id: string) => void
 }
 
 export function RootSelector({ topics, onSelect, onCreate, onDelete }: Props) {
   const [creating, setCreating] = useState(false)
   const [title, setTitle] = useState('')
-  const [type, setType] = useState<ThoughtNodeType>('idea')
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim()) return
-    onCreate(title.trim(), type)
+    onCreate(title.trim())
     setTitle('')
     setCreating(false)
   }
@@ -35,31 +31,27 @@ export function RootSelector({ topics, onSelect, onCreate, onDelete }: Props) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-        {topics.map(topic => {
-          const cfg = NODE_TYPE_CONFIG[topic.type]
-          return (
-            <div key={topic.id} className="group relative">
-              <button
-                onClick={() => onSelect(topic)}
-                className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-indigo-300 hover:shadow-md text-left transition-all"
-                style={{ borderLeftColor: cfg.color, borderLeftWidth: 4 }}
-              >
-                <span className="text-2xl">{cfg.icon}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-gray-900 truncate">{topic.title}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{cfg.label} · {new Date(topic.updated_at).toLocaleDateString('ko-KR')}</p>
-                </div>
-                <span className="text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">▶</span>
-              </button>
-              <button
-                onClick={() => { if (confirm(`"${topic.title}" 주제를 삭제할까요? 모든 노드가 삭제됩니다.`)) onDelete(topic.id) }}
-                className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-300 opacity-0 group-hover:opacity-100 transition-all text-xs shadow-sm"
-              >
-                ×
-              </button>
-            </div>
-          )
-        })}
+        {topics.map(topic => (
+          <div key={topic.id} className="group relative">
+            <button
+              onClick={() => onSelect(topic)}
+              className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-indigo-300 hover:shadow-md text-left transition-all"
+            >
+              <div className="w-3 h-3 rounded-sm bg-slate-400 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-gray-900 truncate">{topic.title}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{new Date(topic.updated_at).toLocaleDateString('ko-KR')}</p>
+              </div>
+              <span className="text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">▶</span>
+            </button>
+            <button
+              onClick={() => { if (confirm(`"${topic.title}" 주제를 삭제할까요? 모든 노드가 삭제됩니다.`)) onDelete(topic.id) }}
+              className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-300 opacity-0 group-hover:opacity-100 transition-all text-xs shadow-sm"
+            >
+              ×
+            </button>
+          </div>
+        ))}
 
         {!creating ? (
           <button
@@ -71,22 +63,13 @@ export function RootSelector({ topics, onSelect, onCreate, onDelete }: Props) {
           </button>
         ) : (
           <form onSubmit={handleCreate} className="p-4 rounded-xl border-2 border-indigo-300 bg-indigo-50 space-y-3">
-            <div className="flex flex-wrap gap-1">
-              {TYPE_OPTIONS.map(t => {
-                const cfg = NODE_TYPE_CONFIG[t]
-                return (
-                  <button key={t} type="button" onClick={() => setType(t)}
-                    className="px-2 py-0.5 rounded-md text-xs font-medium border transition-all"
-                    style={type === t ? { backgroundColor: cfg.bg, color: cfg.color, borderColor: cfg.color } : { borderColor: 'transparent', color: '#9ca3af' }}
-                  >
-                    {cfg.icon} {cfg.label}
-                  </button>
-                )
-              })}
-            </div>
-            <input autoFocus value={title} onChange={e => setTitle(e.target.value)}
+            <input
+              autoFocus
+              value={title}
+              onChange={e => setTitle(e.target.value)}
               placeholder="주제 이름..."
-              className="w-full px-3 py-1.5 border border-indigo-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white" />
+              className="w-full px-3 py-1.5 border border-indigo-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white"
+            />
             <div className="flex gap-2">
               <button type="button" onClick={() => setCreating(false)} className="flex-1 py-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg bg-white hover:bg-gray-50">취소</button>
               <button type="submit" disabled={!title.trim()} className="flex-1 py-1.5 text-xs font-medium text-white rounded-lg disabled:opacity-40" style={{ backgroundColor: '#6366f1' }}>만들기</button>

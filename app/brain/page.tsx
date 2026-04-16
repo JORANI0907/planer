@@ -1,12 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import type { ThoughtNode, ThoughtNodeType } from '@/lib/brain-types'
+import type { ThoughtNode } from '@/lib/brain-types'
 import { getTopics, createTopic, deleteTopic } from '@/lib/brain-api'
 import { RootSelector } from '@/components/brain/RootSelector'
 import dynamic from 'next/dynamic'
 
-// BrainCanvas는 ReactFlow(클라이언트 전용)를 포함하므로 dynamic import
 const BrainCanvas = dynamic(
   () => import('@/components/brain/BrainCanvas').then(m => m.BrainCanvas),
   { ssr: false, loading: () => <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">캔버스 로딩 중...</div> }
@@ -21,8 +20,8 @@ export default function BrainPage() {
     getTopics().then(t => { setTopics(t); setLoading(false) }).catch(() => setLoading(false))
   }, [])
 
-  async function handleCreateTopic(title: string, type: ThoughtNodeType) {
-    const topic = await createTopic(title, type)
+  async function handleCreateTopic(title: string) {
+    const topic = await createTopic(title)
     setTopics(prev => [...prev, topic])
     setActiveTopic(topic)
   }
@@ -41,7 +40,7 @@ export default function BrainPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] md:h-[calc(100vh-2rem)] -mt-4 -mx-4 md:-mt-8 md:-mx-8 overflow-hidden">
-      {/* 헤더 바 */}
+      {/* 헤더 */}
       <div className="flex items-center gap-3 px-4 md:px-6 py-3 bg-white border-b border-gray-200 shrink-0">
         <span className="text-xl">🧠</span>
         <h1 className="font-bold text-gray-900">생각 확장 맵</h1>

@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
-import type { ThoughtNode, ThoughtEdge, ThoughtNodeType, EdgeRelationType } from './brain-types'
-import { NODE_TYPE_CONFIG } from './brain-types'
+import type { ThoughtNode, ThoughtEdge, EdgeRelationType } from './brain-types'
+
+const DEFAULT_COLOR = '#94a3b8'
 
 // ─── Topics ───────────────────────────────────────────────────
 
@@ -15,10 +16,10 @@ export async function getTopics(): Promise<ThoughtNode[]> {
   return data ?? []
 }
 
-export async function createTopic(title: string, type: ThoughtNodeType): Promise<ThoughtNode> {
+export async function createTopic(title: string): Promise<ThoughtNode> {
   const { data, error } = await supabase
     .from('thought_nodes')
-    .insert({ parent_id: null, title, type, node_kind: 'topic', pos_x: 0, pos_y: 0, grid_position: 4, color: NODE_TYPE_CONFIG[type].color })
+    .insert({ parent_id: null, title, type: 'memo', node_kind: 'topic', pos_x: 0, pos_y: 0, grid_position: 4, color: DEFAULT_COLOR })
     .select().single()
   if (error) throw error
   return data
@@ -32,17 +33,14 @@ export async function deleteTopic(id: string): Promise<void> {
 // ─── Modules & Wings ──────────────────────────────────────────
 
 export async function getCanvasNodes(topicId: string): Promise<ThoughtNode[]> {
-  // 모듈 가져오기
   const { data: modules, error: me } = await supabase
     .from('thought_nodes')
     .select('*')
     .eq('parent_id', topicId)
     .eq('node_kind', 'module')
   if (me) throw me
-
   if (!modules || modules.length === 0) return []
 
-  // 날개 가져오기
   const moduleIds = modules.map(m => m.id)
   const { data: wings, error: we } = await supabase
     .from('thought_nodes')
@@ -55,22 +53,22 @@ export async function getCanvasNodes(topicId: string): Promise<ThoughtNode[]> {
 }
 
 export async function createModule(
-  topicId: string, title: string, type: ThoughtNodeType, x: number, y: number
+  topicId: string, title: string, x: number, y: number
 ): Promise<ThoughtNode> {
   const { data, error } = await supabase
     .from('thought_nodes')
-    .insert({ parent_id: topicId, title, type, node_kind: 'module', pos_x: x, pos_y: y, grid_position: 4, color: NODE_TYPE_CONFIG[type].color })
+    .insert({ parent_id: topicId, title, type: 'memo', node_kind: 'module', pos_x: x, pos_y: y, grid_position: 4, color: DEFAULT_COLOR })
     .select().single()
   if (error) throw error
   return data
 }
 
 export async function createWing(
-  moduleId: string, title: string, type: ThoughtNodeType, x: number, y: number
+  moduleId: string, title: string, x: number, y: number
 ): Promise<ThoughtNode> {
   const { data, error } = await supabase
     .from('thought_nodes')
-    .insert({ parent_id: moduleId, title, type, node_kind: 'wing', pos_x: x, pos_y: y, grid_position: 4, color: NODE_TYPE_CONFIG[type].color })
+    .insert({ parent_id: moduleId, title, type: 'memo', node_kind: 'wing', pos_x: x, pos_y: y, grid_position: 4, color: DEFAULT_COLOR })
     .select().single()
   if (error) throw error
   return data
@@ -78,7 +76,7 @@ export async function createWing(
 
 export async function updateNode(
   id: string,
-  updates: Partial<Pick<ThoughtNode, 'title' | 'content' | 'type' | 'tags'>>
+  updates: Partial<Pick<ThoughtNode, 'title' | 'content' | 'tags'>>
 ): Promise<ThoughtNode> {
   const { data, error } = await supabase
     .from('thought_nodes').update(updates).eq('id', id).select().single()

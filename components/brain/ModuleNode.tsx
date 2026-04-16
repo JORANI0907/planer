@@ -1,82 +1,289 @@
 'use client'
 
-import { memo, useContext } from 'react'
-import { Handle, Position, NodeToolbar } from '@xyflow/react'
-import { NODE_TYPE_CONFIG } from '@/lib/brain-types'
-import type { ThoughtNodeType } from '@/lib/brain-types'
+import { memo, useContext, useState, useRef, useEffect } from 'react'
+import { Handle, Position } from '@xyflow/react'
 import { BrainCtx } from './BrainContext'
 
 export type ModuleNodeData = {
   label: string
-  nodeType: ThoughtNodeType
   content: string | null
-  tags: string[]
   isWing?: boolean
+  autoFocus?: boolean
 }
 
-const HANDLE_STYLE = { width: 10, height: 10, borderRadius: '50%', border: '2px solid #94a3b8', background: '#fff' }
+// 투명 핸들: 연결 드래그용, 호버 시 표시
+const HANDLE_BASE: React.CSSProperties = {
+  width: 12,
+  height: 12,
+  borderRadius: '50%',
+  border: '2px solid #94a3b8',
+  background: '#ffffff',
+  opacity: 0,
+  transition: 'opacity 0.15s',
+  zIndex: 10,
+}
 
 function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeData; selected: boolean }) {
-  const { onAddWing, onDelete } = useContext(BrainCtx)
-  const cfg = NODE_TYPE_CONFIG[data.nodeType]
-  const isWing = data.isWing
+  const { onUpdateTitle, onUpdateContent, onContextMenu } = useContext(BrainCtx)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [editingContent, setEditingContent] = useState(false)
+  const [titleVal, setTitleVal] = useState(data.label)
+  const [contentVal, setContentVal] = useState(data.content ?? '')
+  const titleRef = useRef<HTMLInputElement>(null)
+  const contentRef = useRef<HTMLTextAreaElement>(null)
+  const isWing = data.isWing ?? false
 
-  return (
-    <>
-      <NodeToolbar isVisible={selected} position={Position.Top} className="flex gap-1">
-        {!isWing && (
-          <button
-            onClick={() => onAddWing(id)}
-            className="px-2 py-1 text-xs bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-indigo-50 hover:border-indigo-300 text-gray-600 hover:text-indigo-600 transition-colors"
-          >
-            + 날개
-          </button>
-        )}
-        <button
-          onClick={() => onDelete(id)}
-          className="px-2 py-1 text-xs bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-red-50 hover:border-red-300 text-gray-500 hover:text-red-500 transition-colors"
-        >
-          삭제
-        </button>
-      </NodeToolbar>
+  // 외부에서 label 변경 시 동기화
+  useEffect(() => { setTitleVal(data.label) }, [data.label])
+  useEffect(() => { setContentVal(data.content ?? '') }, [data.content])
 
-      {/* Handles — 4방향 */}
-      <Handle type="source" position={Position.Top}    id="top"    style={{ ...HANDLE_STYLE, top: -6 }} />
-      <Handle type="source" position={Position.Right}  id="right"  style={{ ...HANDLE_STYLE, right: -6 }} />
-      <Handle type="source" position={Position.Bottom} id="bottom" style={{ ...HANDLE_STYLE, bottom: -6 }} />
-      <Handle type="source" position={Position.Left}   id="left"   style={{ ...HANDLE_STYLE, left: -6 }} />
-      <Handle type="target" position={Position.Top}    id="top-t"    style={{ ...HANDLE_STYLE, top: -6, opacity: 0 }} />
-      <Handle type="target" position={Position.Right}  id="right-t"  style={{ ...HANDLE_STYLE, right: -6, opacity: 0 }} />
-      <Handle type="target" position={Position.Bottom} id="bottom-t" style={{ ...HANDLE_STYLE, bottom: -6, opacity: 0 }} />
-      <Handle type="target" position={Position.Left}   id="left-t"   style={{ ...HANDLE_STYLE, left: -6, opacity: 0 }} />
+  // autoFocus: 새로 생성된 노드는 즉시 편집 모드
+  useEffect(() => {
+    if (data.autoFocus) {
+      setEditingTitle(true)
+    }
+  }, [data.autoFocus])
 
-      {/* Node body */}
-      <div
-        className="flex flex-col items-center justify-center rounded-2xl transition-all"
-        style={{
-          width: isWing ? 80 : 100,
-          height: isWing ? 80 : 100,
-          backgroundColor: cfg.bg,
-          border: `2px solid ${selected ? '#6366f1' : cfg.color}`,
-          boxShadow: selected ? '0 0 0 3px #c7d2fe' : '0 2px 8px rgba(0,0,0,0.08)',
-          opacity: isWing ? 0.9 : 1,
-        }}
-      >
-        <span style={{ fontSize: isWing ? 18 : 22 }}>{cfg.icon}</span>
-        <p
-          className="font-medium text-center leading-tight px-1.5 mt-1"
+  useEffect(() => {
+    if (editingTitle && titleRef.current) {
+      titleRef.current.focus()
+      titleRef.current.select()
+    }
+  }, [editingTitle])
+
+  useEffect(() => {
+    if (editingContent && contentRef.current) {
+      contentRef.current.focus()
+    }
+  }, [editingContent])
+
+  function saveTitle() {
+    setEditingTitle(false)
+    const trimmed = titleVal.trim()
+    if (trimmed !== data.label) {
+      onUpdateTitle(id, trimmed || '(제목 없음)')
+    }
+  }
+
+  function saveContent() {
+    setEditingContent(false)
+    if (contentVal !== (data.content ?? '')) {
+      onUpdateContent(id, contentVal)
+    }
+  }
+
+  function handleTitleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') { e.preventDefault(); saveTitle() }
+    if (e.key === 'Escape') { setTitleVal(data.label); setEditingTitle(false) }
+  }
+
+  function handleContentKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Escape') { setContentVal(data.content ?? ''); setEditingContent(false) }
+  }
+
+  function handleContextMenu(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    onContextMenu(id, isWing, e.clientX, e.clientY)
+  }
+
+  const handleStyle = (pos: Position): React.CSSProperties => ({
+    ...HANDLE_BASE,
+    ...(pos === Position.Top    && { top: -7 }),
+    ...(pos === Position.Right  && { right: -7 }),
+    ...(pos === Position.Bottom && { bottom: -7 }),
+    ...(pos === Position.Left   && { left: -7 }),
+  })
+
+  // ── 날개 모듈: 동그라미 ──────────────────────────────────────
+  if (isWing) {
+    return (
+      <>
+        <Handle type="source" position={Position.Top}    id="top"    style={handleStyle(Position.Top)} />
+        <Handle type="source" position={Position.Right}  id="right"  style={handleStyle(Position.Right)} />
+        <Handle type="source" position={Position.Bottom} id="bottom" style={handleStyle(Position.Bottom)} />
+        <Handle type="source" position={Position.Left}   id="left"   style={handleStyle(Position.Left)} />
+        <Handle type="target" position={Position.Top}    id="top-t"    style={{ ...handleStyle(Position.Top), opacity: 0 }} />
+        <Handle type="target" position={Position.Right}  id="right-t"  style={{ ...handleStyle(Position.Right), opacity: 0 }} />
+        <Handle type="target" position={Position.Bottom} id="bottom-t" style={{ ...handleStyle(Position.Bottom), opacity: 0 }} />
+        <Handle type="target" position={Position.Left}   id="left-t"   style={{ ...handleStyle(Position.Left), opacity: 0 }} />
+
+        <div
+          onContextMenu={handleContextMenu}
+          className="nodrag-prevent"
           style={{
-            color: cfg.color,
-            fontSize: isWing ? 10 : 11,
-            maxWidth: '100%',
-            overflow: 'hidden',
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
+            width: 80,
+            height: 80,
+            borderRadius: '50%',
+            backgroundColor: '#f0f9ff',
+            border: `2px solid ${selected ? '#6366f1' : '#94a3b8'}`,
+            boxShadow: selected ? '0 0 0 3px #c7d2fe' : '0 2px 6px rgba(0,0,0,0.07)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'default',
           }}
         >
-          {data.label || '(제목 없음)'}
-        </p>
+          {editingTitle ? (
+            <input
+              ref={titleRef}
+              className="nodrag nopan"
+              value={titleVal}
+              onChange={e => setTitleVal(e.target.value)}
+              onBlur={saveTitle}
+              onKeyDown={handleTitleKeyDown}
+              style={{
+                width: '80%',
+                textAlign: 'center',
+                fontSize: 11,
+                border: 'none',
+                outline: 'none',
+                background: 'transparent',
+                color: '#1e40af',
+                fontWeight: 600,
+              }}
+            />
+          ) : (
+            <p
+              onClick={() => setEditingTitle(true)}
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#1e40af',
+                textAlign: 'center',
+                padding: '0 8px',
+                margin: 0,
+                overflow: 'hidden',
+                display: '-webkit-box',
+                WebkitLineClamp: 3,
+                WebkitBoxOrient: 'vertical',
+                lineHeight: 1.3,
+                cursor: 'text',
+              }}
+            >
+              {data.label || '(내용)'}
+            </p>
+          )}
+        </div>
+      </>
+    )
+  }
+
+  // ── 본 모듈: 네모 ────────────────────────────────────────────
+  return (
+    <>
+      <Handle type="source" position={Position.Top}    id="top"    style={handleStyle(Position.Top)} />
+      <Handle type="source" position={Position.Right}  id="right"  style={handleStyle(Position.Right)} />
+      <Handle type="source" position={Position.Bottom} id="bottom" style={handleStyle(Position.Bottom)} />
+      <Handle type="source" position={Position.Left}   id="left"   style={handleStyle(Position.Left)} />
+      <Handle type="target" position={Position.Top}    id="top-t"    style={{ ...handleStyle(Position.Top), opacity: 0 }} />
+      <Handle type="target" position={Position.Right}  id="right-t"  style={{ ...handleStyle(Position.Right), opacity: 0 }} />
+      <Handle type="target" position={Position.Bottom} id="bottom-t" style={{ ...handleStyle(Position.Bottom), opacity: 0 }} />
+      <Handle type="target" position={Position.Left}   id="left-t"   style={{ ...handleStyle(Position.Left), opacity: 0 }} />
+
+      <div
+        onContextMenu={handleContextMenu}
+        style={{
+          width: 150,
+          minHeight: 60,
+          borderRadius: 10,
+          backgroundColor: '#ffffff',
+          border: `2px solid ${selected ? '#6366f1' : '#cbd5e1'}`,
+          boxShadow: selected ? '0 0 0 3px #c7d2fe' : '0 2px 8px rgba(0,0,0,0.07)',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '10px 12px',
+          gap: 4,
+          cursor: 'default',
+        }}
+      >
+        {/* 제목 */}
+        {editingTitle ? (
+          <input
+            ref={titleRef}
+            className="nodrag nopan"
+            value={titleVal}
+            onChange={e => setTitleVal(e.target.value)}
+            onBlur={saveTitle}
+            onKeyDown={handleTitleKeyDown}
+            style={{
+              width: '100%',
+              fontSize: 13,
+              fontWeight: 700,
+              color: '#1e293b',
+              border: 'none',
+              outline: 'none',
+              background: 'transparent',
+              textAlign: 'center',
+            }}
+          />
+        ) : (
+          <p
+            onClick={() => setEditingTitle(true)}
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: '#1e293b',
+              textAlign: 'center',
+              margin: 0,
+              overflow: 'hidden',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              lineHeight: 1.4,
+              cursor: 'text',
+            }}
+          >
+            {data.label || '(제목 없음)'}
+          </p>
+        )}
+
+        {/* 내용 — 선택 시 표시 */}
+        {(selected || editingContent || (data.content && data.content.trim())) && (
+          <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 6, marginTop: 2 }}>
+            {editingContent ? (
+              <textarea
+                ref={contentRef}
+                className="nodrag nopan"
+                value={contentVal}
+                onChange={e => setContentVal(e.target.value)}
+                onBlur={saveContent}
+                onKeyDown={handleContentKeyDown}
+                rows={3}
+                placeholder="내용 입력..."
+                style={{
+                  width: '100%',
+                  fontSize: 11,
+                  color: '#475569',
+                  border: 'none',
+                  outline: 'none',
+                  background: 'transparent',
+                  resize: 'none',
+                  lineHeight: 1.5,
+                  fontFamily: 'inherit',
+                }}
+              />
+            ) : (
+              <p
+                onClick={() => setEditingContent(true)}
+                style={{
+                  fontSize: 11,
+                  color: '#64748b',
+                  margin: 0,
+                  lineHeight: 1.5,
+                  overflow: 'hidden',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: 'vertical',
+                  cursor: 'text',
+                  minHeight: 16,
+                }}
+              >
+                {data.content?.trim() || (selected ? '내용 클릭해서 입력...' : '')}
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </>
   )
