@@ -11,14 +11,6 @@ export type ModuleNodeData = {
   autoFocus?: boolean
 }
 
-const TARGET_BASE: React.CSSProperties = {
-  width: 8, height: 8,
-  background: 'transparent',
-  border: 'none',
-  opacity: 0,
-  zIndex: 1,
-}
-
 function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeData; selected: boolean }) {
   const { onUpdateTitle, onUpdateContent, onContextMenu } = useContext(BrainCtx)
   const [nodeHovered, setNodeHovered] = useState(false)
@@ -32,18 +24,13 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
 
   useEffect(() => { setTitleVal(data.label) }, [data.label])
   useEffect(() => { setContentVal(data.content ?? '') }, [data.content])
-
-  useEffect(() => {
-    if (data.autoFocus) setEditingTitle(true)
-  }, [data.autoFocus])
-
+  useEffect(() => { if (data.autoFocus) setEditingTitle(true) }, [data.autoFocus])
   useEffect(() => {
     if (editingTitle && titleRef.current) {
       titleRef.current.focus()
       titleRef.current.select()
     }
   }, [editingTitle])
-
   useEffect(() => {
     if (editingContent && contentRef.current) contentRef.current.focus()
   }, [editingContent])
@@ -74,56 +61,51 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
     onContextMenu(id, isWing, e.clientX, e.clientY)
   }
 
-  // 연결 시작 + 버튼 (source handle)
-  const plusHandleStyle = (pos: 'top' | 'right' | 'bottom' | 'left'): React.CSSProperties => ({
-    width: 20, height: 20,
-    borderRadius: '50%',
+  const visible = nodeHovered || selected
+
+  // + 버튼 외관의 Source Handle. ReactFlow가 position prop으로 알아서 배치
+  const sourceHandleStyle: React.CSSProperties = {
+    width: 22,
+    height: 22,
     background: '#6366f1',
     border: '2px solid #ffffff',
-    boxShadow: '0 2px 6px rgba(99,102,241,0.45)',
-    opacity: (nodeHovered || selected) ? 1 : 0,
+    boxShadow: '0 2px 8px rgba(99,102,241,0.5)',
+    opacity: visible ? 1 : 0,
     transition: 'opacity 0.15s',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 5,
     cursor: 'crosshair',
-    ...(pos === 'top'    && { top: -10 }),
-    ...(pos === 'right'  && { right: -10 }),
-    ...(pos === 'bottom' && { bottom: -10 }),
-    ...(pos === 'left'   && { left: -10 }),
-  })
+  }
 
-  // 숨겨진 target handle (드롭 감지용)
-  const targetStyle = (pos: 'top' | 'right' | 'bottom' | 'left'): React.CSSProperties => ({
-    ...TARGET_BASE,
-    ...(pos === 'top'    && { top: 0 }),
-    ...(pos === 'right'  && { right: 0 }),
-    ...(pos === 'bottom' && { bottom: 0 }),
-    ...(pos === 'left'   && { left: 0 }),
-  })
+  const plusIcon = (
+    <span style={{
+      color: '#ffffff',
+      fontSize: 15,
+      fontWeight: 700,
+      lineHeight: 1,
+      pointerEvents: 'none',
+      userSelect: 'none',
+    }}>+</span>
+  )
 
-  // 공통 핸들 (4방향 source 버튼 + 4방향 target 감지점)
+  // 공통 핸들: 4방향에 source(+), ConnectionMode.Loose라서 target 역할도 함
   const handles = (
     <>
-      <Handle type="target" position={Position.Top}    id="t-top"    style={targetStyle('top')} />
-      <Handle type="target" position={Position.Right}  id="t-right"  style={targetStyle('right')} />
-      <Handle type="target" position={Position.Bottom} id="t-bottom" style={targetStyle('bottom')} />
-      <Handle type="target" position={Position.Left}   id="t-left"   style={targetStyle('left')} />
+      <Handle type="source" position={Position.Top}    id="s-top"    style={sourceHandleStyle}>{plusIcon}</Handle>
+      <Handle type="source" position={Position.Right}  id="s-right"  style={sourceHandleStyle}>{plusIcon}</Handle>
+      <Handle type="source" position={Position.Bottom} id="s-bottom" style={sourceHandleStyle}>{plusIcon}</Handle>
+      <Handle type="source" position={Position.Left}   id="s-left"   style={sourceHandleStyle}>{plusIcon}</Handle>
 
-      <Handle type="source" position={Position.Top}    id="s-top"    style={plusHandleStyle('top')}>
-        <span style={{ color: '#fff', fontSize: 13, fontWeight: 700, lineHeight: '16px', pointerEvents: 'none', display: 'block', textAlign: 'center' }}>+</span>
-      </Handle>
-      <Handle type="source" position={Position.Right}  id="s-right"  style={plusHandleStyle('right')}>
-        <span style={{ color: '#fff', fontSize: 13, fontWeight: 700, lineHeight: '16px', pointerEvents: 'none', display: 'block', textAlign: 'center' }}>+</span>
-      </Handle>
-      <Handle type="source" position={Position.Bottom} id="s-bottom" style={plusHandleStyle('bottom')}>
-        <span style={{ color: '#fff', fontSize: 13, fontWeight: 700, lineHeight: '16px', pointerEvents: 'none', display: 'block', textAlign: 'center' }}>+</span>
-      </Handle>
-      <Handle type="source" position={Position.Left}   id="s-left"   style={plusHandleStyle('left')}>
-        <span style={{ color: '#fff', fontSize: 13, fontWeight: 700, lineHeight: '16px', pointerEvents: 'none', display: 'block', textAlign: 'center' }}>+</span>
-      </Handle>
+      <Handle type="target" position={Position.Top}    id="t-top"    style={{ width: 22, height: 22, background: 'transparent', border: 'none', opacity: 0 }} />
+      <Handle type="target" position={Position.Right}  id="t-right"  style={{ width: 22, height: 22, background: 'transparent', border: 'none', opacity: 0 }} />
+      <Handle type="target" position={Position.Bottom} id="t-bottom" style={{ width: 22, height: 22, background: 'transparent', border: 'none', opacity: 0 }} />
+      <Handle type="target" position={Position.Left}   id="t-left"   style={{ width: 22, height: 22, background: 'transparent', border: 'none', opacity: 0 }} />
     </>
   )
 
-  // ── 날개 모듈 ────────────────────────────────────────────────
+  // ── 날개 모듈 (동그라미) ─────────────────────────────────────
   if (isWing) {
     return (
       <div
@@ -145,7 +127,6 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
         }}
       >
         {handles}
-
         {editingTitle ? (
           <input
             ref={titleRef}
@@ -158,7 +139,7 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
               width: '80%', textAlign: 'center',
               fontSize: 11, border: 'none', outline: 'none',
               background: 'transparent', color: '#1e40af', fontWeight: 600,
-              zIndex: 2, position: 'relative',
+              position: 'relative', zIndex: 2,
             }}
           />
         ) : (
@@ -170,7 +151,7 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
               overflow: 'hidden', display: '-webkit-box',
               WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
               lineHeight: 1.3, cursor: 'text',
-              zIndex: 2, position: 'relative',
+              position: 'relative', zIndex: 2,
             }}
           >
             {data.label || '(내용)'}
@@ -180,7 +161,7 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
     )
   }
 
-  // ── 본 모듈 ──────────────────────────────────────────────────
+  // ── 본 모듈 (사각형) ────────────────────────────────────────
   return (
     <div
       onContextMenu={handleContextMenu}
@@ -215,7 +196,7 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
             width: '100%', fontSize: 13, fontWeight: 700,
             color: '#1e293b', border: 'none', outline: 'none',
             background: 'transparent', textAlign: 'center',
-            zIndex: 2, position: 'relative',
+            position: 'relative', zIndex: 2,
           }}
         />
       ) : (
@@ -227,7 +208,7 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
             overflow: 'hidden', display: '-webkit-box',
             WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
             lineHeight: 1.4, cursor: 'text',
-            zIndex: 2, position: 'relative',
+            position: 'relative', zIndex: 2,
           }}
         >
           {data.label || '(제목 없음)'}
@@ -235,7 +216,11 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
       )}
 
       {(selected || editingContent || (data.content && data.content.trim())) && (
-        <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 6, marginTop: 2, zIndex: 2, position: 'relative' }}>
+        <div style={{
+          borderTop: '1px solid #f1f5f9',
+          paddingTop: 6, marginTop: 2,
+          position: 'relative', zIndex: 2,
+        }}>
           {editingContent ? (
             <textarea
               ref={contentRef}

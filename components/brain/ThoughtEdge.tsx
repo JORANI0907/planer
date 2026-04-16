@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useContext, useState, useRef, useEffect } from 'react'
-import { BaseEdge, EdgeLabelRenderer, getBezierPath, useInternalNode, type EdgeProps } from '@xyflow/react'
+import { BaseEdge, EdgeLabelRenderer, getBezierPath, useInternalNode, Position, type EdgeProps } from '@xyflow/react'
 import { EDGE_RELATION_CONFIG } from '@/lib/brain-types'
 import type { EdgeRelationType } from '@/lib/brain-types'
 import { getEdgeParams } from '@/lib/floating-edge-utils'
@@ -17,6 +17,7 @@ const RELATION_TYPES: EdgeRelationType[] = ['center', 'assist', 'negative']
 
 function ThoughtEdgeInner({
   id, source, target,
+  sourceX, sourceY, targetX, targetY,
   data, selected, markerEnd,
 }: EdgeProps) {
   const { onEdgeChangeType, onEdgeChangeLabel, onEdgeDelete } = useContext(BrainCtx)
@@ -32,12 +33,18 @@ function ThoughtEdgeInner({
   useEffect(() => { setLabelVal(edgeData.label ?? '') }, [edgeData.label])
   useEffect(() => { if (labelEdit && labelInputRef.current) labelInputRef.current.focus() }, [labelEdit])
 
-  // 360° 자동 방향: 두 노드의 실제 경계 교차점을 계산
+  // 360° 자동 방향: 두 노드의 실제 경계 교차점을 계산 (측정 전에는 ReactFlow 기본값 사용)
   const sourceNode = useInternalNode(source)
   const targetNode = useInternalNode(target)
-  if (!sourceNode || !targetNode) return null
 
-  const { sx, sy, tx, ty, sourcePos, targetPos } = getEdgeParams(sourceNode, targetNode)
+  let sx = sourceX, sy = sourceY, tx = targetX, ty = targetY
+  let sourcePos: Position = Position.Right, targetPos: Position = Position.Left
+  if (sourceNode?.measured?.width && targetNode?.measured?.width) {
+    const p = getEdgeParams(sourceNode, targetNode)
+    sx = p.sx; sy = p.sy; tx = p.tx; ty = p.ty
+    sourcePos = p.sourcePos; targetPos = p.targetPos
+  }
+
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX: sx,
     sourceY: sy,
