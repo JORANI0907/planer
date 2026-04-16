@@ -23,7 +23,6 @@ import { BrainCtx } from './BrainContext'
 const nodeTypes = { module: ModuleNode }
 const edgeTypes = { thought: ThoughtEdgeComp }
 
-// DB → React Flow Node
 function toRFNode(n: ThoughtNode, autoFocus = false): Node<ModuleNodeData> {
   return {
     id: n.id,
@@ -38,7 +37,6 @@ function toRFNode(n: ThoughtNode, autoFocus = false): Node<ModuleNodeData> {
   }
 }
 
-// DB → React Flow Edge
 function toRFEdge(e: ThoughtEdge): Edge<ThoughtEdgeData> {
   const relType = mapRelationType(e.relation_type)
   return {
@@ -46,24 +44,10 @@ function toRFEdge(e: ThoughtEdge): Edge<ThoughtEdgeData> {
     source: e.source_id,
     target: e.target_id,
     type: 'thought',
-    sourceHandle: e.source_handle ?? undefined,
-    targetHandle: e.target_handle ?? undefined,
     data: { label: e.label ?? '', relationType: relType },
   }
 }
 
-// 두 노드 상대 위치로 최적 핸들 쌍 계산
-function getBestHandles(sourceNode: Node, targetNode: Node): { sh: string; th: string } {
-  const sc = nodeCenter(sourceNode)
-  const tc = nodeCenter(targetNode)
-  const dx = tc.x - sc.x
-  const dy = tc.y - sc.y
-  return Math.abs(dx) >= Math.abs(dy)
-    ? (dx >= 0 ? { sh: 'right', th: 'left-t' } : { sh: 'left', th: 'right-t' })
-    : (dy >= 0 ? { sh: 'bottom', th: 'top-t' } : { sh: 'top', th: 'bottom-t' })
-}
-
-// 날개 자동 연결선
 function wingEdge(wingId: string, parentId: string): Edge<ThoughtEdgeData> {
   return {
     id: `wing-${wingId}`,
@@ -75,7 +59,6 @@ function wingEdge(wingId: string, parentId: string): Edge<ThoughtEdgeData> {
   }
 }
 
-// 두 노드의 중심 좌표
 function nodeCenter(node: Node): { x: number; y: number } {
   const isWing = (node.data as ModuleNodeData).isWing
   const w = isWing ? 80 : 150
@@ -83,8 +66,7 @@ function nodeCenter(node: Node): { x: number; y: number } {
   return { x: node.position.x + w / 2, y: node.position.y + h / 2 }
 }
 
-// 가장 가까운 노드 찾기 (드래그 근접 연결용)
-const PROX_THRESHOLD = 120 // px, 중심 간 거리
+const PROX_THRESHOLD = 140
 function findProximityTarget(dragged: Node, allNodes: Node[]): Node | null {
   const dc = nodeCenter(dragged)
   let closest: Node | null = null
@@ -115,12 +97,11 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<ModuleNodeData>>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge<ThoughtEdgeData>>([])
-  const [nodeDataMap, setNodeDataMap] = useState<Record<string, ThoughtNode>>({})
+  const [, setNodeDataMap] = useState<Record<string, ThoughtNode>>({})
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null)
   const [ctxEdgeLabel, setCtxEdgeLabel] = useState('')
   const [proximityId, setProximityId] = useState<string | null>(null)
 
-  // 로드
   useEffect(() => {
     Promise.all([getCanvasNodes(topicId), getCanvasEdges(topicId)]).then(([dbNodes, dbEdges]) => {
       const map: Record<string, ThoughtNode> = {}
@@ -137,16 +118,13 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
     })
   }, [topicId])
 
-  // 근접 타깃 하이라이트 반영
   const nodesWithProximity = useMemo(() =>
     nodes.map(n => n.id === proximityId
       ? { ...n, style: { ...n.style, filter: 'drop-shadow(0 0 8px #6366f1)' } }
       : n
     ), [nodes, proximityId])
 
-  // 컨텍스트 값
   const brainCtxValue = useMemo(() => ({
-    // 노드 actions
     onAddWing: (moduleId: string) => {
       setCtxMenu(null)
       const parentNode = nodes.find(n => n.id === moduleId)
@@ -154,10 +132,7 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
       const py = parentNode?.position.y ?? 0
       createWing(moduleId, '', px + 180, py).then(wing => {
         setNodeDataMap(m => ({ ...m, [wing.id]: wing }))
-        setNodes(ns => [
-          ...ns,
-          toRFNode(wing, true),
-        ])
+        setNodes(ns => [...ns, toRFNode(wing, true)])
         setEdges(es => [...es, wingEdge(wing.id, moduleId)])
       })
     },
@@ -187,7 +162,6 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
     onContextMenu: (nodeId: string, isWing: boolean, x: number, y: number) => {
       setCtxMenu({ x, y, type: 'node', nodeId, isWing })
     },
-    // 엣지 actions
     onEdgeChangeType: async (edgeId: string, type: EdgeRelationType) => {
       const updated = await updateEdge(edgeId, { relation_type: type })
       setEdges(es => es.map(e => e.id === edgeId
@@ -208,34 +182,27 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
     },
   }), [nodes, setNodes, setEdges])
 
-  // 드래그 후 위치 저장
+  // 드래그 후 위치 저장 + 근접 자동 연결
   const dragTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const handleNodeDragStop = useCallback(async (_: React.MouseEvent, node: Node) => {
     if (dragTimer.current) clearTimeout(dragTimer.current)
 
-    // 근접 연결
     if (proximityId) {
       const alreadyConnected = edges.some(e =>
         (e.source === node.id && e.target === proximityId) ||
         (e.source === proximityId && e.target === node.id)
       )
       if (!alreadyConnected) {
-        const targetNode = nodes.find(n => n.id === proximityId)
-        const { sh, th } = targetNode ? getBestHandles(node, targetNode) : { sh: 'right', th: 'left-t' }
         const dbEdge = await createEdge({
           source_id: node.id,
           target_id: proximityId,
           relation_type: 'center',
-          source_handle: sh,
-          target_handle: th,
         })
         setEdges(es => addEdge({
           id: dbEdge.id,
           source: dbEdge.source_id,
           target: dbEdge.target_id,
           type: 'thought',
-          sourceHandle: sh,
-          targetHandle: th,
           data: { label: '', relationType: 'center' },
         }, es))
       }
@@ -252,36 +219,29 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
     setProximityId(target?.id ?? null)
   }, [nodes])
 
-  // 핸들 드래그로 연결
+  // 핸들 드래그로 연결 (floating edge라서 source/target handle 정보는 의미 없음)
   const handleConnect = useCallback(async (conn: Connection) => {
-    const sh = conn.sourceHandle ?? 'right'
-    const th = conn.targetHandle ?? 'left-t'
+    if (!conn.source || !conn.target || conn.source === conn.target) return
     const dbEdge = await createEdge({
-      source_id: conn.source!,
-      target_id: conn.target!,
+      source_id: conn.source,
+      target_id: conn.target,
       relation_type: 'center',
-      source_handle: sh,
-      target_handle: th,
     })
     setEdges(es => addEdge({
       id: dbEdge.id,
       source: dbEdge.source_id,
       target: dbEdge.target_id,
       type: 'thought',
-      sourceHandle: sh,
-      targetHandle: th,
       data: { label: '', relationType: 'center' },
     }, es))
   }, [])
 
-  // 캔버스 우클릭
   const handlePaneContextMenu = useCallback((e: MouseEvent | React.MouseEvent) => {
     e.preventDefault()
     const pos = screenToFlowPosition({ x: e.clientX, y: e.clientY })
     setCtxMenu({ x: e.clientX, y: e.clientY, type: 'canvas', canvasPos: pos })
   }, [screenToFlowPosition])
 
-  // 엣지 우클릭
   const handleEdgeContextMenu = useCallback((e: MouseEvent | React.MouseEvent, edge: Edge) => {
     e.preventDefault()
     if ((edge.data as ThoughtEdgeData)?.isWingEdge) return
@@ -294,10 +254,23 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
     })
   }, [])
 
-  // 컨텍스트 메뉴 닫기
+  // Delete / Backspace 로 선택된 엣지 삭제
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      const selected = edges.filter(ed => ed.selected && !(ed.data as ThoughtEdgeData)?.isWingEdge)
+      if (selected.length === 0) return
+      e.preventDefault()
+      selected.forEach(ed => brainCtxValue.onEdgeDelete(ed.id))
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [edges, brainCtxValue])
+
   const closeCtxMenu = useCallback(() => setCtxMenu(null), [])
 
-  // 캔버스 본 모듈 생성
   async function handleCreateModule() {
     if (!ctxMenu?.canvasPos) return
     const { x, y } = ctxMenu.canvasPos
@@ -330,27 +303,35 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
             minZoom={0.2}
             maxZoom={2}
             proOptions={{ hideAttribution: true }}
+            connectionRadius={40}
+            elevateEdgesOnSelect
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#d1d5db" />
             <Controls style={{ bottom: 16, left: 16 }} />
             <MiniMap
               style={{ bottom: 16, right: 16 }}
               maskColor="rgba(249,250,251,0.6)"
+              nodeColor={n => (n.data as ModuleNodeData)?.isWing ? '#bae6fd' : '#cbd5e1'}
             />
           </ReactFlow>
 
-          {/* 힌트 */}
+          {/* 상단 툴바 힌트 */}
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-            <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-full px-4 py-1.5 text-xs text-gray-500 shadow-sm">
-              우클릭: 모듈 생성 · 모듈/선 우클릭: 옵션 · 모듈 클릭 후 핸들 드래그: 연결
+            <div className="bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full px-4 py-1.5 text-xs text-gray-600 shadow-sm flex items-center gap-3">
+              <span><b>빈 공간 우클릭</b> 모듈 생성</span>
+              <span className="text-gray-300">·</span>
+              <span><b>+버튼 드래그</b> 연결</span>
+              <span className="text-gray-300">·</span>
+              <span><b>모듈 끌어 근접</b> 자동 연결</span>
+              <span className="text-gray-300">·</span>
+              <span><b>선 우클릭</b> 색상/내용</span>
             </div>
           </div>
 
-          {/* 근접 연결 안내 */}
           {proximityId && (
             <div className="absolute top-12 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
               <div className="bg-indigo-600 text-white rounded-full px-3 py-1 text-xs shadow-md">
-                놓으면 연결됩니다
+                놓으면 자동 연결됩니다
               </div>
             </div>
           )}
@@ -369,7 +350,7 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
               borderRadius: 10,
               boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
               padding: '4px 0',
-              minWidth: 140,
+              minWidth: 160,
             }}
             onClick={e => e.stopPropagation()}
           >
@@ -484,7 +465,6 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
   )
 }
 
-// ─── Export ───────────────────────────────────────────────────
 export function BrainCanvas({ topicId, topicTitle }: { topicId: string; topicTitle: string }) {
   return (
     <ReactFlowProvider>
