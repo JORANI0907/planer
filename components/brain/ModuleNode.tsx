@@ -90,18 +90,13 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
     }}>+</span>
   )
 
-  // 공통 핸들: 4방향에 source(+), ConnectionMode.Loose라서 target 역할도 함
+  // ConnectionMode.Loose라서 source handle끼리 연결 가능. target handle 제거로 drop 감지 간섭 방지
   const handles = (
     <>
       <Handle type="source" position={Position.Top}    id="s-top"    style={sourceHandleStyle}>{plusIcon}</Handle>
       <Handle type="source" position={Position.Right}  id="s-right"  style={sourceHandleStyle}>{plusIcon}</Handle>
       <Handle type="source" position={Position.Bottom} id="s-bottom" style={sourceHandleStyle}>{plusIcon}</Handle>
       <Handle type="source" position={Position.Left}   id="s-left"   style={sourceHandleStyle}>{plusIcon}</Handle>
-
-      <Handle type="target" position={Position.Top}    id="t-top"    style={{ width: 22, height: 22, background: 'transparent', border: 'none', opacity: 0 }} />
-      <Handle type="target" position={Position.Right}  id="t-right"  style={{ width: 22, height: 22, background: 'transparent', border: 'none', opacity: 0 }} />
-      <Handle type="target" position={Position.Bottom} id="t-bottom" style={{ width: 22, height: 22, background: 'transparent', border: 'none', opacity: 0 }} />
-      <Handle type="target" position={Position.Left}   id="t-left"   style={{ width: 22, height: 22, background: 'transparent', border: 'none', opacity: 0 }} />
     </>
   )
 
