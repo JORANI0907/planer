@@ -22,6 +22,7 @@ export function Sidebar() {
           <div>
             <h1 className="font-bold text-gray-900 text-sm leading-tight">인생 플래너</h1>
             <p className="text-xs text-gray-500 mt-0.5">푯대를 향해 나아가는 자</p>
+            <p className="text-xs text-gray-400 mt-0.5">인류에 유의미한 일을 하자</p>
           </div>
         </div>
       </div>
@@ -47,13 +48,6 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="p-4 border-t border-gray-100">
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-3">
-          <p className="text-xs text-gray-600 italic leading-relaxed">
-            &quot;인류에 유의미한 일을 하는 자&quot;
-          </p>
-        </div>
-      </div>
     </aside>
   )
 }
