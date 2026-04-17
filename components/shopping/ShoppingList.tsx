@@ -8,6 +8,7 @@ import { getShoppingItems, getKnownCategories } from '@/lib/shopping-api'
 import { AddItemForm } from './AddItemForm'
 import { ShoppingItemCard } from './ShoppingItemCard'
 import { SitesList } from './SitesList'
+import { LowStockSection } from './LowStockSection'
 
 const PRIORITY_ORDER: Record<ShoppingPriority, number> = { urgent: 0, normal: 1, later: 2 }
 
@@ -171,6 +172,9 @@ export function ShoppingList() {
           onCategoryAdded={name => setNewlyAddedCategories(p => p.includes(name) ? p : [...p, name])}
         />
       )}
+
+      {/* BBK 재고 부족 섹션 (구입예정 탭 전용) */}
+      {tab === 'pending' && <LowStockSection />}
 
       {/* 리스트 */}
       {loading ? (

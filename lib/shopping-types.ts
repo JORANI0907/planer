@@ -39,3 +39,14 @@ export interface ShoppingSite {
   sort_order: number
   created_at: string
 }
+
+export interface LowStockItem {
+  id: string
+  item_name: string
+  category: string | null
+  current_qty: number
+  unit: string | null
+  min_qty: number | null
+  image_url: string | null
+  last_updated: string
+}
