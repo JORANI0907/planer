@@ -203,7 +203,7 @@ function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery
   })
   const selCount = [...selectedIds].filter(id => filteredItems.some(i => i.id === id)).length
   const isTop = depth === 0
-  const isAnnual = level === 'annual'
+  const useDashboard = level === 'annual' || level === 'quarterly' || level === 'monthly'
 
   const handleBulkDelete = async () => {
     const ids = [...selectedIds].filter(id => items.some(i => i.id === id))
@@ -289,13 +289,14 @@ function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery
             </div>
           )}
           {!loading && filteredItems.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: isAnnual ? 8 : 3, padding: '6px 0' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: useDashboard ? 8 : 3, padding: '6px 0' }}>
               {filteredItems.map(item =>
-                isAnnual ? (
-                  <AnnualItemCard key={item.id} item={item} isSelected={selectedIds.has(item.id)}
+                useDashboard ? (
+                  <DashboardItemCard key={item.id} item={item} isSelected={selectedIds.has(item.id)}
+                    showProgress={level === 'annual'}
                     onSelect={id => setSelectedIds(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })}
-                    onUpdated={u => { setItems(p => p.map(i => i.id === u.id ? u : i)); onTopLevelChanged() }}
-                    onDeleted={id => { setItems(p => p.filter(i => i.id !== id)); setSelectedIds(p => { const n = new Set(p); n.delete(id); return n }); onTopLevelChanged() }}
+                    onUpdated={u => { setItems(p => p.map(i => i.id === u.id ? u : i)); if (depth === 0) onTopLevelChanged() }}
+                    onDeleted={id => { setItems(p => p.filter(i => i.id !== id)); setSelectedIds(p => { const n = new Set(p); n.delete(id); return n }); if (depth === 0) onTopLevelChanged() }}
                     onCopy={onCopy} />
                 ) : (
                   <ItemCard key={item.id} item={item} isSelected={selectedIds.has(item.id)} compact={depth >= 2}
@@ -335,7 +336,7 @@ function actionBtn(isTop: boolean, active: boolean, isDel: boolean): React.CSSPr
   }
 }
 
-// ── Annual Dashboard Card ───────────────────────────
+// ── Dashboard Card (annual / quarterly / monthly) ───
 
 const DEFAULT_FLOW_STEPS = ['계획 수립', '진행 중', '검토', '완료']
 const STEP_COLORS = ['#9ca3af', '#3b82f6', '#f97316', '#22c55e', '#8b5cf6', '#ec4899', '#14b8a6', '#ef4444']
@@ -348,8 +349,8 @@ function parseFlowSteps(item: PlanItem): { labels: string[]; currentIdx: number 
   return { labels, currentIdx }
 }
 
-function AnnualItemCard({ item, isSelected, onSelect, onUpdated, onDeleted, onCopy }: {
-  item: PlanItem; isSelected: boolean
+function DashboardItemCard({ item, isSelected, showProgress, onSelect, onUpdated, onDeleted, onCopy }: {
+  item: PlanItem; isSelected: boolean; showProgress: boolean
   onSelect: (id: string) => void; onUpdated: (item: PlanItem) => void; onDeleted: (id: string) => void
   onCopy: (item: PlanItem | null) => void
 }) {
@@ -451,16 +452,18 @@ function AnnualItemCard({ item, isSelected, onSelect, onUpdated, onDeleted, onCo
       {/* 대시보드 */}
       {showDash && (
         <div style={{ padding: '16px 18px', borderTop: '1px solid #e5e7eb', animation: 'flowFadeIn 0.15s ease' }}>
-          {/* 진행률 바 */}
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>진행률</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: dot }}>{progress}%</span>
+          {/* 진행률 바 (연간만 표시) */}
+          {showProgress && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>진행률</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: dot }}>{progress}%</span>
+              </div>
+              <div style={{ height: 8, backgroundColor: '#e5e7eb', borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${progress}%`, backgroundColor: dot, borderRadius: 4, transition: 'width 0.4s ease' }} />
+              </div>
             </div>
-            <div style={{ height: 8, backgroundColor: '#e5e7eb', borderRadius: 4, overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${progress}%`, backgroundColor: dot, borderRadius: 4, transition: 'width 0.4s ease' }} />
-            </div>
-          </div>
+          )}
 
           {/* 플랜 플로우 (편집 가능) */}
           <div style={{ marginBottom: 16 }}>
