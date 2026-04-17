@@ -80,8 +80,8 @@ function ThoughtEdgeInner({
         d={edgePath}
         fill="none"
         stroke="transparent"
-        strokeWidth={18}
-        style={{ cursor: 'pointer' }}
+        strokeWidth={20}
+        style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
       />
       <BaseEdge
         id={id}

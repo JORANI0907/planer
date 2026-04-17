@@ -9,7 +9,6 @@ import {
   ReactFlowProvider, useReactFlow,
   ConnectionMode,
 } from '@xyflow/react'
-import '@xyflow/react/dist/style.css'
 import type { ThoughtNode, ThoughtEdge, EdgeRelationType } from '@/lib/brain-types'
 import { mapRelationType, EDGE_RELATION_CONFIG } from '@/lib/brain-types'
 import {

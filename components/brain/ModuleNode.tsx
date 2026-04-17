@@ -61,17 +61,18 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
     onContextMenu(id, isWing, e.clientX, e.clientY)
   }
 
-  const visible = nodeHovered || selected
+  const active = nodeHovered || selected
 
-  // + 버튼 외관의 Source Handle. ReactFlow가 position prop으로 알아서 배치
+  // + 버튼 외관의 Source Handle. 항상 표시 (호버/선택 시 강조)
   const sourceHandleStyle: React.CSSProperties = {
-    width: 22,
-    height: 22,
-    background: '#6366f1',
-    border: '2px solid #ffffff',
-    boxShadow: '0 2px 8px rgba(99,102,241,0.5)',
-    opacity: visible ? 1 : 0,
-    transition: 'opacity 0.15s',
+    width: active ? 22 : 14,
+    height: active ? 22 : 14,
+    background: active ? '#6366f1' : '#c7d2fe',
+    border: `2px solid ${active ? '#ffffff' : '#e0e7ff'}`,
+    boxShadow: active ? '0 2px 8px rgba(99,102,241,0.5)' : 'none',
+    opacity: 1,
+    pointerEvents: 'all',
+    transition: 'all 0.15s',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -79,7 +80,7 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
     cursor: 'crosshair',
   }
 
-  const plusIcon = (
+  const plusIcon = active ? (
     <span style={{
       color: '#ffffff',
       fontSize: 15,
@@ -88,7 +89,7 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
       pointerEvents: 'none',
       userSelect: 'none',
     }}>+</span>
-  )
+  ) : null
 
   // ConnectionMode.Loose라서 source handle끼리 연결 가능. target handle 제거로 drop 감지 간섭 방지
   const handles = (
