@@ -20,8 +20,6 @@ export function AddItemForm({ knownCategories, onCreated, onCategoryAdded }: Pro
   const [addingCategory, setAddingCategory] = useState(false)
   const [priority, setPriority] = useState<ShoppingPriority>('normal')
   const [qty, setQty] = useState<number>(1)
-  const [expectedPrice, setExpectedPrice] = useState<string>('')
-  const [whereToBuy, setWhereToBuy] = useState('')
   const [url, setUrl] = useState('')
   const [memo, setMemo] = useState('')
   const [saving, setSaving] = useState(false)
@@ -30,7 +28,7 @@ export function AddItemForm({ knownCategories, onCreated, onCategoryAdded }: Pro
 
   function reset() {
     setTitle(''); setCategory(''); setPriority('normal'); setQty(1)
-    setExpectedPrice(''); setWhereToBuy(''); setUrl(''); setMemo('')
+    setUrl(''); setMemo('')
     setNewCategory(''); setAddingCategory(false)
   }
 
@@ -52,8 +50,6 @@ export function AddItemForm({ knownCategories, onCreated, onCategoryAdded }: Pro
         category: category || null,
         priority,
         qty: qty || 1,
-        expected_price: expectedPrice ? parseInt(expectedPrice.replace(/,/g, ''), 10) || null : null,
-        where_to_buy: whereToBuy.trim() || null,
         url: url.trim() || null,
         memo: memo.trim() || null,
         status: 'pending',
@@ -160,41 +156,19 @@ export function AddItemForm({ knownCategories, onCreated, onCategoryAdded }: Pro
           </div>
         </div>
 
-        {/* 수량 + 예상가 */}
-        <div className="flex gap-2">
-          <label className="flex-1">
-            <div className="text-xs text-gray-500 mb-1.5">수량</div>
-            <input
-              type="number"
-              min={1}
-              value={qty}
-              onChange={e => setQty(parseInt(e.target.value) || 1)}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-blue-400"
-            />
-          </label>
-          <label className="flex-[2]">
-            <div className="text-xs text-gray-500 mb-1.5">예상 가격 (원)</div>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={expectedPrice}
-              onChange={e => setExpectedPrice(e.target.value.replace(/[^0-9]/g, ''))}
-              placeholder="선택"
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-blue-400"
-            />
-          </label>
-        </div>
-
-        {/* 구입처 + URL */}
+        {/* 수량 */}
         <label>
-          <div className="text-xs text-gray-500 mb-1.5">구입처</div>
+          <div className="text-xs text-gray-500 mb-1.5">수량</div>
           <input
-            value={whereToBuy}
-            onChange={e => setWhereToBuy(e.target.value)}
-            placeholder="예: 쿠팡, 이마트"
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-blue-400"
+            type="number"
+            min={1}
+            value={qty}
+            onChange={e => setQty(parseInt(e.target.value) || 1)}
+            className="w-24 px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-blue-400"
           />
         </label>
+
+        {/* URL */}
         <label>
           <div className="text-xs text-gray-500 mb-1.5">상품 링크</div>
           <input

@@ -31,3 +31,11 @@ export const STATUS_CONFIG: Record<ShoppingStatus, { label: string; color: strin
   purchased: { label: '구입 완료', color: '#22c55e' },
   canceled:  { label: '취소',      color: '#9ca3af' },
 }
+
+export interface ShoppingSite {
+  id: string
+  name: string
+  url: string
+  sort_order: number
+  created_at: string
+}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { getPlanItems } from '@/lib/api'
+import { getPendingCount } from '@/lib/shopping-api'
 import { getCurrentYear, getCurrentQuarter, getCurrentMonth } from '@/lib/types'
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
@@ -21,6 +22,7 @@ export default function DashboardPage() {
   const [qStats, setQStats] = useState({ total: 0, done: 0 })
   const [mStats, setMStats] = useState({ total: 0, done: 0 })
   const [dStats, setDStats] = useState({ total: 0, done: 0 })
+  const [shoppingPending, setShoppingPending] = useState(0)
 
   useEffect(() => {
     const qKey = `${year}-Q${quarter}`
@@ -36,6 +38,8 @@ export default function DashboardPage() {
       setMStats({ total: m.length, done: m.filter(i => i.status === 'completed').length })
       setDStats({ total: d.length, done: d.filter(i => i.status === 'completed').length })
     }).catch(() => {})
+
+    getPendingCount().then(setShoppingPending).catch(() => {})
   }, [])
 
   const qPct = qStats.total ? Math.round((qStats.done / qStats.total) * 100) : 0
@@ -91,6 +95,14 @@ export default function DashboardPage() {
           desc="오늘 할 일 관리"
           color="#22c55e"
         />
+        <NavCard
+          href="/shopping"
+          icon="🛒"
+          title="구입 관리"
+          desc={shoppingPending > 0 ? `구입 예정 ${shoppingPending}건` : '필요한 물건 목록'}
+          color="#f59e0b"
+          badge={shoppingPending > 0 ? shoppingPending : undefined}
+        />
       </div>
 
       {/* 플래너 레벨 바로가기 */}
@@ -141,13 +153,13 @@ function StatCard({ label, pct, done, total, color }: {
 
 // ── 메뉴 카드 ────────────────────────────────────────────────
 
-function NavCard({ href, icon, title, desc, color }: {
-  href: string; icon: string; title: string; desc: string; color: string
+function NavCard({ href, icon, title, desc, color, badge }: {
+  href: string; icon: string; title: string; desc: string; color: string; badge?: number
 }) {
   return (
     <Link
       href={href}
-      className="group flex items-center gap-3 bg-white rounded-xl border border-gray-200 p-4 hover:border-transparent hover:shadow-md transition-all"
+      className="group relative flex items-center gap-3 bg-white rounded-xl border border-gray-200 p-4 hover:border-transparent hover:shadow-md transition-all"
       style={{ ['--hover-color' as string]: color }}
     >
       <div
@@ -160,6 +172,14 @@ function NavCard({ href, icon, title, desc, color }: {
         <p className="text-sm font-semibold text-gray-900 group-hover:text-gray-900">{title}</p>
         <p className="text-xs text-gray-400 mt-0.5 truncate">{desc}</p>
       </div>
+      {badge !== undefined && badge > 0 && (
+        <span
+          className="absolute top-2 right-2 min-w-5 h-5 px-1.5 rounded-full text-[10px] font-bold text-white flex items-center justify-center"
+          style={{ backgroundColor: color }}
+        >
+          {badge}
+        </span>
+      )}
     </Link>
   )
 }

@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { ShoppingItem, ShoppingStatus } from './shopping-types'
+import type { ShoppingItem, ShoppingStatus, ShoppingSite } from './shopping-types'
 
 export async function getShoppingItems(status?: ShoppingStatus): Promise<ShoppingItem[]> {
   let q = supabase.from('shopping_items').select('*')
@@ -46,5 +46,44 @@ export async function markPurchased(id: string, purchased: boolean): Promise<Sho
 
 export async function deleteShoppingItem(id: string): Promise<void> {
   const { error } = await supabase.from('shopping_items').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function getPendingCount(): Promise<number> {
+  const { count, error } = await supabase
+    .from('shopping_items').select('id', { count: 'exact', head: true }).eq('status', 'pending')
+  if (error) throw error
+  return count ?? 0
+}
+
+// ─── Shopping Sites ───────────────────────────────────────────
+
+export async function getShoppingSites(): Promise<ShoppingSite[]> {
+  const { data, error } = await supabase
+    .from('shopping_sites').select('*')
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function createShoppingSite(input: { name: string; url: string }): Promise<ShoppingSite> {
+  const { data, error } = await supabase
+    .from('shopping_sites').insert(input).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function updateShoppingSite(
+  id: string, updates: Partial<Pick<ShoppingSite, 'name' | 'url' | 'sort_order'>>
+): Promise<ShoppingSite> {
+  const { data, error } = await supabase
+    .from('shopping_sites').update(updates).eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteShoppingSite(id: string): Promise<void> {
+  const { error } = await supabase.from('shopping_sites').delete().eq('id', id)
   if (error) throw error
 }

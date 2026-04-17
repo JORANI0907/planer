@@ -14,11 +14,6 @@ interface Props {
   onDeleted: (id: string) => void
 }
 
-function formatPrice(v: number | null) {
-  if (v == null) return null
-  return v.toLocaleString('ko-KR') + '원'
-}
-
 export function ShoppingItemCard({ item, knownCategories, onUpdated, onDeleted }: Props) {
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -28,8 +23,6 @@ export function ShoppingItemCard({ item, knownCategories, onUpdated, onDeleted }
     category: item.category ?? '',
     priority: item.priority,
     qty: item.qty,
-    expected_price: item.expected_price?.toString() ?? '',
-    where_to_buy: item.where_to_buy ?? '',
     url: item.url ?? '',
     memo: item.memo ?? '',
   })
@@ -53,8 +46,6 @@ export function ShoppingItemCard({ item, knownCategories, onUpdated, onDeleted }
         category: draft.category || null,
         priority: draft.priority,
         qty: draft.qty || 1,
-        expected_price: draft.expected_price ? parseInt(draft.expected_price.replace(/,/g, ''), 10) || null : null,
-        where_to_buy: draft.where_to_buy.trim() || null,
         url: draft.url.trim() || null,
         memo: draft.memo.trim() || null,
       })
@@ -120,27 +111,13 @@ export function ShoppingItemCard({ item, knownCategories, onUpdated, onDeleted }
             className="w-16 px-2 py-1 text-xs border border-gray-200 rounded-lg outline-none"
           />
           <input
-            type="text"
-            inputMode="numeric"
-            value={draft.expected_price}
-            onChange={e => setDraft({ ...draft, expected_price: e.target.value.replace(/[^0-9]/g, '') })}
-            placeholder="예상가"
-            className="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-lg outline-none"
-          />
-          <input
-            value={draft.where_to_buy}
-            onChange={e => setDraft({ ...draft, where_to_buy: e.target.value })}
-            placeholder="구입처"
+            type="url"
+            value={draft.url}
+            onChange={e => setDraft({ ...draft, url: e.target.value })}
+            placeholder="링크 URL"
             className="flex-1 px-2 py-1 text-xs border border-gray-200 rounded-lg outline-none"
           />
         </div>
-        <input
-          type="url"
-          value={draft.url}
-          onChange={e => setDraft({ ...draft, url: e.target.value })}
-          placeholder="링크 URL"
-          className="px-2 py-1 text-xs border border-gray-200 rounded-lg outline-none"
-        />
         <textarea
           value={draft.memo}
           onChange={e => setDraft({ ...draft, memo: e.target.value })}
@@ -215,15 +192,13 @@ export function ShoppingItemCard({ item, knownCategories, onUpdated, onDeleted }
             </span>
           )}
         </div>
-        <div className="flex items-center gap-3 mt-0.5 text-[11px] text-gray-500 flex-wrap">
-          {item.expected_price != null && <span>예상 {formatPrice(item.expected_price)}</span>}
-          {item.where_to_buy && <span>· {item.where_to_buy}</span>}
-          {item.url && (
-            <Link href={item.url} target="_blank" rel="noopener" className="text-blue-500 hover:underline inline-flex items-center gap-0.5">
+        {item.url && (
+          <div className="mt-0.5">
+            <Link href={item.url} target="_blank" rel="noopener" className="text-[11px] text-blue-500 hover:underline inline-flex items-center gap-0.5">
               <ExternalLink size={9} /> 링크
             </Link>
-          )}
-        </div>
+          </div>
+        )}
         {item.memo && (
           <p className="text-[11px] text-gray-500 mt-1 whitespace-pre-wrap line-clamp-2">{item.memo}</p>
         )}

@@ -7,11 +7,14 @@ import { PRIORITY_CONFIG, DEFAULT_CATEGORIES } from '@/lib/shopping-types'
 import { getShoppingItems, getKnownCategories } from '@/lib/shopping-api'
 import { AddItemForm } from './AddItemForm'
 import { ShoppingItemCard } from './ShoppingItemCard'
+import { SitesList } from './SitesList'
 
 const PRIORITY_ORDER: Record<ShoppingPriority, number> = { urgent: 0, normal: 1, later: 2 }
 
+type Tab = 'pending' | 'purchased' | 'sites'
+
 export function ShoppingList() {
-  const [tab, setTab] = useState<'pending' | 'purchased'>('pending')
+  const [tab, setTab] = useState<Tab>('pending')
   const [items, setItems] = useState<ShoppingItem[]>([])
   const [knownCategories, setKnownCategories] = useState<string[]>([])
   const [newlyAddedCategories, setNewlyAddedCategories] = useState<string[]>([])
@@ -21,6 +24,7 @@ export function ShoppingList() {
   const [filterPriority, setFilterPriority] = useState<ShoppingPriority | null>(null)
 
   useEffect(() => {
+    if (tab === 'sites') return
     setLoading(true)
     Promise.all([getShoppingItems(tab), getKnownCategories()])
       .then(([list, cats]) => { setItems(list); setKnownCategories(cats) })
@@ -87,7 +91,20 @@ export function ShoppingList() {
         >
           구입 완료
         </button>
+        <button
+          onClick={() => setTab('sites')}
+          className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
+            tab === 'sites'
+              ? 'border-indigo-500 text-indigo-600'
+              : 'border-transparent text-gray-400 hover:text-gray-600'
+          }`}
+        >
+          구입 사이트
+        </button>
       </div>
+
+      {tab === 'sites' ? <SitesList /> : (
+      <>
 
       {/* 검색/필터 */}
       <div className="flex flex-col gap-2">
@@ -182,6 +199,9 @@ export function ShoppingList() {
             />
           ))}
         </div>
+      )}
+
+      </>
       )}
     </div>
   )
