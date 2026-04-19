@@ -87,7 +87,15 @@ function getTodayKeys(year: number): { expandKeys: Set<string>; todayKey: string
   } catch { /* ignore */ }
 
   const expandKeys = new Set([quarterKey, monthKey])
-  if (todayWeekKey) expandKeys.add(todayWeekKey)
+  if (todayWeekKey) {
+    expandKeys.add(todayWeekKey)
+    // 이번 주의 월~일 전체를 자동 펼침
+    try {
+      const [wy, ww] = todayWeekKey.split('-W')
+      const days = getWeekDays(parseInt(wy), parseInt(ww))
+      days.forEach(dk => expandKeys.add(dk))
+    } catch { /* ignore */ }
+  }
 
   return { expandKeys, todayKey: dayKey }
 }
@@ -258,7 +266,8 @@ interface SectionNodeProps {
 function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery, filterStatus, onTopLevelChanged, copiedItem, onCopy, autoExpandKeys, todayKey }: SectionNodeProps) {
   const isPast = isPastPeriod(level, periodKey)
   const [expanded, setExpanded] = useState(
-    !isPast && (depth === 0 || autoExpandKeys.has(periodKey))
+    // autoExpandKeys에 명시된 항목은 과거여도 펼침 (예: 이번 주의 이미 지난 요일)
+    autoExpandKeys.has(periodKey) || (!isPast && depth === 0)
   )
   const isToday = level === 'daily' && periodKey === todayKey
   const [items, setItems] = useState<PlanItem[]>(initialItems ?? [])
