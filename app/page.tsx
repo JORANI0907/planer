@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { getPlanItems } from '@/lib/api'
 import { getPendingCount } from '@/lib/shopping-api'
 import { getCurrentYear, getCurrentQuarter, getCurrentMonth } from '@/lib/types'
+import DailyPage from './daily/page'
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -23,6 +24,7 @@ export default function DashboardPage() {
   const [mStats, setMStats] = useState({ total: 0, done: 0 })
   const [dStats, setDStats] = useState({ total: 0, done: 0 })
   const [shoppingPending, setShoppingPending] = useState(0)
+  const [showTop, setShowTop] = useState(false)
 
   useEffect(() => {
     const qKey = `${year}-Q${quarter}`
@@ -50,7 +52,7 @@ export default function DashboardPage() {
     <div className="max-w-2xl mx-auto">
 
       {/* 인사 헤더 */}
-      <div className="mb-6">
+      <div className="mb-4">
         <p className="text-sm text-gray-400 mb-1">
           {year}년 {month}월 {today.getDate()}일 {dayName}요일 · {quarter}분기
         </p>
@@ -58,51 +60,51 @@ export default function DashboardPage() {
         <p className="text-sm text-gray-500 mt-1">푯대를 향해 한 걸음씩 나아가고 있습니다</p>
       </div>
 
-      {/* 진행률 카드 3개 */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <StatCard label={`${quarter}분기`} pct={qPct} done={qStats.done} total={qStats.total} color="#3b82f6" />
-        <StatCard label={`${month}월`}     pct={mPct} done={mStats.done} total={mStats.total} color="#8b5cf6" />
-        <StatCard label="오늘"             pct={dPct} done={dStats.done} total={dStats.total} color="#22c55e" />
-      </div>
+      {/* 진행률 & 메뉴 토글 */}
+      <button
+        onClick={() => setShowTop(v => !v)}
+        className="w-full flex items-center justify-between bg-white rounded-xl border border-gray-200 px-4 py-2.5 mb-4 hover:bg-gray-50 transition-colors"
+        aria-expanded={showTop}
+      >
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          진행률 & 메뉴
+        </span>
+        <span className="text-xs text-gray-400 flex items-center gap-1">
+          {showTop ? '접기' : '펼치기'}
+          <span className={`transition-transform ${showTop ? 'rotate-180' : ''}`}>▾</span>
+        </span>
+      </button>
 
-      {/* 메인 메뉴 카드 */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <NavCard
-          href="/flowmap"
-          icon="🗺️"
-          title="플로우맵"
-          desc="전체 계획 한눈에"
-          color="#3b82f6"
-        />
-        <NavCard
-          href="/decade"
-          icon="🚀"
-          title="10년 계획"
-          desc="장기 비전 & 목표"
-          color="#8b5cf6"
-        />
-        <NavCard
-          href="/brain"
-          icon="🧠"
-          title="생각 확장 맵"
-          desc="아이디어 연결하기"
-          color="#06b6d4"
-        />
-        <NavCard
-          href="/daily"
-          icon="✅"
-          title="일일 계획"
-          desc="오늘 할 일 관리"
-          color="#22c55e"
-        />
-        <NavCard
-          href="/shopping"
-          icon="🛒"
-          title="구입 관리"
-          desc={shoppingPending > 0 ? `구입 예정 ${shoppingPending}건` : '필요한 물건 목록'}
-          color="#f59e0b"
-          badge={shoppingPending > 0 ? shoppingPending : undefined}
-        />
+      {showTop && (
+        <>
+          {/* 진행률 카드 3개 */}
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <StatCard label={`${quarter}분기`} pct={qPct} done={qStats.done} total={qStats.total} color="#3b82f6" />
+            <StatCard label={`${month}월`}     pct={mPct} done={mStats.done} total={mStats.total} color="#8b5cf6" />
+            <StatCard label="오늘"             pct={dPct} done={dStats.done} total={dStats.total} color="#22c55e" />
+          </div>
+
+          {/* 메인 메뉴 카드 */}
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <NavCard href="/flowmap" icon="🗺️" title="플로우맵" desc="전체 계획 한눈에" color="#3b82f6" />
+            <NavCard href="/decade" icon="🚀" title="10년 계획" desc="장기 비전 & 목표" color="#8b5cf6" />
+            <NavCard href="/brain" icon="🧠" title="생각 확장 맵" desc="아이디어 연결하기" color="#06b6d4" />
+            <NavCard href="/daily" icon="✅" title="일일 계획" desc="오늘 할 일 관리" color="#22c55e" />
+            <NavCard
+              href="/shopping"
+              icon="🛒"
+              title="구입 관리"
+              desc={shoppingPending > 0 ? `구입 예정 ${shoppingPending}건` : '필요한 물건 목록'}
+              color="#f59e0b"
+              badge={shoppingPending > 0 ? shoppingPending : undefined}
+            />
+          </div>
+        </>
+      )}
+
+      {/* 오늘의 일일계획 바로보기 */}
+      <div className="mt-2">
+        <DailyPage />
       </div>
 
     </div>
