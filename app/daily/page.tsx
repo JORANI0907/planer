@@ -297,6 +297,7 @@ export default function DailyPage() {
   const [newTitle, setNewTitle] = useState('')
   const [clipboard, setClipboard] = useState<Clipboard | null>(null)
   const [pasting, setPasting] = useState(false)
+  const [pasteDate, setPasteDate] = useState('')
 
   const periodKey = formatDayKey(selectedDate)
 
@@ -349,13 +350,20 @@ export default function DailyPage() {
       tasks = await getTasksForItem(item.id)
     } catch { /* ignore — copy without subtasks */ }
     setClipboard({ item, tasks, fromPeriodKey: item.period_key })
+    // 기본 대상 날짜: 다음날 (이동 사용 빈도 높음)
+    const next = new Date(selectedDate)
+    next.setDate(next.getDate() + 1)
+    setPasteDate(formatDayKey(next))
   }
 
   const handlePaste = async (mode: 'copy' | 'move') => {
-    if (!clipboard || pasting) return
+    if (!clipboard || pasting || !pasteDate) return
+    if (mode === 'move' && pasteDate === clipboard.fromPeriodKey) return
     setPasting(true)
     try {
       const { item: src, tasks } = clipboard
+      const target = pasteDate
+      const targetItems = target === periodKey ? items : await getPlanItems('daily', target)
       const newItem = await createPlanItem({
         title: src.title,
         description: src.description,
@@ -363,8 +371,8 @@ export default function DailyPage() {
         status: mode === 'move' ? src.status : 'pending',
         priority: src.priority,
         level: 'daily',
-        period_key: periodKey,
-        sort_order: items.length,
+        period_key: target,
+        sort_order: targetItems.length,
       })
       if (tasks.length > 0) {
         await Promise.all(tasks.map((t, idx) => createTask(newItem.id, t.title, idx)))
@@ -373,9 +381,14 @@ export default function DailyPage() {
         await deletePlanItem(src.id)
       }
       setClipboard(null)
-      await load()
+      setPasteDate('')
+      // 대상 날짜가 현재 뷰와 같거나, 이동으로 원본 날짜가 현재 뷰였다면 새로고침
+      if (target === periodKey || (mode === 'move' && src.period_key === periodKey)) {
+        await load()
+      }
     } catch (err) {
       console.error('[daily paste]', err)
+      alert('복사/이동 중 오류가 발생했습니다.')
     } finally {
       setPasting(false)
     }
@@ -510,36 +523,47 @@ export default function DailyPage() {
       {/* 복사/이동 클립보드 배너 */}
       {clipboard && (
         <div className="fixed left-1/2 -translate-x-1/2 bottom-20 md:bottom-6 z-40 w-[calc(100%-2rem)] max-w-md">
-          <div className="bg-slate-900 text-white rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-2">
-            <span className="text-lg">📋</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-gray-400 leading-none mb-0.5">
-                {clipboard.fromPeriodKey === periodKey ? '같은 날짜' : `원본: ${clipboard.fromPeriodKey}`}
-              </p>
-              <p className="text-xs font-medium truncate">{clipboard.item.title}</p>
+          <div className="bg-slate-900 text-white rounded-2xl shadow-2xl p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-lg">📋</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-gray-400 leading-none mb-0.5">원본: {clipboard.fromPeriodKey}</p>
+                <p className="text-xs font-medium truncate">{clipboard.item.title}</p>
+              </div>
+              <button
+                onClick={() => { setClipboard(null); setPasteDate('') }}
+                disabled={pasting}
+                className="text-gray-400 hover:text-white text-sm px-1.5"
+                title="취소"
+              >✕</button>
             </div>
-            <button
-              onClick={() => handlePaste('copy')}
-              disabled={pasting || clipboard.fromPeriodKey === periodKey}
-              title={clipboard.fromPeriodKey === periodKey ? '같은 날짜에는 복사할 수 없습니다' : '현재 날짜에 복사'}
-              className="text-[11px] font-semibold bg-blue-500 hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
-            >
-              복사
-            </button>
-            <button
-              onClick={() => handlePaste('move')}
-              disabled={pasting || clipboard.fromPeriodKey === periodKey}
-              title={clipboard.fromPeriodKey === periodKey ? '같은 날짜로는 이동할 수 없습니다' : '현재 날짜로 이동 (원본 삭제)'}
-              className="text-[11px] font-semibold bg-green-500 hover:bg-green-600 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
-            >
-              이동
-            </button>
-            <button
-              onClick={() => setClipboard(null)}
-              disabled={pasting}
-              className="text-gray-400 hover:text-white text-sm px-1.5"
-              title="취소"
-            >✕</button>
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] text-gray-400 whitespace-nowrap">대상 날짜</label>
+              <input
+                type="date"
+                value={pasteDate}
+                onChange={e => setPasteDate(e.target.value)}
+                disabled={pasting}
+                className="flex-1 text-xs bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white focus:outline-none focus:border-blue-400 min-w-0"
+                style={{ colorScheme: 'dark' }}
+              />
+              <button
+                onClick={() => handlePaste('copy')}
+                disabled={pasting || !pasteDate}
+                title="선택 날짜에 복사"
+                className="text-[11px] font-semibold bg-blue-500 hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
+              >
+                복사
+              </button>
+              <button
+                onClick={() => handlePaste('move')}
+                disabled={pasting || !pasteDate || pasteDate === clipboard.fromPeriodKey}
+                title={pasteDate === clipboard.fromPeriodKey ? '원본과 같은 날짜로는 이동할 수 없습니다' : '선택 날짜로 이동 (원본 삭제)'}
+                className="text-[11px] font-semibold bg-green-500 hover:bg-green-600 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
+              >
+                이동
+              </button>
+            </div>
           </div>
         </div>
       )}
