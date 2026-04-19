@@ -186,7 +186,8 @@ export function FlowTreeView({ year, annualItems, itemsByQuarter, searchQuery, f
   }, [todayKey])
 
   return (
-    <div ref={scrollRef} style={{ height: '100%', overflowY: 'auto', padding: '12px 16px 80px', position: 'relative' }}>
+    <div ref={scrollRef} style={{ height: '100%', overflowY: 'auto', position: 'relative' }}>
+      <div className="mx-auto w-full md:max-w-3xl px-4 pt-3 pb-20">
       <SectionNode
         key={`${year}-annual`} level="annual" periodKey={`${year}`}
         label={`${year}년 연간계획`} depth={0} initialItems={annualItems}
@@ -224,6 +225,7 @@ export function FlowTreeView({ year, annualItems, itemsByQuarter, searchQuery, f
           </>
         )
       })()}
+      </div>
 
       {/* 복사 알림 배너 */}
       {copiedItem && (
