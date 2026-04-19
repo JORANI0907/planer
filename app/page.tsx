@@ -105,28 +105,6 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* 플래너 레벨 바로가기 */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-4">
-        <p className="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wide">플래너 바로가기</p>
-        <div className="flex flex-wrap gap-2">
-          {[
-            { href: '/quarterly', label: '분기 계획' },
-            { href: '/monthly',   label: '월간 계획' },
-            { href: '/weekly',    label: '주간 계획' },
-            { href: '/daily',     label: '일일 계획' },
-            { href: '/profile',   label: '인적사항' },
-          ].map(item => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="px-3 py-1.5 rounded-lg text-sm border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-all"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </div>
-      </div>
-
     </div>
   )
 }

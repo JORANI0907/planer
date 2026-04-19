@@ -9,7 +9,6 @@ const TAB_OPTIONS = [
   { path: '/decade', label: '🚀 10년 계획' },
   { path: '/flowmap', label: '🗺️ 플로우맵' },
   { path: '/brain', label: '🧠 생각 확장 맵' },
-  { path: '/plan', label: '📅 주간계획' },
   { path: '/daily', label: '✅ 일일계획' },
   { path: '/shopping', label: '🛒 구입 관리' },
 ]

@@ -39,7 +39,7 @@ export function NodeDetailPanel({
 
   const editHref =
     level === 'daily' ? '/daily' :
-    '/plan'
+    '/flowmap'
 
   return (
     <div
