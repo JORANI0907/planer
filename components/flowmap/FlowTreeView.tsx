@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import type { PlanItem, PlanLevel } from '@/lib/types'
 import { STATUS_CONFIG, PRIORITY_CONFIG, getMonthWeeks, getWeekDays } from '@/lib/types'
 import { getPlanItems, createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
+import { useUndo } from '@/lib/undo-stack'
 import { formatPeriodKey } from '@/lib/flowmap-layout'
 import { ChevronDown, ChevronRight, Plus, Loader2, Clipboard, ClipboardPaste, Pencil, Trash2, Check, X, BarChart3 } from 'lucide-react'
 
@@ -181,6 +182,34 @@ function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery
   const [deletingBulk, setDeletingBulk] = useState(false)
   const [addingNew, setAddingNew] = useState(false)
   const [pasting, setPasting] = useState(false)
+  const { push: pushUndo } = useUndo()
+
+  const restorePlanItem = useCallback(async (src: PlanItem) => {
+    return createPlanItem({
+      title: src.title,
+      description: src.description,
+      categories: src.categories,
+      status: src.status,
+      priority: src.priority,
+      level: src.level,
+      period_key: src.period_key,
+      sort_order: src.sort_order,
+    })
+  }, [])
+
+  const onItemDeleted = useCallback((deleted: PlanItem) => {
+    setItems(p => p.filter(i => i.id !== deleted.id))
+    setSelectedIds(p => { const n = new Set(p); n.delete(deleted.id); return n })
+    if (depth === 0) onTopLevelChanged()
+    pushUndo({
+      label: `"${deleted.title}" 계획 삭제됨`,
+      restore: async () => {
+        const restored = await restorePlanItem(deleted)
+        setItems(p => [...p, restored])
+        if (depth === 0) onTopLevelChanged()
+      },
+    })
+  }, [depth, onTopLevelChanged, pushUndo, restorePlanItem])
 
   useEffect(() => { if (initialItems) { setItems(initialItems); setLoaded(true) } }, [initialItems])
 
@@ -206,11 +235,24 @@ function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery
   const useDashboard = level === 'annual' || level === 'quarterly' || level === 'monthly'
 
   const handleBulkDelete = async () => {
-    const ids = [...selectedIds].filter(id => items.some(i => i.id === id))
+    const targets = items.filter(i => selectedIds.has(i.id))
+    const ids = targets.map(t => t.id)
     setDeletingBulk(true); setItems(p => p.filter(i => !ids.includes(i.id)))
     setSelectedIds(new Set()); setShowDeleteConfirm(false); setDeletingBulk(false)
     await Promise.allSettled(ids.map(id => deletePlanItem(id)))
     if (depth === 0) onTopLevelChanged()
+    if (targets.length > 0) {
+      pushUndo({
+        label: targets.length === 1
+          ? `"${targets[0].title}" 계획 삭제됨`
+          : `${targets.length}개 계획 삭제됨`,
+        restore: async () => {
+          const restored = await Promise.all(targets.map(restorePlanItem))
+          setItems(p => [...p, ...restored])
+          if (depth === 0) onTopLevelChanged()
+        },
+      })
+    }
   }
 
   const handlePaste = async () => {
@@ -296,13 +338,13 @@ function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery
                     showProgress={level === 'annual'}
                     onSelect={id => setSelectedIds(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })}
                     onUpdated={u => { setItems(p => p.map(i => i.id === u.id ? u : i)); if (depth === 0) onTopLevelChanged() }}
-                    onDeleted={id => { setItems(p => p.filter(i => i.id !== id)); setSelectedIds(p => { const n = new Set(p); n.delete(id); return n }); if (depth === 0) onTopLevelChanged() }}
+                    onDeleted={onItemDeleted}
                     onCopy={onCopy} />
                 ) : (
                   <ItemCard key={item.id} item={item} isSelected={selectedIds.has(item.id)} compact={depth >= 2}
                     onSelect={id => setSelectedIds(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })}
                     onUpdated={u => { setItems(p => p.map(i => i.id === u.id ? u : i)); if (depth === 0) onTopLevelChanged() }}
-                    onDeleted={id => { setItems(p => p.filter(i => i.id !== id)); setSelectedIds(p => { const n = new Set(p); n.delete(id); return n }); if (depth === 0) onTopLevelChanged() }}
+                    onDeleted={onItemDeleted}
                     onCopy={onCopy} />
                 )
               )}
@@ -351,7 +393,7 @@ function parseFlowSteps(item: PlanItem): { labels: string[]; currentIdx: number 
 
 function DashboardItemCard({ item, isSelected, showProgress, onSelect, onUpdated, onDeleted, onCopy }: {
   item: PlanItem; isSelected: boolean; showProgress: boolean
-  onSelect: (id: string) => void; onUpdated: (item: PlanItem) => void; onDeleted: (id: string) => void
+  onSelect: (id: string) => void; onUpdated: (item: PlanItem) => void; onDeleted: (item: PlanItem) => void
   onCopy: (item: PlanItem | null) => void
 }) {
   const [showDash, setShowDash] = useState(false)
@@ -386,7 +428,7 @@ function DashboardItemCard({ item, isSelected, showProgress, onSelect, onUpdated
   }
 
   const handleDelete = async () => {
-    try { await deletePlanItem(item.id); onDeleted(item.id) } catch { /* ignore */ }
+    try { await deletePlanItem(item.id); onDeleted(item) } catch { /* ignore */ }
   }
 
   return (
@@ -564,7 +606,7 @@ function DashboardItemCard({ item, isSelected, showProgress, onSelect, onUpdated
 
 function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, onCopy }: {
   item: PlanItem; isSelected: boolean; compact: boolean
-  onSelect: (id: string) => void; onUpdated: (item: PlanItem) => void; onDeleted: (id: string) => void
+  onSelect: (id: string) => void; onUpdated: (item: PlanItem) => void; onDeleted: (item: PlanItem) => void
   onCopy: (item: PlanItem | null) => void
 }) {
   const [editing, setEditing] = useState(false)
@@ -592,7 +634,7 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
           <select value={priority} onChange={e => setPriority(e.target.value)} style={{ padding: '3px 4px', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 11, flex: 1, minWidth: 60 }}>
             {Object.entries(PRIORITY_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
-          <button onClick={async () => { try { await deletePlanItem(item.id); onDeleted(item.id) } catch {} }}
+          <button onClick={async () => { try { await deletePlanItem(item.id); onDeleted(item) } catch {} }}
             style={{ padding: '3px 6px', borderRadius: 4, border: '1px solid #fca5a5', background: '#fff', color: '#ef4444', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2 }}><Trash2 size={10} />삭제</button>
           <button onClick={() => { setEditing(false); setTitle(item.title); setStatus(item.status); setPriority(item.priority) }}
             style={{ padding: '3px 8px', borderRadius: 4, border: '1px solid #e5e7eb', background: '#fff', fontSize: 10, cursor: 'pointer' }}>취소</button>

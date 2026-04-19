@@ -5,6 +5,7 @@ import {
   getPlanItems, createPlanItem, updatePlanItem, deletePlanItem,
   getTasksForItem, createTask, updateTask, deleteTask,
 } from '@/lib/api'
+import { useUndo } from '@/lib/undo-stack'
 import type { PlanItem, PlanItemTask } from '@/lib/types'
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
@@ -298,6 +299,7 @@ export default function DailyPage() {
   const [clipboard, setClipboard] = useState<Clipboard | null>(null)
   const [pasting, setPasting] = useState(false)
   const [pasteDate, setPasteDate] = useState('')
+  const { push: pushUndo } = useUndo()
 
   const periodKey = formatDayKey(selectedDate)
 
@@ -335,8 +337,29 @@ export default function DailyPage() {
   }
 
   const handleDelete = async (id: string) => {
+    const item = items.find(i => i.id === id)
+    if (!item) return
+    let tasks: PlanItemTask[] = []
+    try { tasks = await getTasksForItem(id) } catch { /* ignore */ }
     await deletePlanItem(id)
     setItems(prev => prev.filter(i => i.id !== id))
+    pushUndo({
+      label: `"${item.title}" 삭제됨`,
+      restore: async () => {
+        const restored = await createPlanItem({
+          title: item.title,
+          description: item.description,
+          categories: item.categories,
+          status: item.status,
+          priority: item.priority,
+          level: 'daily',
+          period_key: item.period_key,
+          sort_order: item.sort_order,
+        })
+        await Promise.all(tasks.map((t, idx) => createTask(restored.id, t.title, idx)))
+        if (item.period_key === periodKey) await load()
+      },
+    })
   }
 
   const handleRename = async (id: string, title: string) => {
@@ -379,10 +402,28 @@ export default function DailyPage() {
       }
       if (mode === 'move') {
         await deletePlanItem(src.id)
+        pushUndo({
+          label: `"${src.title}" 이동 되돌리기 (${target} → ${src.period_key})`,
+          restore: async () => {
+            // 이동 되돌리기: 새로 만들어진 복제본 삭제 + 원본 재생성
+            try { await deletePlanItem(newItem.id) } catch { /* 이미 지워졌을 수 있음 */ }
+            const restored = await createPlanItem({
+              title: src.title,
+              description: src.description,
+              categories: src.categories,
+              status: src.status,
+              priority: src.priority,
+              level: 'daily',
+              period_key: src.period_key,
+              sort_order: src.sort_order,
+            })
+            await Promise.all(tasks.map((t, idx) => createTask(restored.id, t.title, idx)))
+            if (src.period_key === periodKey || target === periodKey) await load()
+          },
+        })
       }
       setClipboard(null)
       setPasteDate('')
-      // 대상 날짜가 현재 뷰와 같거나, 이동으로 원본 날짜가 현재 뷰였다면 새로고침
       if (target === periodKey || (mode === 'move' && src.period_key === periodKey)) {
         await load()
       }

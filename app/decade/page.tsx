@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { getLifeGoals, createLifeGoal, updateLifeGoal, deleteLifeGoal } from '@/lib/api'
+import { getLifeGoals, createLifeGoal, updateLifeGoal, deleteLifeGoal, getMappedAnnualPeriodKeys, createLifeGoalAnnualMapping } from '@/lib/api'
+import { useUndo } from '@/lib/undo-stack'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -294,7 +295,7 @@ function GoalForm({ initialData, onSubmit, onCancel }: {
 function GoalCard({ goal, onUpdate, onDelete, onOpenDetail }: {
   goal: LifeGoal
   onUpdate: (g: LifeGoal) => void
-  onDelete: (id: string) => void
+  onDelete: (id: string, deletedGoal: LifeGoal, annualKeys: string[]) => void
   onOpenDetail: (goal: LifeGoal) => void
 }) {
   const [editOpen, setEditOpen] = useState(false)
@@ -324,8 +325,10 @@ function GoalCard({ goal, onUpdate, onDelete, onOpenDetail }: {
 
   const handleDelete = async () => {
     if (!confirm(`"${goal.title}" 목표를 삭제할까요?`)) return
+    let annualKeys: string[] = []
+    try { annualKeys = await getMappedAnnualPeriodKeys(goal.id) } catch { /* ignore */ }
     await deleteLifeGoal(goal.id)
-    onDelete(goal.id)
+    onDelete(goal.id, goal, annualKeys)
   }
 
   return (
@@ -426,6 +429,7 @@ export default function DecadePage() {
   const [addOpen, setAddOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [detailGoal, setDetailGoal] = useState<LifeGoal | null>(null)
+  const { push: pushUndo } = useUndo()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -435,6 +439,32 @@ export default function DecadePage() {
   }, [activeGroup])
 
   useEffect(() => { load() }, [load])
+
+  const handleGoalDeleted = useCallback((id: string, deletedGoal: LifeGoal, annualKeys: string[]) => {
+    setGoals(prev => prev.filter(g => g.id !== id))
+    pushUndo({
+      label: `"${deletedGoal.title}" 목표 삭제됨`,
+      restore: async () => {
+        const restored = await createLifeGoal({
+          notion_id: deletedGoal.notion_id,
+          title: deletedGoal.title,
+          age_group: deletedGoal.age_group,
+          progress: deletedGoal.progress,
+          goal_type: deletedGoal.goal_type,
+          target_date: deletedGoal.target_date,
+          birthday: deletedGoal.birthday,
+          start_value: deletedGoal.start_value,
+          end_value: deletedGoal.end_value,
+          description: deletedGoal.description,
+          sort_order: deletedGoal.sort_order,
+        })
+        await Promise.allSettled(annualKeys.map(k => createLifeGoalAnnualMapping(restored.id, k)))
+        if (restored.age_group === activeGroup) {
+          setGoals(prev => [...prev, restored])
+        }
+      },
+    })
+  }, [activeGroup, pushUndo])
 
   const handleAdd = async (formData: GoalFormData) => {
     await createLifeGoal({
@@ -522,7 +552,7 @@ export default function DecadePage() {
                   {items.map(goal => (
                     <GoalCard key={goal.id} goal={goal}
                       onUpdate={updated => setGoals(prev => prev.map(g => g.id === updated.id ? updated : g))}
-                      onDelete={id => setGoals(prev => prev.filter(g => g.id !== id))}
+                      onDelete={handleGoalDeleted}
                       onOpenDetail={setDetailGoal}
                     />
                   ))}
@@ -534,7 +564,7 @@ export default function DecadePage() {
           {goals.filter(g => !g.goal_type).map(goal => (
             <GoalCard key={goal.id} goal={goal}
               onUpdate={updated => setGoals(prev => prev.map(g => g.id === updated.id ? updated : g))}
-              onDelete={id => setGoals(prev => prev.filter(g => g.id !== id))}
+              onDelete={handleGoalDeleted}
               onOpenDetail={setDetailGoal}
             />
           ))}
