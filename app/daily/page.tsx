@@ -191,11 +191,12 @@ function SubTaskPanel({ itemId }: { itemId: string }) {
 }
 
 // ─── 할 일 카드 ───────────────────────────────────────────────
-function DailyItemCard({ item, onToggle, onDelete, onRename, dragHandle }: {
+function DailyItemCard({ item, onToggle, onDelete, onRename, onCopy, dragHandle }: {
   item: PlanItem
   onToggle: () => void
   onDelete: () => void
   onRename: (title: string) => void
+  onCopy: () => void
   dragHandle?: React.ReactNode
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -265,6 +266,13 @@ function DailyItemCard({ item, onToggle, onDelete, onRename, dragHandle }: {
           </button>
         )}
 
+        {/* 복사 */}
+        <button
+          onClick={onCopy}
+          title="복사 (다른 날짜로 이동/복사)"
+          className="flex-shrink-0 text-xs px-2 py-1 rounded-lg bg-gray-100 text-gray-500 hover:bg-blue-100 hover:text-blue-700 transition-all"
+        >📋</button>
+
         {/* 삭제 */}
         <button
           onClick={onDelete}
@@ -279,12 +287,16 @@ function DailyItemCard({ item, onToggle, onDelete, onRename, dragHandle }: {
 }
 
 // ─── 메인 페이지 ──────────────────────────────────────────────
+type Clipboard = { item: PlanItem; tasks: PlanItemTask[]; fromPeriodKey: string }
+
 export default function DailyPage() {
   const today = new Date()
   const [selectedDate, setSelectedDate] = useState(today)
   const [items, setItems] = useState<PlanItem[]>([])
   const [loading, setLoading] = useState(true)
   const [newTitle, setNewTitle] = useState('')
+  const [clipboard, setClipboard] = useState<Clipboard | null>(null)
+  const [pasting, setPasting] = useState(false)
 
   const periodKey = formatDayKey(selectedDate)
 
@@ -329,6 +341,44 @@ export default function DailyPage() {
   const handleRename = async (id: string, title: string) => {
     const updated = await updatePlanItem(id, { title })
     setItems(prev => prev.map(i => i.id === id ? updated : i))
+  }
+
+  const handleCopy = async (item: PlanItem) => {
+    let tasks: PlanItemTask[] = []
+    try {
+      tasks = await getTasksForItem(item.id)
+    } catch { /* ignore — copy without subtasks */ }
+    setClipboard({ item, tasks, fromPeriodKey: item.period_key })
+  }
+
+  const handlePaste = async (mode: 'copy' | 'move') => {
+    if (!clipboard || pasting) return
+    setPasting(true)
+    try {
+      const { item: src, tasks } = clipboard
+      const newItem = await createPlanItem({
+        title: src.title,
+        description: src.description,
+        categories: src.categories,
+        status: mode === 'move' ? src.status : 'pending',
+        priority: src.priority,
+        level: 'daily',
+        period_key: periodKey,
+        sort_order: items.length,
+      })
+      if (tasks.length > 0) {
+        await Promise.all(tasks.map((t, idx) => createTask(newItem.id, t.title, idx)))
+      }
+      if (mode === 'move') {
+        await deletePlanItem(src.id)
+      }
+      setClipboard(null)
+      await load()
+    } catch (err) {
+      console.error('[daily paste]', err)
+    } finally {
+      setPasting(false)
+    }
   }
 
   const handleReorderItems = async (event: DragEndEvent) => {
@@ -425,6 +475,7 @@ export default function DailyPage() {
                         onToggle={() => handleToggle(item.id)}
                         onDelete={() => handleDelete(item.id)}
                         onRename={(title) => handleRename(item.id, title)}
+                        onCopy={() => handleCopy(item)}
                         dragHandle={handle}
                       />
                     )}
@@ -455,6 +506,43 @@ export default function DailyPage() {
           </button>
         </div>
       </div>
+
+      {/* 복사/이동 클립보드 배너 */}
+      {clipboard && (
+        <div className="fixed left-1/2 -translate-x-1/2 bottom-20 md:bottom-6 z-40 w-[calc(100%-2rem)] max-w-md">
+          <div className="bg-slate-900 text-white rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-2">
+            <span className="text-lg">📋</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-gray-400 leading-none mb-0.5">
+                {clipboard.fromPeriodKey === periodKey ? '같은 날짜' : `원본: ${clipboard.fromPeriodKey}`}
+              </p>
+              <p className="text-xs font-medium truncate">{clipboard.item.title}</p>
+            </div>
+            <button
+              onClick={() => handlePaste('copy')}
+              disabled={pasting || clipboard.fromPeriodKey === periodKey}
+              title={clipboard.fromPeriodKey === periodKey ? '같은 날짜에는 복사할 수 없습니다' : '현재 날짜에 복사'}
+              className="text-[11px] font-semibold bg-blue-500 hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
+            >
+              복사
+            </button>
+            <button
+              onClick={() => handlePaste('move')}
+              disabled={pasting || clipboard.fromPeriodKey === periodKey}
+              title={clipboard.fromPeriodKey === periodKey ? '같은 날짜로는 이동할 수 없습니다' : '현재 날짜로 이동 (원본 삭제)'}
+              className="text-[11px] font-semibold bg-green-500 hover:bg-green-600 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
+            >
+              이동
+            </button>
+            <button
+              onClick={() => setClipboard(null)}
+              disabled={pasting}
+              className="text-gray-400 hover:text-white text-sm px-1.5"
+              title="취소"
+            >✕</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
