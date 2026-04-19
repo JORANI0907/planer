@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import type { PlanItem, PlanLevel } from '@/lib/types'
-import { CATEGORIES, STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/types'
+import { CATEGORIES, STATUS_CONFIG } from '@/lib/types'
 import {
   LEVEL_LABEL,
   formatPeriodKey,
@@ -156,51 +156,24 @@ export function NodeDetailPanel({
         </div>
       </div>
 
-      {/* Status & Priority */}
+      {/* Status */}
       <div
         style={{
           padding: '12px 16px',
           borderBottom: '1px solid #f3f4f6',
-          display: 'flex',
-          gap: 8,
           flexShrink: 0,
         }}
       >
         <div
           style={{
-            flex: 1,
             padding: '8px 10px',
             borderRadius: 8,
             backgroundColor: '#f9fafb',
           }}
         >
-          <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 3 }}>상태</div>
+          <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 3 }}>현재 단계</div>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
             {STATUS_CONFIG[item.status].label}
-          </div>
-        </div>
-        <div
-          style={{
-            flex: 1,
-            padding: '8px 10px',
-            borderRadius: 8,
-            backgroundColor: '#f9fafb',
-          }}
-        >
-          <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 3 }}>우선순위</div>
-          <div
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color:
-                item.priority === 'high'
-                  ? '#dc2626'
-                  : item.priority === 'medium'
-                  ? '#ca8a04'
-                  : '#9ca3af',
-            }}
-          >
-            {PRIORITY_CONFIG[item.priority].label}
           </div>
         </div>
       </div>

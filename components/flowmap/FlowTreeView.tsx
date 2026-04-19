@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { PlanItem, PlanLevel } from '@/lib/types'
-import { STATUS_CONFIG, PRIORITY_CONFIG, getMonthWeeks, getWeekDays } from '@/lib/types'
+import { STATUS_CONFIG, getMonthWeeks, getWeekDays } from '@/lib/types'
 import { getPlanItems, createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
 import { useUndo } from '@/lib/undo-stack'
 import { formatPeriodKey } from '@/lib/flowmap-layout'
@@ -391,6 +391,15 @@ function parseFlowSteps(item: PlanItem): { labels: string[]; currentIdx: number 
   return { labels, currentIdx }
 }
 
+function statusForStepIdx(idx: number, totalSteps: number): PlanItem['status'] {
+  if (totalSteps <= 1) return idx >= 0 ? 'completed' : 'pending'
+  const pct = (idx / (totalSteps - 1)) * 100
+  if (pct <= 12.5) return 'pending'
+  if (pct <= 37.5) return 'on_hold'
+  if (pct <= 75) return 'in_progress'
+  return 'completed'
+}
+
 function DashboardItemCard({ item, isSelected, showProgress, onSelect, onUpdated, onDeleted, onCopy }: {
   item: PlanItem; isSelected: boolean; showProgress: boolean
   onSelect: (id: string) => void; onUpdated: (item: PlanItem) => void; onDeleted: (item: PlanItem) => void
@@ -399,8 +408,6 @@ function DashboardItemCard({ item, isSelected, showProgress, onSelect, onUpdated
   const [showDash, setShowDash] = useState(false)
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(item.title)
-  const [status, setStatus] = useState<string>(item.status)
-  const [priority, setPriority] = useState<string>(item.priority)
   const [desc, setDesc] = useState(item.description ?? '')
   const [saving, setSaving] = useState(false)
   const [savingDesc, setSavingDesc] = useState(false)
@@ -415,7 +422,7 @@ function DashboardItemCard({ item, isSelected, showProgress, onSelect, onUpdated
     if (!title.trim()) return
     setSaving(true)
     try {
-      const u = await updatePlanItem(item.id, { title: title.trim(), status: status as PlanItem['status'], priority: priority as PlanItem['priority'] })
+      const u = await updatePlanItem(item.id, { title: title.trim() })
       onUpdated(u); setEditing(false)
     } catch { /* ignore */ } finally { setSaving(false) }
   }
@@ -448,8 +455,7 @@ function DashboardItemCard({ item, isSelected, showProgress, onSelect, onUpdated
         )}
         <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: dot, flexShrink: 0 }} />
         <span style={{ fontSize: 14, fontWeight: 700, color: '#111827', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
-        <span style={{ fontSize: 10, color: dot, fontWeight: 600, flexShrink: 0 }}>{STATUS_CONFIG[item.status]?.label}</span>
-        <span style={{ fontSize: 10, color: '#9ca3af', flexShrink: 0 }}>{PRIORITY_CONFIG[item.priority]?.label}</span>
+        <span style={{ fontSize: 10, color: dot, fontWeight: 600, flexShrink: 0 }}>{flowLabels[stepIdx]}</span>
         {/* 복사 */}
         <button onClick={e => { e.stopPropagation(); onCopy(item) }} title="복사"
           style={{ padding: '3px 5px', border: '1px solid #e5e7eb', background: '#fff', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: '#6b7280' }}>
@@ -471,17 +477,11 @@ function DashboardItemCard({ item, isSelected, showProgress, onSelect, onUpdated
         <div style={{ padding: '10px 14px', borderTop: '1px solid #e5e7eb', backgroundColor: '#eff6ff', display: 'flex', flexDirection: 'column', gap: 6, animation: 'flowFadeIn 0.12s ease' }}>
           <input autoFocus value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
             style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #bfdbfe', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <select value={status} onChange={e => setStatus(e.target.value)} style={{ flex: 1, padding: '4px', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 11 }}>
-              {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </select>
-            <select value={priority} onChange={e => setPriority(e.target.value)} style={{ flex: 1, padding: '4px', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 11 }}>
-              {Object.entries(PRIORITY_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </select>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}>
             <button onClick={handleDelete} style={{ padding: '3px 6px', borderRadius: 4, border: '1px solid #fca5a5', background: '#fff', color: '#ef4444', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2 }}>
               <Trash2 size={10} />삭제
             </button>
-            <button onClick={() => { setEditing(false); setTitle(item.title); setStatus(item.status); setPriority(item.priority) }}
+            <button onClick={() => { setEditing(false); setTitle(item.title) }}
               style={{ padding: '3px 8px', borderRadius: 4, border: '1px solid #e5e7eb', background: '#fff', fontSize: 10, cursor: 'pointer' }}>취소</button>
             <button onClick={handleSave} disabled={saving}
               style={{ padding: '3px 8px', borderRadius: 4, border: 'none', background: '#3b82f6', color: '#fff', fontSize: 10, fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
@@ -547,15 +547,25 @@ function DashboardItemCard({ item, isSelected, showProgress, onSelect, onUpdated
                 </div>
               </div>
             ) : (
-              /* 플로우 시각화 */
+              /* 플로우 시각화 (클릭하여 현재 단계 선택) */
               <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
                 {flowLabels.map((label, idx) => {
                   const reached = idx <= stepIdx
                   const isCurrent = idx === stepIdx
                   const color = STEP_COLORS[idx % STEP_COLORS.length]
+                  const handleStepClick = async () => {
+                    const newStatus = statusForStepIdx(idx, flowLabels.length)
+                    if (newStatus === item.status) return
+                    try { const u = await updatePlanItem(item.id, { status: newStatus }); onUpdated(u) } catch {}
+                  }
                   return (
                     <div key={idx} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, position: 'relative', zIndex: 1 }}>
+                      <button
+                        type="button"
+                        onClick={handleStepClick}
+                        title={`${label} 단계로 설정`}
+                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, position: 'relative', zIndex: 1, background: 'transparent', border: 'none', cursor: 'pointer', padding: 2 }}
+                      >
                         <div style={{
                           width: isCurrent ? 28 : 20, height: isCurrent ? 28 : 20, borderRadius: '50%',
                           backgroundColor: reached ? color : '#e5e7eb',
@@ -566,7 +576,7 @@ function DashboardItemCard({ item, isSelected, showProgress, onSelect, onUpdated
                           {reached && <Check size={isCurrent ? 14 : 10} color="#fff" strokeWidth={3} />}
                         </div>
                         <span style={{ fontSize: 9, fontWeight: isCurrent ? 700 : 400, color: reached ? color : '#9ca3af', textAlign: 'center', maxWidth: 56, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-                      </div>
+                      </button>
                       {idx < flowLabels.length - 1 && (
                         <div style={{ flex: 1, height: 3, backgroundColor: idx < stepIdx ? STEP_COLORS[(idx + 1) % STEP_COLORS.length] : '#e5e7eb', borderRadius: 2, marginTop: -16, transition: 'background-color 0.3s' }} />
                       )}
@@ -611,14 +621,12 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
 }) {
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(item.title)
-  const [status, setStatus] = useState<string>(item.status)
-  const [priority, setPriority] = useState<string>(item.priority)
   const [saving, setSaving] = useState(false)
   const dot = STATUS_DOT[item.status] ?? '#9ca3af'
 
   const handleSave = async () => {
     if (!title.trim()) return; setSaving(true)
-    try { const u = await updatePlanItem(item.id, { title: title.trim(), status: status as PlanItem['status'], priority: priority as PlanItem['priority'] }); onUpdated(u); setEditing(false) }
+    try { const u = await updatePlanItem(item.id, { title: title.trim() }); onUpdated(u); setEditing(false) }
     catch { /* ignore */ } finally { setSaving(false) }
   }
 
@@ -627,16 +635,10 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
       <div style={{ border: '1.5px solid #3b82f6', borderRadius: 8, padding: '8px 10px', backgroundColor: '#eff6ff', display: 'flex', flexDirection: 'column', gap: 6, animation: 'flowFadeIn 0.12s ease' }}>
         <input autoFocus value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') { setEditing(false); setTitle(item.title) } }}
           style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid #bfdbfe', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-          <select value={status} onChange={e => setStatus(e.target.value)} style={{ padding: '3px 4px', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 11, flex: 1, minWidth: 60 }}>
-            {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
-          <select value={priority} onChange={e => setPriority(e.target.value)} style={{ padding: '3px 4px', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 11, flex: 1, minWidth: 60 }}>
-            {Object.entries(PRIORITY_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}>
           <button onClick={async () => { try { await deletePlanItem(item.id); onDeleted(item) } catch {} }}
             style={{ padding: '3px 6px', borderRadius: 4, border: '1px solid #fca5a5', background: '#fff', color: '#ef4444', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2 }}><Trash2 size={10} />삭제</button>
-          <button onClick={() => { setEditing(false); setTitle(item.title); setStatus(item.status); setPriority(item.priority) }}
+          <button onClick={() => { setEditing(false); setTitle(item.title) }}
             style={{ padding: '3px 8px', borderRadius: 4, border: '1px solid #e5e7eb', background: '#fff', fontSize: 10, cursor: 'pointer' }}>취소</button>
           <button onClick={handleSave} disabled={saving}
             style={{ padding: '3px 8px', borderRadius: 4, border: 'none', background: '#3b82f6', color: '#fff', fontSize: 10, fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
@@ -664,7 +666,6 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
       <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: dot, flexShrink: 0 }} />
       <span style={{ fontSize: compact ? 11 : 12, fontWeight: 500, color: '#111827', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
       <span style={{ fontSize: 9, color: dot, fontWeight: 600, flexShrink: 0 }}>{STATUS_CONFIG[item.status]?.label}</span>
-      <span style={{ fontSize: 9, color: '#9ca3af', flexShrink: 0 }}>{PRIORITY_CONFIG[item.priority]?.label}</span>
       <button onClick={e => { e.stopPropagation(); onCopy(item) }} title="복사"
         style={{ padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', borderRadius: 3, flexShrink: 0 }}>
         <Clipboard size={compact ? 9 : 10} color="#9ca3af" />
@@ -681,13 +682,11 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
 
 function InlineAddForm({ level, periodKey, onSaved, onCancel }: { level: PlanLevel; periodKey: string; onSaved: (item: PlanItem) => void; onCancel: () => void }) {
   const [title, setTitle] = useState('')
-  const [status, setStatus] = useState('pending')
-  const [priority, setPriority] = useState('medium')
   const [saving, setSaving] = useState(false)
   const handleSave = async () => {
     if (!title.trim()) return; setSaving(true)
     try {
-      const item = await createPlanItem({ level, period_key: periodKey, title: title.trim(), description: null, categories: [], status: status as PlanItem['status'], priority: priority as PlanItem['priority'], sort_order: 0 })
+      const item = await createPlanItem({ level, period_key: periodKey, title: title.trim(), description: null, categories: [], status: 'pending', priority: 'medium', sort_order: 0 })
       onSaved(item)
     } catch { /* ignore */ } finally { setSaving(false) }
   }
@@ -697,13 +696,7 @@ function InlineAddForm({ level, periodKey, onSaved, onCancel }: { level: PlanLev
       <input autoFocus value={title} onChange={e => setTitle(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') onCancel() }}
         placeholder="계획 제목 입력" style={{ width: '100%', padding: '6px 8px', borderRadius: 5, border: '1px solid #bfdbfe', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        <select value={status} onChange={e => setStatus(e.target.value)} style={{ padding: '3px 4px', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 11, flex: 1 }}>
-          {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
-        <select value={priority} onChange={e => setPriority(e.target.value)} style={{ padding: '3px 4px', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 11, flex: 1 }}>
-          {Object.entries(PRIORITY_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}>
         <button onClick={onCancel} style={{ padding: '3px 10px', borderRadius: 4, border: '1px solid #e5e7eb', background: '#fff', fontSize: 10, cursor: 'pointer' }}>취소</button>
         <button onClick={handleSave} disabled={saving}
           style={{ padding: '3px 10px', borderRadius: 4, border: 'none', background: '#3b82f6', color: '#fff', fontSize: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, opacity: saving ? 0.7 : 1 }}>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { PlanItem, PlanLevel } from '@/lib/types'
-import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/types'
+import { STATUS_CONFIG } from '@/lib/types'
 import { createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
 import { LEVEL_LABEL, formatPeriodKey } from '@/lib/flowmap-layout'
 import { X, Loader2, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
@@ -29,8 +29,6 @@ interface PlanFormModalProps {
 
 export function PlanFormModal({ target, onClose, onSaved, onDeleted }: PlanFormModalProps) {
   const [title, setTitle] = useState(target.editItem?.title ?? '')
-  const [status, setStatus] = useState<string>(target.editItem?.status ?? 'pending')
-  const [priority, setPriority] = useState<string>(target.editItem?.priority ?? 'medium')
   const [selectedPeriodKey, setSelectedPeriodKey] = useState(target.periodKey)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -53,16 +51,14 @@ export function PlanFormModal({ target, onClose, onSaved, onDeleted }: PlanFormM
           title: title.trim(),
           description: null,
           categories: [],
-          status: status as PlanItem['status'],
-          priority: priority as PlanItem['priority'],
+          status: 'pending',
+          priority: 'medium',
           sort_order: 0,
         })
         onSaved(item)
       } else if (target.editItem) {
         const item = await updatePlanItem(target.editItem.id, {
           title: title.trim(),
-          status: status as PlanItem['status'],
-          priority: priority as PlanItem['priority'],
         })
         onSaved(item)
       }
@@ -161,9 +157,6 @@ export function PlanFormModal({ target, onClose, onSaved, onDeleted }: PlanFormM
                     <span style={{ fontSize: 11, color: STATUS_DOT[expandedParent.status], fontWeight: 600 }}>
                       ● {STATUS_CONFIG[expandedParent.status]?.label}
                     </span>
-                    <span style={{ fontSize: 11, color: '#9ca3af' }}>
-                      {PRIORITY_CONFIG[expandedParent.priority]?.label}
-                    </span>
                   </div>
                 </div>
               )}
@@ -201,21 +194,8 @@ export function PlanFormModal({ target, onClose, onSaved, onDeleted }: PlanFormM
               {error && <div style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{error}</div>}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>상태</label>
-                <select value={status} onChange={e => setStatus(e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #e5e7eb', fontSize: 13, outline: 'none', backgroundColor: '#fff', cursor: 'pointer' }}>
-                  {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>우선순위</label>
-                <select value={priority} onChange={e => setPriority(e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #e5e7eb', fontSize: 13, outline: 'none', backgroundColor: '#fff', cursor: 'pointer' }}>
-                  {Object.entries(PRIORITY_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                </select>
-              </div>
+            <div style={{ fontSize: 11, color: '#9ca3af', padding: '4px 2px' }}>
+              💡 진행 단계는 저장 후 카드의 <strong>플랜 플로우</strong>에서 클릭하여 설정하세요.
             </div>
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center' }}>

@@ -2,7 +2,7 @@
 
 import { useRef, useState, useCallback } from 'react'
 import type { PlanItem } from '@/lib/types'
-import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/types'
+import { STATUS_CONFIG } from '@/lib/types'
 import { formatPeriodKey } from '@/lib/flowmap-layout'
 import { ChevronDown, ChevronRight, Plus, Pencil, Loader2 } from 'lucide-react'
 
@@ -270,10 +270,9 @@ function CardItem({ item, isSelected, isDragging, onToggle, onEdit, onView, onDr
         {item.title}
       </div>
 
-      {/* 하단: 상태 + 우선순위 + 버튼들 */}
+      {/* 하단: 상태 + 버튼들 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: isSelected ? 20 : 0 }}>
         <span style={{ fontSize: 10, color: sc, fontWeight: 600 }}>● {STATUS_CONFIG[item.status]?.label}</span>
-        <span style={{ fontSize: 10, color: '#9ca3af' }}>{PRIORITY_CONFIG[item.priority]?.label}</span>
         <div style={{ flex: 1 }} />
         {/* 수정 버튼 */}
         <button

@@ -2,7 +2,7 @@
 
 import { useRef } from 'react'
 import type { PlanItem } from '@/lib/types'
-import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/types'
+import { STATUS_CONFIG } from '@/lib/types'
 import { formatPeriodKey } from '@/lib/flowmap-layout'
 import { ChevronRight } from 'lucide-react'
 
@@ -22,8 +22,6 @@ const SC: Record<string, { dot: string; bg: string; border: string }> = {
   on_hold: { dot: '#f97316', bg: 'rgba(249,115,22,0.07)', border: '#fdba74' },
   pending: { dot: '#9ca3af', bg: '#fff', border: '#e5e7eb' },
 }
-const PI: Record<string, string> = { high: '↑', medium: '→', low: '↓' }
-const PC: Record<string, string> = { high: '#ef4444', medium: '#f59e0b', low: '#9ca3af' }
 const PROG: Record<string, number> = { completed: 100, in_progress: 50, on_hold: 20, pending: 0 }
 
 export function PlanCard({
@@ -32,7 +30,6 @@ export function PlanCard({
 }: PlanCardProps) {
   const sc = SC[item.status] ?? SC.pending
   const si = STATUS_CONFIG[item.status]
-  const pi = PRIORITY_CONFIG[item.priority]
   const progress = PROG[item.status] ?? 0
   const periodLabel = formatPeriodKey(item.period_key, item.level)
   const isDrillable = showDrillDown ?? item.level !== 'daily'
@@ -114,13 +111,10 @@ export function PlanCard({
         </div>
       )}
 
-      {/* Status + Priority + Drill indicator */}
+      {/* Status + Drill indicator */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 10, color: sc.dot, fontWeight: 600 }}>● {si.label}</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ fontSize: 10, color: PC[item.priority], fontWeight: 600 }}>{PI[item.priority]} {pi.label}</span>
-          {isDrillable && !!onClick && <ChevronRight size={11} color="#d1d5db" />}
-        </div>
+        {isDrillable && !!onClick && <ChevronRight size={11} color="#d1d5db" />}
       </div>
     </div>
   )

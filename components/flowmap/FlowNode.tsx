@@ -1,7 +1,7 @@
 'use client'
 
 import type { PlanItem, PlanLevel } from '@/lib/types'
-import { CATEGORIES, STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/types'
+import { CATEGORIES, STATUS_CONFIG } from '@/lib/types'
 import {
   NODE_WIDTH,
   NODE_HEIGHT,
@@ -55,7 +55,6 @@ export function FlowNode({
   const catColor = primaryCat ? getCategoryColor(primaryCat) : '#6b7280'
   const catInfo = CATEGORIES.find((c) => c.value === primaryCat)
   const statusInfo = STATUS_CONFIG[item.status]
-  const priorityInfo = PRIORITY_CONFIG[item.priority]
 
   const opacity = dimmed ? 0.25 : 1
   const ringStyle = isSelected
@@ -208,14 +207,6 @@ export function FlowNode({
               }}
             >
               ● {statusInfo.label}
-            </span>
-            <span
-              style={{
-                fontSize: 9,
-                color: item.priority === 'high' ? '#dc2626' : item.priority === 'medium' ? '#ca8a04' : '#9ca3af',
-              }}
-            >
-              {item.priority === 'high' ? '↑' : item.priority === 'medium' ? '→' : '↓'} {priorityInfo.label}
             </span>
           </div>
         </div>
