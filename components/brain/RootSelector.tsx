@@ -45,8 +45,9 @@ export function RootSelector({ topics, onSelect, onCreate, onDelete }: Props) {
               <span className="text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">▶</span>
             </button>
             <button
-              onClick={() => { if (confirm(`"${topic.title}" 주제를 삭제할까요? 모든 노드가 삭제됩니다.`)) onDelete(topic.id) }}
-              className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-300 opacity-0 group-hover:opacity-100 transition-all text-xs shadow-sm"
+              onClick={() => { if (confirm(`"${topic.title}" 주제를 삭제할까요?\n\n⚠ 이 주제에 포함된 모든 노드와 연결선이 함께 삭제되며, 되돌릴 수 없습니다.`)) onDelete(topic.id) }}
+              aria-label={`${topic.title} 삭제`}
+              className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-300 md:opacity-0 md:group-hover:opacity-100 transition-all text-sm shadow-sm"
             >
               ×
             </button>

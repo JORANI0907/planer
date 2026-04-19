@@ -100,6 +100,15 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null)
   const [ctxEdgeLabel, setCtxEdgeLabel] = useState('')
   const [proximityId, setProximityId] = useState<string | null>(null)
+  const [isTouchDevice, setIsTouchDevice] = useState(false)
+  const paneLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const paneLongPressFired = useRef(false)
+
+  useEffect(() => {
+    const touch = typeof window !== 'undefined' &&
+      (('ontouchstart' in window) || (navigator.maxTouchPoints ?? 0) > 0)
+    setIsTouchDevice(touch)
+  }, [])
 
   useEffect(() => {
     Promise.all([getCanvasNodes(topicId), getCanvasEdges(topicId)]).then(([dbNodes, dbEdges]) => {
@@ -137,7 +146,13 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
     },
     onDelete: async (nodeId: string) => {
       setCtxMenu(null)
-      if (!confirm('이 모듈을 삭제할까요?')) return
+      const target = nodes.find(n => n.id === nodeId)
+      const label = (target?.data as ModuleNodeData | undefined)?.label || '(제목 없음)'
+      const isWingNode = (target?.data as ModuleNodeData | undefined)?.isWing
+      const msg = isWingNode
+        ? `"${label}" 날개를 삭제할까요?`
+        : `"${label}" 모듈을 삭제할까요?\n\n⚠ 연결된 날개·선도 함께 삭제되며, 되돌릴 수 없습니다.`
+      if (!confirm(msg)) return
       await deleteNode(nodeId)
       setNodes(ns => ns.filter(n => n.id !== nodeId))
       setEdges(es => es.filter(e => e.source !== nodeId && e.target !== nodeId && e.id !== `wing-${nodeId}`))
@@ -241,6 +256,31 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
     setCtxMenu({ x: e.clientX, y: e.clientY, type: 'canvas', canvasPos: pos })
   }, [screenToFlowPosition])
 
+  const handlePaneTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return
+    const target = e.target as HTMLElement
+    // 캔버스 배경(.react-flow__pane 또는 dot bg)만 대상
+    if (!target.classList?.contains('react-flow__pane')) return
+    const t = e.touches[0]
+    const clientX = t.clientX
+    const clientY = t.clientY
+    paneLongPressFired.current = false
+    if (paneLongPressTimer.current) clearTimeout(paneLongPressTimer.current)
+    paneLongPressTimer.current = setTimeout(() => {
+      paneLongPressFired.current = true
+      const pos = screenToFlowPosition({ x: clientX, y: clientY })
+      setCtxMenu({ x: clientX, y: clientY, type: 'canvas', canvasPos: pos })
+      if (navigator.vibrate) navigator.vibrate(20)
+    }, 500)
+  }, [screenToFlowPosition])
+
+  const clearPaneLongPress = useCallback(() => {
+    if (paneLongPressTimer.current) {
+      clearTimeout(paneLongPressTimer.current)
+      paneLongPressTimer.current = null
+    }
+  }, [])
+
   const handleEdgeContextMenu = useCallback((e: MouseEvent | React.MouseEvent, edge: Edge) => {
     e.preventDefault()
     if ((edge.data as ThoughtEdgeData)?.isWingEdge) return
@@ -282,7 +322,14 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
   return (
     <BrainCtx.Provider value={brainCtxValue}>
       <div className="flex h-full min-h-0" onClick={closeCtxMenu}>
-        <div className="flex-1 min-w-0 relative" style={{ height: '100%' }}>
+        <div
+          className="flex-1 min-w-0 relative"
+          style={{ height: '100%' }}
+          onTouchStart={handlePaneTouchStart}
+          onTouchMove={clearPaneLongPress}
+          onTouchEnd={clearPaneLongPress}
+          onTouchCancel={clearPaneLongPress}
+        >
           <ReactFlow
             nodes={nodesWithProximity}
             edges={edges}
@@ -315,15 +362,15 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
           </ReactFlow>
 
           {/* 상단 툴바 힌트 */}
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-            <div className="bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full px-4 py-1.5 text-xs text-gray-600 shadow-sm flex items-center gap-3">
-              <span><b>빈 공간 우클릭</b> 모듈 생성</span>
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 max-w-[calc(100vw-1rem)] md:max-w-[calc(100vw-17rem)]">
+            <div className="bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full px-3 md:px-4 py-1.5 text-[11px] md:text-xs text-gray-600 shadow-sm flex items-center gap-2 md:gap-3 overflow-x-auto whitespace-nowrap pointer-events-auto">
+              <span className="whitespace-nowrap"><b>{isTouchDevice ? '빈 공간 길게 누름' : '빈 공간 우클릭'}</b> 모듈 생성</span>
               <span className="text-gray-300">·</span>
-              <span><b>+버튼 드래그</b> 연결</span>
+              <span className="whitespace-nowrap"><b>+버튼 드래그</b> 연결</span>
               <span className="text-gray-300">·</span>
-              <span><b>모듈 끌어 근접</b> 자동 연결</span>
+              <span className="whitespace-nowrap"><b>모듈 근접</b> 자동 연결</span>
               <span className="text-gray-300">·</span>
-              <span><b>선 우클릭</b> 색상/내용</span>
+              <span className="whitespace-nowrap"><b>{isTouchDevice ? '모듈 길게 누름' : '모듈 우클릭'}</b> 메뉴</span>
             </div>
           </div>
 

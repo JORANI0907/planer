@@ -61,6 +61,30 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
     onContextMenu(id, isWing, e.clientX, e.clientY)
   }
 
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressFired = useRef(false)
+
+  function handleTouchStart(e: React.TouchEvent) {
+    if (e.touches.length !== 1) return
+    const t = e.touches[0]
+    const cx = t.clientX
+    const cy = t.clientY
+    longPressFired.current = false
+    if (longPressTimer.current) clearTimeout(longPressTimer.current)
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true
+      onContextMenu(id, isWing, cx, cy)
+      if (navigator.vibrate) navigator.vibrate(20)
+    }, 500)
+  }
+
+  function clearLongPress() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }
+
   const active = nodeHovered || selected
 
   // + 버튼 외관의 Source Handle. 항상 표시 (호버/선택 시 강조)
@@ -106,6 +130,10 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
     return (
       <div
         onContextMenu={handleContextMenu}
+        onTouchStart={handleTouchStart}
+        onTouchMove={clearLongPress}
+        onTouchEnd={clearLongPress}
+        onTouchCancel={clearLongPress}
         onMouseEnter={() => setNodeHovered(true)}
         onMouseLeave={() => setNodeHovered(false)}
         className="nodrag-prevent"
