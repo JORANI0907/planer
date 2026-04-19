@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { PlanItem, PlanLevel } from '@/lib/types'
-import { STATUS_CONFIG, getMonthWeeks, getWeekDays } from '@/lib/types'
+import { STATUS_CONFIG, getMonthWeeks, getWeekDays, getISOWeekPublic } from '@/lib/types'
 import { getPlanItems, createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
 import { useUndo } from '@/lib/undo-stack'
 import { formatPeriodKey } from '@/lib/flowmap-layout'
@@ -92,6 +92,74 @@ function getTodayKeys(year: number): { expandKeys: Set<string>; todayKey: string
   return { expandKeys, todayKey: dayKey }
 }
 
+// ── Past period detection ───────────────────────────
+function isPastPeriod(level: PlanLevel, periodKey: string): boolean {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth() + 1
+  const d = now.getDate()
+
+  if (level === 'annual') return parseInt(periodKey) < y
+  if (level === 'quarterly') {
+    const [pyStr, qStr] = periodKey.split('-Q')
+    const py = parseInt(pyStr), q = parseInt(qStr)
+    if (py < y) return true
+    if (py > y) return false
+    return q < Math.ceil(m / 3)
+  }
+  if (level === 'monthly') {
+    const parts = periodKey.split('-').map(Number)
+    const py = parts[0], pm = parts[1]
+    if (py < y) return true
+    if (py > y) return false
+    return pm < m
+  }
+  if (level === 'weekly') {
+    const [pyStr, pwStr] = periodKey.split('-W')
+    const py = parseInt(pyStr), pw = parseInt(pwStr)
+    if (py < y) return true
+    if (py > y) return false
+    const currentWeek = getISOWeekPublic(now)
+    return pw < currentWeek
+  }
+  if (level === 'daily') {
+    const parts = periodKey.split('-').map(Number)
+    const dt = new Date(parts[0], parts[1] - 1, parts[2])
+    const todayD = new Date(y, m - 1, d)
+    return dt.getTime() < todayD.getTime()
+  }
+  return false
+}
+
+// ── Past Group (collapsible wrapper for past periods) ──
+function PastSectionGroup({ label, count, children }: { label: string; count: number; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ marginBottom: 6 }}>
+      <div onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none',
+          padding: '6px 10px', borderRadius: 6, color: '#6b7280',
+          borderLeft: '3px solid #d1d5db',
+          backgroundColor: '#f8fafc',
+          transition: 'background-color 0.1s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f1f5f9' }}
+        onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f8fafc' }}
+      >
+        {open ? <ChevronDown size={13} style={{ flexShrink: 0 }} /> : <ChevronRight size={13} style={{ flexShrink: 0 }} />}
+        <span style={{ fontSize: 12, fontWeight: 600, flex: 1 }}>{label}</span>
+        <span style={{ fontSize: 10, opacity: 0.7, flexShrink: 0 }}>{count}개 숨김</span>
+      </div>
+      {open && (
+        <div style={{ marginLeft: 10, paddingLeft: 8, borderLeft: '1px solid #e5e7eb', animation: 'flowFadeIn 0.15s ease', marginTop: 4 }}>
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main ────────────────────────────────────────────
 
 export function FlowTreeView({ year, annualItems, itemsByQuarter, searchQuery, filterStatus, onTopLevelChanged }: FlowTreeViewProps) {
@@ -119,19 +187,35 @@ export function FlowTreeView({ year, annualItems, itemsByQuarter, searchQuery, f
         copiedItem={copiedItem} onCopy={setCopiedItem}
         autoExpandKeys={expandKeys} todayKey={todayKey}
       />
-      {['Q1', 'Q2', 'Q3', 'Q4'].map((q, i) => {
-        const key = `${year}-${q}`
-        return (
-          <SectionNode key={key} level="quarterly" periodKey={key}
-            label={`${i + 1}분기 (${[(i * 3) + 1, (i * 3) + 2, (i * 3) + 3].join('·')}월)`}
-            depth={0} initialItems={itemsByQuarter.get(key)}
+      {(() => {
+        const quarters = ['Q1', 'Q2', 'Q3', 'Q4'].map((q, i) => ({
+          q, i, key: `${year}-${q}`,
+          label: `${i + 1}분기 (${[(i * 3) + 1, (i * 3) + 2, (i * 3) + 3].join('·')}월)`,
+          past: isPastPeriod('quarterly', `${year}-${q}`),
+        }))
+        const pastQ = quarters.filter(e => e.past)
+        const activeQ = quarters.filter(e => !e.past)
+        const renderQuarter = (e: typeof quarters[number]) => (
+          <SectionNode key={e.key} level="quarterly" periodKey={e.key}
+            label={e.label}
+            depth={0} initialItems={itemsByQuarter.get(e.key)}
             searchQuery={searchQuery} filterStatus={filterStatus}
             onTopLevelChanged={onTopLevelChanged}
             copiedItem={copiedItem} onCopy={setCopiedItem}
             autoExpandKeys={expandKeys} todayKey={todayKey}
           />
         )
-      })}
+        return (
+          <>
+            {pastQ.length > 0 && (
+              <PastSectionGroup label="지난 분기" count={pastQ.length}>
+                {pastQ.map(renderQuarter)}
+              </PastSectionGroup>
+            )}
+            {activeQ.map(renderQuarter)}
+          </>
+        )
+      })()}
 
       {/* 복사 알림 배너 */}
       {copiedItem && (
@@ -172,7 +256,10 @@ interface SectionNodeProps {
 }
 
 function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery, filterStatus, onTopLevelChanged, copiedItem, onCopy, autoExpandKeys, todayKey }: SectionNodeProps) {
-  const [expanded, setExpanded] = useState(depth === 0 || autoExpandKeys.has(periodKey))
+  const isPast = isPastPeriod(level, periodKey)
+  const [expanded, setExpanded] = useState(
+    !isPast && (depth === 0 || autoExpandKeys.has(periodKey))
+  )
   const isToday = level === 'daily' && periodKey === todayKey
   const [items, setItems] = useState<PlanItem[]>(initialItems ?? [])
   const [loaded, setLoaded] = useState(!!initialItems)
@@ -350,16 +437,32 @@ function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery
               )}
             </div>
           )}
-          {childPeriods.length > 0 && (
-            <div style={{ paddingTop: 2 }}>
-              {childPeriods.map(child => (
-                <SectionNode key={child.periodKey} level={child.level} periodKey={child.periodKey} label={child.label}
-                  depth={depth + 1} searchQuery={searchQuery} filterStatus={filterStatus}
-                  onTopLevelChanged={onTopLevelChanged} copiedItem={copiedItem} onCopy={onCopy}
-                  autoExpandKeys={autoExpandKeys} todayKey={todayKey} />
-              ))}
-            </div>
-          )}
+          {childPeriods.length > 0 && (() => {
+            const renderChild = (child: typeof childPeriods[number]) => (
+              <SectionNode key={child.periodKey} level={child.level} periodKey={child.periodKey} label={child.label}
+                depth={depth + 1} searchQuery={searchQuery} filterStatus={filterStatus}
+                onTopLevelChanged={onTopLevelChanged} copiedItem={copiedItem} onCopy={onCopy}
+                autoExpandKeys={autoExpandKeys} todayKey={todayKey} />
+            )
+            // 지난 월/주차는 단일 토글로 묶어 숨김 (부모가 현재/미래일 때만)
+            const shouldGroup = (level === 'quarterly' || level === 'monthly') && !isPast
+            if (!shouldGroup) {
+              return <div style={{ paddingTop: 2 }}>{childPeriods.map(renderChild)}</div>
+            }
+            const pastChildren = childPeriods.filter(c => isPastPeriod(c.level, c.periodKey))
+            const activeChildren = childPeriods.filter(c => !isPastPeriod(c.level, c.periodKey))
+            const groupLabel = level === 'quarterly' ? '지난 월' : '지난 주차'
+            return (
+              <div style={{ paddingTop: 2 }}>
+                {pastChildren.length > 0 && (
+                  <PastSectionGroup label={groupLabel} count={pastChildren.length}>
+                    {pastChildren.map(renderChild)}
+                  </PastSectionGroup>
+                )}
+                {activeChildren.map(renderChild)}
+              </div>
+            )
+          })()}
         </div>
       )}
       {showDeleteConfirm && <DeleteConfirm count={selCount} deleting={deletingBulk} onConfirm={handleBulkDelete} onCancel={() => setShowDeleteConfirm(false)} />}
