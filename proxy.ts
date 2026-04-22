@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export function proxy(req: NextRequest) {
-  const basicAuth = req.headers.get('authorization')
+  const validPass = process.env.AUTH_PASS?.trim()
+  if (!validPass) return NextResponse.next()
 
+  const basicAuth = req.headers.get('authorization')
   if (basicAuth) {
     const [scheme, encoded] = basicAuth.split(' ')
     if (scheme === 'Basic' && encoded) {
@@ -12,8 +14,7 @@ export function proxy(req: NextRequest) {
       const user = decoded.slice(0, colonIndex)
       const pass = decoded.slice(colonIndex + 1)
       const validUser = (process.env.AUTH_USER ?? 'admin').trim()
-      const validPass = process.env.AUTH_PASS?.trim()
-      if (validPass && user.trim() === validUser && pass.trim() === validPass) {
+      if (user.trim() === validUser && pass.trim() === validPass) {
         return NextResponse.next()
       }
     }
