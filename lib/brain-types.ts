@@ -1,4 +1,4 @@
-export type ThoughtNodeKind = 'topic' | 'module' | 'wing'
+export type ThoughtNodeKind = 'topic' | 'module' | 'wing' | 'group'
 export type ThoughtNodeType = string
 export type EdgeRelationType = string  // hex 색상 또는 'wing'
 
