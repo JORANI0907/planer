@@ -54,7 +54,6 @@ function wingEdge(wingId: string, parentId: string): Edge<ThoughtEdgeData> {
     target: wingId,
     type: 'thought',
     data: { isWingEdge: true },
-    style: { pointerEvents: 'none' },
   }
 }
 
@@ -118,8 +117,14 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
 
       const rfNodes = dbNodes.map(n => toRFNode(n))
       const rfEdges: Edge<ThoughtEdgeData>[] = dbEdges.map(toRFEdge)
+      // 레거시 날개(DB 엣지 없는 경우)만 가상 엣지 추가
       dbNodes.filter(n => n.node_kind === 'wing').forEach(wing => {
-        if (wing.parent_id) rfEdges.push(wingEdge(wing.id, wing.parent_id))
+        if (!wing.parent_id) return
+        const hasDBEdge = rfEdges.some(e =>
+          (e.source === wing.parent_id && e.target === wing.id) ||
+          (e.source === wing.id && e.target === wing.parent_id)
+        )
+        if (!hasDBEdge) rfEdges.push(wingEdge(wing.id, wing.parent_id))
       })
       setNodes(rfNodes)
       setEdges(rfEdges)
@@ -138,10 +143,10 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
       const parentNode = nodes.find(n => n.id === moduleId)
       const px = parentNode?.position.x ?? 0
       const py = parentNode?.position.y ?? 0
-      createWing(moduleId, '', px + 180, py).then(wing => {
+      createWing(moduleId, '', px + 180, py).then(({ wing, edge }) => {
         setNodeDataMap(m => ({ ...m, [wing.id]: wing }))
         setNodes(ns => [...ns, toRFNode(wing, true)])
-        setEdges(es => [...es, wingEdge(wing.id, moduleId)])
+        setEdges(es => [...es, toRFEdge(edge)])
       })
     },
     onDelete: async (nodeId: string) => {
@@ -283,15 +288,29 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
 
   const handleEdgeContextMenu = useCallback((e: MouseEvent | React.MouseEvent, edge: Edge) => {
     e.preventDefault()
-    if ((edge.data as ThoughtEdgeData)?.isWingEdge) return
+    const { clientX, clientY } = e
     const edgeData = (edge.data ?? {}) as ThoughtEdgeData
+
+    if (edgeData.isWingEdge) {
+      // 가상 엣지 → DB 엣지로 자동 승격 후 메뉴 표시 (레거시 날개 호환)
+      createEdge({ source_id: edge.source, target_id: edge.target, relation_type: 'wing' }).then(dbEdge => {
+        setEdges(es => es.map(ed => ed.id === edge.id
+          ? { ...ed, id: dbEdge.id, data: { relationType: 'wing' as EdgeRelationType, label: '' } }
+          : ed
+        ))
+        setCtxEdgeLabel('')
+        setCtxMenu({ x: clientX, y: clientY, type: 'edge', edgeId: dbEdge.id, edgeRelationType: 'wing' })
+      })
+      return
+    }
+
     setCtxEdgeLabel(edgeData.label ?? '')
     setCtxMenu({
-      x: e.clientX, y: e.clientY,
+      x: clientX, y: clientY,
       type: 'edge', edgeId: edge.id,
       edgeRelationType: edgeData.relationType ?? 'center',
     })
-  }, [])
+  }, [setEdges])
 
   // Delete / Backspace 로 선택된 엣지 삭제
   useEffect(() => {
@@ -431,13 +450,23 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
             )}
 
             {ctxMenu.type === 'node' && ctxMenu.isWing && (
-              <button
-                onClick={() => brainCtxValue.onDelete(ctxMenu.nodeId!)}
-                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
-                className="hover:bg-red-50"
-              >
-                삭제
-              </button>
+              <>
+                <button
+                  onClick={() => brainCtxValue.onAddWing(ctxMenu.nodeId!)}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#1e293b', background: 'none', border: 'none', cursor: 'pointer' }}
+                  className="hover:bg-gray-50"
+                >
+                  ◎ 날개 생성
+                </button>
+                <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
+                <button
+                  onClick={() => brainCtxValue.onDelete(ctxMenu.nodeId!)}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
+                  className="hover:bg-red-50"
+                >
+                  삭제
+                </button>
+              </>
             )}
 
             {ctxMenu.type === 'edge' && (
