@@ -41,15 +41,22 @@ export async function getCanvasNodes(topicId: string): Promise<ThoughtNode[]> {
   if (me) throw me
   if (!modules || modules.length === 0) return []
 
-  const moduleIds = modules.map(m => m.id)
-  const { data: wings, error: we } = await supabase
-    .from('thought_nodes')
-    .select('*')
-    .in('parent_id', moduleIds)
-    .eq('node_kind', 'wing')
-  if (we) throw we
+  const allNodes: ThoughtNode[] = [...modules]
+  let parentIds = modules.map(m => m.id)
 
-  return [...modules, ...(wings ?? [])]
+  while (parentIds.length > 0) {
+    const { data: wings, error: we } = await supabase
+      .from('thought_nodes')
+      .select('*')
+      .in('parent_id', parentIds)
+      .eq('node_kind', 'wing')
+    if (we) throw we
+    if (!wings || wings.length === 0) break
+    allNodes.push(...wings)
+    parentIds = wings.map(w => w.id)
+  }
+
+  return allNodes
 }
 
 export async function createModule(
@@ -65,13 +72,20 @@ export async function createModule(
 
 export async function createWing(
   moduleId: string, title: string, x: number, y: number
-): Promise<ThoughtNode> {
-  const { data, error } = await supabase
+): Promise<{ wing: ThoughtNode; edge: ThoughtEdge }> {
+  const { data: wingData, error: wingError } = await supabase
     .from('thought_nodes')
     .insert({ parent_id: moduleId, title, type: 'memo', node_kind: 'wing', pos_x: x, pos_y: y, grid_position: 4, color: DEFAULT_COLOR })
     .select().single()
-  if (error) throw error
-  return data
+  if (wingError) throw wingError
+
+  const { data: edgeData, error: edgeError } = await supabase
+    .from('thought_edges')
+    .insert({ source_id: moduleId, target_id: wingData.id, relation_type: 'wing' })
+    .select().single()
+  if (edgeError) throw edgeError
+
+  return { wing: wingData, edge: edgeData }
 }
 
 export async function updateNode(
