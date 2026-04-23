@@ -75,6 +75,16 @@ function wingEdge(wingId: string, parentId: string): Edge<ThoughtEdgeData> {
   }
 }
 
+function deduplicateEdges(edgeList: Edge<ThoughtEdgeData>[]): Edge<ThoughtEdgeData>[] {
+  const seen = new Set<string>()
+  return edgeList.filter(e => {
+    const key = [e.source, e.target].sort().join('↔')
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 function nodeCenter(node: Node): { x: number; y: number } {
   const isGroup = (node.data as GroupNodeData)?.isGroup
   const isWing = (node.data as ModuleNodeData).isWing
@@ -144,8 +154,43 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
   const [ctxEdgeLabel, setCtxEdgeLabel] = useState('')
   const [proximityId, setProximityId] = useState<string | null>(null)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
+  const [hoverGroupId, setHoverGroupId] = useState<string | null>(null)
   const paneLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const paneLongPressFired = useRef(false)
+
+  const joinGroup = useCallback(async (moduleId: string, groupId: string) => {
+    const currentGroupId = (nodes.find(n => n.id === moduleId)?.data as ModuleNodeData)?.groupId
+    if (currentGroupId === groupId) return
+    await addModuleToGroup(moduleId, groupId)
+    const groupMemberIds = new Set([
+      groupId,
+      ...nodes.filter(n => (n.data as ModuleNodeData).groupId === groupId).map(n => n.id),
+    ])
+    const newRFEdges: Edge<ThoughtEdgeData>[] = []
+    for (const e of edges) {
+      const srcMatch = e.source === moduleId
+      const tgtMatch = e.target === moduleId
+      if (!srcMatch && !tgtMatch) continue
+      const otherId = srcMatch ? e.target : e.source
+      if (groupMemberIds.has(otherId)) continue
+      const alreadyExists = edges.some(ex =>
+        (ex.source === groupId && ex.target === otherId) ||
+        (ex.source === otherId && ex.target === groupId)
+      )
+      if (alreadyExists) continue
+      try {
+        const relType = (e.data as ThoughtEdgeData)?.relationType ?? '#94a3b8'
+        const dbEdge = await createEdge({
+          source_id: srcMatch ? groupId : otherId,
+          target_id: srcMatch ? otherId : groupId,
+          relation_type: relType,
+        })
+        newRFEdges.push(toRFEdge(dbEdge))
+      } catch { /* skip */ }
+    }
+    setNodes(ns => ns.map(n => n.id === moduleId ? { ...n, data: { ...n.data, groupId } } : n))
+    setEdges(es => deduplicateEdges([...es, ...newRFEdges]))
+  }, [nodes, edges])
 
   // 그룹 드래그 시 멤버 위치 추적
   const groupDragRef = useRef<{
@@ -191,10 +236,11 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
   }, [topicId])
 
   const nodesWithProximity = useMemo(() =>
-    nodes.map(n => n.id === proximityId
-      ? { ...n, style: { ...n.style, filter: 'drop-shadow(0 0 8px #6366f1)' } }
-      : n
-    ), [nodes, proximityId])
+    nodes.map(n => {
+      if (n.id === proximityId) return { ...n, style: { ...n.style, filter: 'drop-shadow(0 0 8px #6366f1)' } }
+      if (n.id === hoverGroupId) return { ...n, style: { ...n.style, filter: 'drop-shadow(0 0 14px #6366f1)' } }
+      return n
+    }), [nodes, proximityId, hoverGroupId])
 
   const brainCtxValue = useMemo(() => ({
     onAddWing: (moduleId: string) => {
@@ -317,12 +363,18 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
       }))
       return
     }
+    if (!(node.data as ModuleNodeData).isWing) {
+      const groups = nodes.filter(n => (n.data as GroupNodeData)?.isGroup)
+      const hoverGroup = findGroupAtPosition({ x: node.position.x + 75, y: node.position.y + 32 }, groups)
+      setHoverGroupId(hoverGroup?.id ?? null)
+    }
     const target = findProximityTarget(node, nodes)
     setProximityId(target?.id ?? null)
   }, [nodes])
 
   const handleNodeDragStop = useCallback(async (_: React.MouseEvent, node: Node) => {
     if (dragTimer.current) clearTimeout(dragTimer.current)
+    setHoverGroupId(null)
 
     const isGroupNode = (node.data as GroupNodeData)?.isGroup
 
@@ -342,17 +394,11 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
     // 모듈 드래그 종료: 그룹 박스 가입/탈퇴 감지
     if (!(node.data as ModuleNodeData).isWing) {
       const groups = nodes.filter(n => (n.data as GroupNodeData)?.isGroup)
-      const nodeCenterX = node.position.x + 75
-      const nodeCenterY = node.position.y + 32
-      const targetGroup = findGroupAtPosition({ x: nodeCenterX, y: nodeCenterY }, groups)
+      const targetGroup = findGroupAtPosition({ x: node.position.x + 75, y: node.position.y + 32 }, groups)
       const currentGroupId = (node.data as ModuleNodeData).groupId
 
       if (targetGroup && currentGroupId !== targetGroup.id) {
-        await addModuleToGroup(node.id, targetGroup.id)
-        setNodes(ns => ns.map(n => n.id === node.id
-          ? { ...n, data: { ...n.data, groupId: targetGroup.id } }
-          : n
-        ))
+        await joinGroup(node.id, targetGroup.id)
       } else if (!targetGroup && currentGroupId) {
         await removeModuleFromGroup(node.id, topicId)
         setNodes(ns => ns.map(n => n.id === node.id
@@ -388,7 +434,7 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
     dragTimer.current = setTimeout(() => {
       updateNodePosition(node.id, node.position.x, node.position.y)
     }, 400)
-  }, [proximityId, edges, nodes, topicId])
+  }, [proximityId, edges, nodes, topicId, joinGroup])
 
   const handleConnect = useCallback(async (conn: Connection) => {
     if (!conn.source || !conn.target || conn.source === conn.target) return
@@ -606,37 +652,57 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
             )}
 
             {/* 본 모듈 우클릭 */}
-            {ctxMenu.type === 'node' && !ctxMenu.isWing && !ctxMenu.isGroup && (
-              <>
-                <button
-                  onClick={() => brainCtxValue.onAddWing(ctxMenu.nodeId!)}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#1e293b', background: 'none', border: 'none', cursor: 'pointer' }}
-                  className="hover:bg-gray-50"
-                >
-                  ◎ 날개 생성
-                </button>
-                {(nodes.find(n => n.id === ctxMenu.nodeId)?.data as ModuleNodeData)?.groupId && (
-                  <>
-                    <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
-                    <button
-                      onClick={() => brainCtxValue.onRemoveModuleFromGroup(ctxMenu.nodeId!)}
-                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer' }}
-                      className="hover:bg-indigo-50"
-                    >
-                      ↑ 그룹에서 제거
-                    </button>
-                  </>
-                )}
-                <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
-                <button
-                  onClick={() => brainCtxValue.onDelete(ctxMenu.nodeId!)}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
-                  className="hover:bg-red-50"
-                >
-                  삭제
-                </button>
-              </>
-            )}
+            {ctxMenu.type === 'node' && !ctxMenu.isWing && !ctxMenu.isGroup && (() => {
+              const moduleNode = nodes.find(n => n.id === ctxMenu.nodeId)
+              const currentGroupId = (moduleNode?.data as ModuleNodeData)?.groupId
+              const availableGroups = nodes.filter(n => (n.data as GroupNodeData)?.isGroup && n.id !== currentGroupId)
+              return (
+                <>
+                  <button
+                    onClick={() => brainCtxValue.onAddWing(ctxMenu.nodeId!)}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#1e293b', background: 'none', border: 'none', cursor: 'pointer' }}
+                    className="hover:bg-gray-50"
+                  >
+                    ◎ 날개 생성
+                  </button>
+                  {availableGroups.length > 0 && (
+                    <>
+                      <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
+                      {availableGroups.map(g => (
+                        <button
+                          key={g.id}
+                          onClick={() => { joinGroup(ctxMenu.nodeId!, g.id); setCtxMenu(null) }}
+                          style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer' }}
+                          className="hover:bg-indigo-50"
+                        >
+                          ▣ &ldquo;{(g.data as GroupNodeData).label}&rdquo; 에 추가
+                        </button>
+                      ))}
+                    </>
+                  )}
+                  {currentGroupId && (
+                    <>
+                      <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
+                      <button
+                        onClick={() => brainCtxValue.onRemoveModuleFromGroup(ctxMenu.nodeId!)}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer' }}
+                        className="hover:bg-gray-50"
+                      >
+                        ↑ 그룹에서 제거
+                      </button>
+                    </>
+                  )}
+                  <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
+                  <button
+                    onClick={() => brainCtxValue.onDelete(ctxMenu.nodeId!)}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
+                    className="hover:bg-red-50"
+                  >
+                    삭제
+                  </button>
+                </>
+              )
+            })()}
 
             {/* 날개 모듈 우클릭 */}
             {ctxMenu.type === 'node' && ctxMenu.isWing && (
