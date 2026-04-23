@@ -12,26 +12,44 @@ import {
 import type { ThoughtNode, ThoughtEdge } from '@/lib/brain-types'
 import { mapRelationType, EDGE_COLORS, getEdgeColor } from '@/lib/brain-types'
 import {
-  getCanvasNodes, getCanvasEdges, createModule, createWing,
-  updateNode, updateNodePosition, deleteNode, createEdge, updateEdge, deleteEdge,
+  getCanvasNodes, getCanvasEdges, createModule, createWing, createGroup,
+  updateNode, updateNodePosition, deleteNode, deleteGroup,
+  createEdge, updateEdge, deleteEdge,
+  addModuleToGroup, removeModuleFromGroup, updateGroupSize, parseGroupSize,
 } from '@/lib/brain-api'
 import { ModuleNode, type ModuleNodeData } from './ModuleNode'
+import { GroupNode, type GroupNodeData } from './GroupNode'
 import { ThoughtEdge as ThoughtEdgeComp, type ThoughtEdgeData } from './ThoughtEdge'
 import { BrainCtx } from './BrainContext'
 
-const nodeTypes = { module: ModuleNode }
+const nodeTypes = { module: ModuleNode, group: GroupNode }
 const edgeTypes = { thought: ThoughtEdgeComp }
 
-function toRFNode(n: ThoughtNode, autoFocus = false): Node<ModuleNodeData> {
+// ─── Node conversion ──────────────────────────────────────────
+function toRFGroupNode(n: ThoughtNode): Node<GroupNodeData> {
+  const size = parseGroupSize(n.content)
+  return {
+    id: n.id,
+    type: 'group',
+    position: { x: n.pos_x, y: n.pos_y },
+    style: { width: size.w, height: size.h },
+    zIndex: 0,
+    data: { label: n.title, isGroup: true as const },
+  }
+}
+
+function toRFNode(n: ThoughtNode, groupId: string | null, autoFocus = false): Node<ModuleNodeData> {
   return {
     id: n.id,
     type: 'module',
     position: { x: n.pos_x, y: n.pos_y },
+    zIndex: 1,
     data: {
       label: n.title,
       content: n.content,
       isWing: n.node_kind === 'wing',
       autoFocus,
+      groupId,
     },
   }
 }
@@ -58,24 +76,49 @@ function wingEdge(wingId: string, parentId: string): Edge<ThoughtEdgeData> {
 }
 
 function nodeCenter(node: Node): { x: number; y: number } {
+  const isGroup = (node.data as GroupNodeData)?.isGroup
   const isWing = (node.data as ModuleNodeData).isWing
-  const w = isWing ? 80 : 150
-  const h = isWing ? 80 : 64
+  const w = isGroup
+    ? ((node.style?.width as number) ?? 360)
+    : isWing ? 80 : 150
+  const h = isGroup
+    ? ((node.style?.height as number) ?? 260)
+    : isWing ? 80 : 64
   return { x: node.position.x + w / 2, y: node.position.y + h / 2 }
 }
 
 const PROX_THRESHOLD = 140
 function findProximityTarget(dragged: Node, allNodes: Node[]): Node | null {
+  if ((dragged.data as GroupNodeData)?.isGroup) return null
   const dc = nodeCenter(dragged)
   let closest: Node | null = null
   let minDist = PROX_THRESHOLD
   for (const n of allNodes) {
     if (n.id === dragged.id) continue
+    if ((n.data as GroupNodeData)?.isGroup) continue
     const nc = nodeCenter(n)
     const dist = Math.sqrt((dc.x - nc.x) ** 2 + (dc.y - nc.y) ** 2)
     if (dist < minDist) { minDist = dist; closest = n }
   }
   return closest
+}
+
+// 모듈이 그룹 박스 내부에 있는지 판단
+function findGroupAtPosition(
+  nodePos: { x: number; y: number },
+  groups: Node[]
+): Node | null {
+  for (const g of groups) {
+    const gw = (g.style?.width as number) ?? 360
+    const gh = (g.style?.height as number) ?? 260
+    if (
+      nodePos.x > g.position.x &&
+      nodePos.x < g.position.x + gw &&
+      nodePos.y > g.position.y &&
+      nodePos.y < g.position.y + gh
+    ) return g
+  }
+  return null
 }
 
 // ─── Context Menu ─────────────────────────────────────────────
@@ -84,6 +127,7 @@ interface CtxMenu {
   type: 'canvas' | 'node' | 'edge'
   nodeId?: string
   isWing?: boolean
+  isGroup?: boolean
   edgeId?: string
   edgeRelationType?: string
   canvasPos?: { x: number; y: number }
@@ -93,7 +137,7 @@ interface CtxMenu {
 function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: string }) {
   const { screenToFlowPosition } = useReactFlow()
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node<ModuleNodeData>>([])
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<ModuleNodeData | GroupNodeData>>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge<ThoughtEdgeData>>([])
   const [, setNodeDataMap] = useState<Record<string, ThoughtNode>>({})
   const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null)
@@ -102,6 +146,13 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
   const [isTouchDevice, setIsTouchDevice] = useState(false)
   const paneLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const paneLongPressFired = useRef(false)
+
+  // 그룹 드래그 시 멤버 위치 추적
+  const groupDragRef = useRef<{
+    groupId: string
+    startPos: { x: number; y: number }
+    memberStartPositions: Record<string, { x: number; y: number }>
+  } | null>(null)
 
   useEffect(() => {
     const touch = typeof window !== 'undefined' &&
@@ -115,7 +166,14 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
       dbNodes.forEach(n => { map[n.id] = n })
       setNodeDataMap(map)
 
-      const rfNodes = dbNodes.map(n => toRFNode(n))
+      const groupSet = new Set(dbNodes.filter(n => n.node_kind === 'group').map(g => g.id))
+
+      const rfNodes: Node<ModuleNodeData | GroupNodeData>[] = dbNodes.map(n => {
+        if (n.node_kind === 'group') return toRFGroupNode(n)
+        const groupId = n.parent_id && groupSet.has(n.parent_id) ? n.parent_id : null
+        return toRFNode(n, groupId)
+      })
+
       const rfEdges: Edge<ThoughtEdgeData>[] = dbEdges.map(toRFEdge)
       // 레거시 날개(DB 엣지 없는 경우)만 가상 엣지 추가
       dbNodes.filter(n => n.node_kind === 'wing').forEach(wing => {
@@ -126,6 +184,7 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
         )
         if (!hasDBEdge) rfEdges.push(wingEdge(wing.id, wing.parent_id))
       })
+
       setNodes(rfNodes)
       setEdges(rfEdges)
     })
@@ -145,14 +204,30 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
       const py = parentNode?.position.y ?? 0
       createWing(moduleId, '', px + 180, py).then(({ wing, edge }) => {
         setNodeDataMap(m => ({ ...m, [wing.id]: wing }))
-        setNodes(ns => [...ns, toRFNode(wing, true)])
+        setNodes(ns => [...ns, toRFNode(wing, null, true)])
         setEdges(es => [...es, toRFEdge(edge)])
       })
     },
     onDelete: async (nodeId: string) => {
       setCtxMenu(null)
       const target = nodes.find(n => n.id === nodeId)
-      const label = (target?.data as ModuleNodeData | undefined)?.label || '(제목 없음)'
+      const isGroupNode = (target?.data as GroupNodeData)?.isGroup
+      const label = (target?.data as ModuleNodeData | GroupNodeData | undefined)?.label || '(제목 없음)'
+
+      if (isGroupNode) {
+        if (!confirm(`"${label}" 그룹을 삭제할까요?\n그룹 안의 모듈은 캔버스에 남습니다.`)) return
+        await deleteGroup(nodeId, topicId)
+        setNodes(ns => ns
+          .filter(n => n.id !== nodeId)
+          .map(n => (n.data as ModuleNodeData).groupId === nodeId
+            ? { ...n, data: { ...n.data, groupId: null } }
+            : n
+          )
+        )
+        setEdges(es => es.filter(e => e.source !== nodeId && e.target !== nodeId))
+        return
+      }
+
       const isWingNode = (target?.data as ModuleNodeData | undefined)?.isWing
       const msg = isWingNode
         ? `"${label}" 날개를 삭제할까요?`
@@ -178,8 +253,8 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
         : n
       ))
     },
-    onContextMenu: (nodeId: string, isWing: boolean, x: number, y: number) => {
-      setCtxMenu({ x, y, type: 'node', nodeId, isWing })
+    onContextMenu: (nodeId: string, isWing: boolean, x: number, y: number, extra?: { isGroup?: boolean }) => {
+      setCtxMenu({ x, y, type: 'node', nodeId, isWing, isGroup: extra?.isGroup })
     },
     onEdgeChangeType: async (edgeId: string, type: string) => {
       const updated = await updateEdge(edgeId, { relation_type: type })
@@ -199,13 +274,95 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
       await deleteEdge(edgeId)
       setEdges(es => es.filter(e => e.id !== edgeId))
     },
-  }), [nodes, setNodes, setEdges])
+    onGroupResize: async (groupId: string, width: number, height: number) => {
+      await updateGroupSize(groupId, width, height)
+      setNodes(ns => ns.map(n => n.id === groupId
+        ? { ...n, style: { ...n.style, width, height } }
+        : n
+      ))
+    },
+    onRemoveModuleFromGroup: async (moduleId: string) => {
+      setCtxMenu(null)
+      await removeModuleFromGroup(moduleId, topicId)
+      setNodes(ns => ns.map(n => n.id === moduleId
+        ? { ...n, data: { ...n.data, groupId: null } }
+        : n
+      ))
+    },
+  }), [nodes, setNodes, setEdges, topicId])
 
-  // 드래그 후 위치 저장 + 근접 자동 연결
   const dragTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleNodeDragStart = useCallback((_: React.MouseEvent, node: Node) => {
+    if (!(node.data as GroupNodeData)?.isGroup) return
+    const members = nodes.filter(n => (n.data as ModuleNodeData).groupId === node.id)
+    groupDragRef.current = {
+      groupId: node.id,
+      startPos: { x: node.position.x, y: node.position.y },
+      memberStartPositions: Object.fromEntries(
+        members.map(m => [m.id, { x: m.position.x, y: m.position.y }])
+      ),
+    }
+  }, [nodes])
+
+  const handleNodeDrag = useCallback((_: React.MouseEvent, node: Node) => {
+    if ((node.data as GroupNodeData)?.isGroup) {
+      const ref = groupDragRef.current
+      if (!ref || ref.groupId !== node.id) return
+      const delta = { x: node.position.x - ref.startPos.x, y: node.position.y - ref.startPos.y }
+      setNodes(ns => ns.map(n => {
+        const mp = ref.memberStartPositions[n.id]
+        if (!mp) return n
+        return { ...n, position: { x: mp.x + delta.x, y: mp.y + delta.y } }
+      }))
+      return
+    }
+    const target = findProximityTarget(node, nodes)
+    setProximityId(target?.id ?? null)
+  }, [nodes])
+
   const handleNodeDragStop = useCallback(async (_: React.MouseEvent, node: Node) => {
     if (dragTimer.current) clearTimeout(dragTimer.current)
 
+    const isGroupNode = (node.data as GroupNodeData)?.isGroup
+
+    if (isGroupNode) {
+      const ref = groupDragRef.current
+      if (ref?.groupId === node.id) {
+        const delta = { x: node.position.x - ref.startPos.x, y: node.position.y - ref.startPos.y }
+        Object.entries(ref.memberStartPositions).forEach(([id, mp]) => {
+          updateNodePosition(id, mp.x + delta.x, mp.y + delta.y)
+        })
+        groupDragRef.current = null
+      }
+      updateNodePosition(node.id, node.position.x, node.position.y)
+      return
+    }
+
+    // 모듈 드래그 종료: 그룹 박스 가입/탈퇴 감지
+    if (!(node.data as ModuleNodeData).isWing) {
+      const groups = nodes.filter(n => (n.data as GroupNodeData)?.isGroup)
+      const nodeCenterX = node.position.x + 75
+      const nodeCenterY = node.position.y + 32
+      const targetGroup = findGroupAtPosition({ x: nodeCenterX, y: nodeCenterY }, groups)
+      const currentGroupId = (node.data as ModuleNodeData).groupId
+
+      if (targetGroup && currentGroupId !== targetGroup.id) {
+        await addModuleToGroup(node.id, targetGroup.id)
+        setNodes(ns => ns.map(n => n.id === node.id
+          ? { ...n, data: { ...n.data, groupId: targetGroup.id } }
+          : n
+        ))
+      } else if (!targetGroup && currentGroupId) {
+        await removeModuleFromGroup(node.id, topicId)
+        setNodes(ns => ns.map(n => n.id === node.id
+          ? { ...n, data: { ...n.data, groupId: null } }
+          : n
+        ))
+      }
+    }
+
+    // 근접 자동 연결
     if (proximityId) {
       const alreadyConnected = edges.some(e =>
         (e.source === node.id && e.target === proximityId) ||
@@ -215,14 +372,14 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
         const dbEdge = await createEdge({
           source_id: node.id,
           target_id: proximityId,
-          relation_type: 'center',
+          relation_type: '#94a3b8',
         })
         setEdges(es => addEdge({
           id: dbEdge.id,
           source: dbEdge.source_id,
           target: dbEdge.target_id,
           type: 'thought',
-          data: { label: '', relationType: 'center' },
+          data: { label: '', relationType: '#94a3b8' },
         }, es))
       }
       setProximityId(null)
@@ -231,27 +388,21 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
     dragTimer.current = setTimeout(() => {
       updateNodePosition(node.id, node.position.x, node.position.y)
     }, 400)
-  }, [proximityId, edges])
+  }, [proximityId, edges, nodes, topicId])
 
-  const handleNodeDrag = useCallback((_: React.MouseEvent, node: Node) => {
-    const target = findProximityTarget(node, nodes)
-    setProximityId(target?.id ?? null)
-  }, [nodes])
-
-  // 핸들 드래그로 연결 (floating edge라서 source/target handle 정보는 의미 없음)
   const handleConnect = useCallback(async (conn: Connection) => {
     if (!conn.source || !conn.target || conn.source === conn.target) return
     const dbEdge = await createEdge({
       source_id: conn.source,
       target_id: conn.target,
-      relation_type: 'center',
+      relation_type: '#94a3b8',
     })
     setEdges(es => addEdge({
       id: dbEdge.id,
       source: dbEdge.source_id,
       target: dbEdge.target_id,
       type: 'thought',
-      data: { label: '', relationType: 'center' },
+      data: { label: '', relationType: '#94a3b8' },
     }, es))
   }, [])
 
@@ -264,7 +415,6 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
   const handlePaneTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length !== 1) return
     const target = e.target as HTMLElement
-    // 캔버스 배경(.react-flow__pane 또는 dot bg)만 대상
     if (!target.classList?.contains('react-flow__pane')) return
     const t = e.touches[0]
     const clientX = t.clientX
@@ -292,7 +442,6 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
     const edgeData = (edge.data ?? {}) as ThoughtEdgeData
 
     if (edgeData.isWingEdge) {
-      // 가상 엣지 → DB 엣지로 자동 승격 후 메뉴 표시 (레거시 날개 호환)
       createEdge({ source_id: edge.source, target_id: edge.target, relation_type: 'wing' }).then(dbEdge => {
         setEdges(es => es.map(ed => ed.id === edge.id
           ? { ...ed, id: dbEdge.id, data: { relationType: 'wing', label: '' } }
@@ -308,11 +457,10 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
     setCtxMenu({
       x: clientX, y: clientY,
       type: 'edge', edgeId: edge.id,
-      edgeRelationType: edgeData.relationType ?? 'center',
+      edgeRelationType: edgeData.relationType ?? '#94a3b8',
     })
   }, [setEdges])
 
-  // Delete / Backspace 로 선택된 엣지 삭제
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return
@@ -334,7 +482,15 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
     const { x, y } = ctxMenu.canvasPos
     const node = await createModule(topicId, '', x - 75, y - 30)
     setNodeDataMap(m => ({ ...m, [node.id]: node }))
-    setNodes(ns => [...ns, toRFNode(node, true)])
+    setNodes(ns => [...ns, toRFNode(node, null, true)])
+    setCtxMenu(null)
+  }
+
+  async function handleCreateGroup() {
+    if (!ctxMenu?.canvasPos) return
+    const { x, y } = ctxMenu.canvasPos
+    const node = await createGroup(topicId, '그룹', x - 180, y - 130)
+    setNodes(ns => [...ns, toRFGroupNode(node)])
     setCtxMenu(null)
   }
 
@@ -355,6 +511,7 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={handleConnect}
+            onNodeDragStart={handleNodeDragStart}
             onNodeDrag={handleNodeDrag}
             onNodeDragStop={handleNodeDragStop}
             onPaneContextMenu={handlePaneContextMenu}
@@ -376,20 +533,23 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
             <MiniMap
               style={{ bottom: 16, right: 16 }}
               maskColor="rgba(249,250,251,0.6)"
-              nodeColor={n => (n.data as ModuleNodeData)?.isWing ? '#bae6fd' : '#cbd5e1'}
+              nodeColor={n => {
+                if ((n.data as GroupNodeData)?.isGroup) return '#e0e7ff'
+                return (n.data as ModuleNodeData)?.isWing ? '#bae6fd' : '#cbd5e1'
+              }}
             />
           </ReactFlow>
 
           {/* 상단 툴바 힌트 */}
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 max-w-[calc(100vw-1rem)] md:max-w-[calc(100vw-17rem)]">
             <div className="bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full px-3 md:px-4 py-1.5 text-[11px] md:text-xs text-gray-600 shadow-sm flex items-center gap-2 md:gap-3 overflow-x-auto whitespace-nowrap pointer-events-auto">
-              <span className="whitespace-nowrap"><b>{isTouchDevice ? '빈 공간 길게 누름' : '빈 공간 우클릭'}</b> 모듈 생성</span>
+              <span><b>{isTouchDevice ? '빈 공간 길게 누름' : '빈 공간 우클릭'}</b> 모듈/그룹</span>
               <span className="text-gray-300">·</span>
-              <span className="whitespace-nowrap"><b>+버튼 드래그</b> 연결</span>
+              <span><b>+버튼 드래그</b> 연결</span>
               <span className="text-gray-300">·</span>
-              <span className="whitespace-nowrap"><b>모듈 근접</b> 자동 연결</span>
+              <span><b>모듈→박스 드래그</b> 그룹화</span>
               <span className="text-gray-300">·</span>
-              <span className="whitespace-nowrap"><b>{isTouchDevice ? '모듈 길게 누름' : '모듈 우클릭'}</b> 메뉴</span>
+              <span><b>{isTouchDevice ? '노드 길게 누름' : '노드 우클릭'}</b> 메뉴</span>
             </div>
           </div>
 
@@ -419,17 +579,29 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
             }}
             onClick={e => e.stopPropagation()}
           >
+            {/* 캔버스 우클릭 */}
             {ctxMenu.type === 'canvas' && (
-              <button
-                onClick={handleCreateModule}
-                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#1e293b', background: 'none', border: 'none', cursor: 'pointer' }}
-                className="hover:bg-gray-50"
-              >
-                + 본 모듈 생성
-              </button>
+              <>
+                <button
+                  onClick={handleCreateModule}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#1e293b', background: 'none', border: 'none', cursor: 'pointer' }}
+                  className="hover:bg-gray-50"
+                >
+                  + 본 모듈 생성
+                </button>
+                <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
+                <button
+                  onClick={handleCreateGroup}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer' }}
+                  className="hover:bg-indigo-50"
+                >
+                  ▣ 그룹 박스 생성
+                </button>
+              </>
             )}
 
-            {ctxMenu.type === 'node' && !ctxMenu.isWing && (
+            {/* 본 모듈 우클릭 */}
+            {ctxMenu.type === 'node' && !ctxMenu.isWing && !ctxMenu.isGroup && (
               <>
                 <button
                   onClick={() => brainCtxValue.onAddWing(ctxMenu.nodeId!)}
@@ -438,6 +610,18 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
                 >
                   ◎ 날개 생성
                 </button>
+                {(nodes.find(n => n.id === ctxMenu.nodeId)?.data as ModuleNodeData)?.groupId && (
+                  <>
+                    <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
+                    <button
+                      onClick={() => brainCtxValue.onRemoveModuleFromGroup(ctxMenu.nodeId!)}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer' }}
+                      className="hover:bg-indigo-50"
+                    >
+                      ↑ 그룹에서 제거
+                    </button>
+                  </>
+                )}
                 <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
                 <button
                   onClick={() => brainCtxValue.onDelete(ctxMenu.nodeId!)}
@@ -449,6 +633,7 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
               </>
             )}
 
+            {/* 날개 모듈 우클릭 */}
             {ctxMenu.type === 'node' && ctxMenu.isWing && (
               <>
                 <button
@@ -469,9 +654,20 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
               </>
             )}
 
+            {/* 그룹 박스 우클릭 */}
+            {ctxMenu.type === 'node' && ctxMenu.isGroup && (
+              <button
+                onClick={() => brainCtxValue.onDelete(ctxMenu.nodeId!)}
+                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
+                className="hover:bg-red-50"
+              >
+                그룹 삭제 (모듈 유지)
+              </button>
+            )}
+
+            {/* 엣지 우클릭 */}
             {ctxMenu.type === 'edge' && (
               <>
-                {/* 8색상 picker */}
                 <div style={{ padding: '8px 12px 6px' }}>
                   <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 6 }}>선 색상</div>
                   <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
