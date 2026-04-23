@@ -2,18 +2,15 @@
 
 import { memo, useContext, useState, useRef, useEffect } from 'react'
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, useInternalNode, Position, type EdgeProps } from '@xyflow/react'
-import { EDGE_RELATION_CONFIG } from '@/lib/brain-types'
-import type { EdgeRelationType } from '@/lib/brain-types'
+import { EDGE_COLORS, getEdgeColor } from '@/lib/brain-types'
 import { getEdgeParams } from '@/lib/floating-edge-utils'
 import { BrainCtx } from './BrainContext'
 
 export type ThoughtEdgeData = {
   label?: string
-  relationType?: EdgeRelationType
+  relationType?: string
   isWingEdge?: boolean
 }
-
-const RELATION_TYPES: EdgeRelationType[] = ['center', 'assist', 'negative']
 
 function ThoughtEdgeInner({
   id, source, target,
@@ -23,8 +20,8 @@ function ThoughtEdgeInner({
   const { onEdgeChangeType, onEdgeChangeLabel, onEdgeDelete } = useContext(BrainCtx)
   const edgeData = (data ?? {}) as ThoughtEdgeData
   const isWing = edgeData.isWingEdge
-  const relType: EdgeRelationType = edgeData.relationType ?? 'center'
-  const cfg = EDGE_RELATION_CONFIG[relType] ?? EDGE_RELATION_CONFIG.center
+  const relType = edgeData.relationType ?? '#94a3b8'
+  const activeColor = getEdgeColor(relType)
 
   const [labelEdit, setLabelEdit] = useState(false)
   const [labelVal, setLabelVal] = useState(edgeData.label ?? '')
@@ -33,7 +30,7 @@ function ThoughtEdgeInner({
   useEffect(() => { setLabelVal(edgeData.label ?? '') }, [edgeData.label])
   useEffect(() => { if (labelEdit && labelInputRef.current) labelInputRef.current.focus() }, [labelEdit])
 
-  // 360° 자동 방향: 두 노드의 실제 경계 교차점을 계산 (측정 전에는 ReactFlow 기본값 사용)
+  // 360° 자동 방향: 두 노드의 실제 경계 교차점을 계산
   const sourceNode = useInternalNode(source)
   const targetNode = useInternalNode(target)
 
@@ -52,10 +49,10 @@ function ThoughtEdgeInner({
     targetX: tx,
     targetY: ty,
     targetPosition: targetPos,
-    curvature: 0.25,
+    curvature: isWing ? 0 : 0.25,  // 날개 연결선은 직선으로
   })
 
-  const strokeColor = isWing ? '#94a3b8' : (selected ? '#6366f1' : cfg.color)
+  const strokeColor = isWing ? '#94a3b8' : (selected ? '#6366f1' : activeColor)
   const strokeWidth = isWing ? 1.5 : (selected ? 3 : 2)
 
   function saveLabel() {
@@ -123,33 +120,34 @@ function ThoughtEdgeInner({
                 padding: '8px 10px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 6,
-                minWidth: 160,
+                gap: 8,
+                minWidth: 168,
               }}
               onClick={e => e.stopPropagation()}
             >
-              <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                {RELATION_TYPES.map(rt => {
-                  const c = EDGE_RELATION_CONFIG[rt]
-                  const active = relType === rt
+              {/* 8색상 picker */}
+              <div style={{ display: 'flex', gap: 5, justifyContent: 'center', flexWrap: 'wrap' }}>
+                {EDGE_COLORS.map(color => {
+                  const isActive = activeColor === color
                   return (
                     <button
-                      key={rt}
-                      onClick={() => onEdgeChangeType(id, rt)}
-                      title={c.label}
+                      key={color}
+                      onClick={() => onEdgeChangeType(id, color)}
+                      title={color}
                       style={{
-                        width: 30, height: 30,
+                        width: 22,
+                        height: 22,
                         borderRadius: '50%',
-                        border: `2px solid ${active ? c.color : '#e2e8f0'}`,
-                        background: active ? c.color : '#ffffff',
+                        background: color,
+                        border: isActive ? `3px solid #1e293b` : '2px solid transparent',
+                        outline: isActive ? `2px solid ${color}` : 'none',
+                        outlineOffset: 1,
                         cursor: 'pointer',
-                        fontSize: 9, fontWeight: 700,
-                        color: active ? '#ffffff' : c.color,
-                        transition: 'all 0.12s',
+                        padding: 0,
+                        transition: 'transform 0.1s',
+                        transform: isActive ? 'scale(1.15)' : 'scale(1)',
                       }}
-                    >
-                      {c.label.replace('축', '')}
-                    </button>
+                    />
                   )
                 })}
               </div>
@@ -217,12 +215,12 @@ function ThoughtEdgeInner({
               <div
                 style={{
                   background: '#fff',
-                  border: `1.5px solid ${cfg.color}`,
+                  border: `1.5px solid ${activeColor}`,
                   borderRadius: 20,
                   padding: '1px 8px',
                   fontSize: 10,
                   fontWeight: 600,
-                  color: cfg.color,
+                  color: activeColor,
                   boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
                   whiteSpace: 'nowrap',
                   pointerEvents: 'none',
