@@ -65,11 +65,21 @@ function ThoughtEdgeInner({
 
   if (isWing) {
     return (
-      <BaseEdge
-        id={id}
-        path={edgePath}
-        style={{ stroke: '#94a3b8', strokeWidth: 1.5, strokeDasharray: '5 4' }}
-      />
+      <>
+        {/* 우클릭 감지용 투명 히트박스 */}
+        <path
+          d={edgePath}
+          fill="none"
+          stroke="transparent"
+          strokeWidth={20}
+          style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
+        />
+        <BaseEdge
+          id={id}
+          path={edgePath}
+          style={{ stroke: '#94a3b8', strokeWidth: 1.5, strokeDasharray: '5 4' }}
+        />
+      </>
     )
   }
 
