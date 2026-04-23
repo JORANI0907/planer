@@ -2,6 +2,7 @@ import { supabase } from './supabase'
 import type { ThoughtNode, ThoughtEdge, EdgeRelationType } from './brain-types'
 
 const DEFAULT_COLOR = '#94a3b8'
+const DEFAULT_GROUP_SIZE = { w: 360, h: 260 }
 
 // ─── Topics ───────────────────────────────────────────────────
 
@@ -30,20 +31,106 @@ export async function deleteTopic(id: string): Promise<void> {
   if (error) throw error
 }
 
+// ─── Groups ───────────────────────────────────────────────────
+
+export function parseGroupSize(content: string | null): { w: number; h: number } {
+  try {
+    const p = JSON.parse(content ?? '{}')
+    return { w: p.w ?? DEFAULT_GROUP_SIZE.w, h: p.h ?? DEFAULT_GROUP_SIZE.h }
+  } catch {
+    return DEFAULT_GROUP_SIZE
+  }
+}
+
+export async function createGroup(
+  topicId: string, title: string, x: number, y: number
+): Promise<ThoughtNode> {
+  const { data, error } = await supabase
+    .from('thought_nodes')
+    .insert({
+      parent_id: topicId,
+      title,
+      type: 'memo',
+      node_kind: 'group',
+      pos_x: x,
+      pos_y: y,
+      grid_position: 4,
+      color: DEFAULT_COLOR,
+      content: JSON.stringify(DEFAULT_GROUP_SIZE),
+    })
+    .select().single()
+  if (error) throw error
+  return data
+}
+
+export async function updateGroupSize(groupId: string, w: number, h: number): Promise<void> {
+  const { error } = await supabase
+    .from('thought_nodes')
+    .update({ content: JSON.stringify({ w: Math.round(w), h: Math.round(h) }) })
+    .eq('id', groupId)
+  if (error) throw error
+}
+
+export async function addModuleToGroup(moduleId: string, groupId: string): Promise<void> {
+  const { error } = await supabase
+    .from('thought_nodes').update({ parent_id: groupId }).eq('id', moduleId)
+  if (error) throw error
+}
+
+export async function removeModuleFromGroup(moduleId: string, topicId: string): Promise<void> {
+  const { error } = await supabase
+    .from('thought_nodes').update({ parent_id: topicId }).eq('id', moduleId)
+  if (error) throw error
+}
+
+export async function deleteGroup(groupId: string, topicId: string): Promise<void> {
+  // 멤버 모듈을 토픽으로 복귀
+  await supabase
+    .from('thought_nodes')
+    .update({ parent_id: topicId })
+    .eq('parent_id', groupId)
+    .eq('node_kind', 'module')
+  await supabase.from('thought_nodes').delete().eq('id', groupId)
+}
+
 // ─── Modules & Wings ──────────────────────────────────────────
 
 export async function getCanvasNodes(topicId: string): Promise<ThoughtNode[]> {
+  // 그룹 노드 조회
+  const { data: groups, error: ge } = await supabase
+    .from('thought_nodes')
+    .select('*')
+    .eq('parent_id', topicId)
+    .eq('node_kind', 'group')
+  if (ge) throw ge
+
+  // 스탠드얼론 모듈 조회
   const { data: modules, error: me } = await supabase
     .from('thought_nodes')
     .select('*')
     .eq('parent_id', topicId)
     .eq('node_kind', 'module')
   if (me) throw me
-  if (!modules || modules.length === 0) return []
 
-  const allNodes: ThoughtNode[] = [...modules]
-  let parentIds = modules.map(m => m.id)
+  const groupIds = (groups ?? []).map(g => g.id)
 
+  // 그룹 내 모듈 조회
+  let groupedModules: ThoughtNode[] = []
+  if (groupIds.length > 0) {
+    const { data: gm, error: gme } = await supabase
+      .from('thought_nodes')
+      .select('*')
+      .in('parent_id', groupIds)
+      .eq('node_kind', 'module')
+    if (gme) throw gme
+    groupedModules = gm ?? []
+  }
+
+  const allModules = [...(modules ?? []), ...groupedModules]
+  const allNodes: ThoughtNode[] = [...(groups ?? []), ...allModules]
+
+  // 날개 재귀 조회
+  let parentIds = allModules.map(m => m.id)
   while (parentIds.length > 0) {
     const { data: wings, error: we } = await supabase
       .from('thought_nodes')
