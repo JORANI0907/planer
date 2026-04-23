@@ -489,9 +489,14 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
   async function handleCreateGroup() {
     if (!ctxMenu?.canvasPos) return
     const { x, y } = ctxMenu.canvasPos
-    const node = await createGroup(topicId, '그룹', x - 180, y - 130)
-    setNodes(ns => [...ns, toRFGroupNode(node)])
     setCtxMenu(null)
+    try {
+      const node = await createGroup(topicId, '그룹', x - 180, y - 130)
+      setNodes(ns => [...ns, toRFGroupNode(node)])
+    } catch (err) {
+      console.error('그룹 생성 실패:', err)
+      alert('그룹 박스 생성에 실패했습니다.')
+    }
   }
 
   return (
