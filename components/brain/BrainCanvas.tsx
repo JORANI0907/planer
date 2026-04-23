@@ -85,6 +85,26 @@ function deduplicateEdges(edgeList: Edge<ThoughtEdgeData>[]): Edge<ThoughtEdgeDa
   })
 }
 
+const GROUP_PAD = 50
+const MODULE_W = 150
+const MODULE_H = 80
+
+async function fitGroupToMembers(
+  groupId: string,
+  memberNodes: Node[]
+): Promise<{ pos: { x: number; y: number }; w: number; h: number } | null> {
+  if (memberNodes.length === 0) return null
+  const minX = Math.min(...memberNodes.map(n => n.position.x)) - GROUP_PAD
+  const minY = Math.min(...memberNodes.map(n => n.position.y)) - GROUP_PAD - 24
+  const maxX = Math.max(...memberNodes.map(n => n.position.x + MODULE_W)) + GROUP_PAD
+  const maxY = Math.max(...memberNodes.map(n => n.position.y + MODULE_H)) + GROUP_PAD
+  const pos = { x: minX, y: minY }
+  const w = Math.max(maxX - minX, 240)
+  const h = Math.max(maxY - minY, 160)
+  await Promise.all([updateNodePosition(groupId, pos.x, pos.y), updateGroupSize(groupId, w, h)])
+  return { pos, w, h }
+}
+
 function nodeCenter(node: Node): { x: number; y: number } {
   const isGroup = (node.data as GroupNodeData)?.isGroup
   const isWing = (node.data as ModuleNodeData).isWing
@@ -188,7 +208,17 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
         newRFEdges.push(toRFEdge(dbEdge))
       } catch { /* skip */ }
     }
-    setNodes(ns => ns.map(n => n.id === moduleId ? { ...n, data: { ...n.data, groupId } } : n))
+    // 그룹 크기 자동 맞춤
+    const moduleNode = nodes.find(n => n.id === moduleId)
+    const existingMembers = nodes.filter(n => (n.data as ModuleNodeData).groupId === groupId)
+    const allMembers = moduleNode ? [...existingMembers, moduleNode] : existingMembers
+    const fit = await fitGroupToMembers(groupId, allMembers)
+
+    setNodes(ns => ns.map(n => {
+      if (n.id === moduleId) return { ...n, data: { ...n.data, groupId } }
+      if (fit && n.id === groupId) return { ...n, position: fit.pos, style: { ...n.style, width: fit.w, height: fit.h } }
+      return n
+    }))
     setEdges(es => deduplicateEdges([...es, ...newRFEdges]))
   }, [nodes, edges])
 
@@ -329,11 +359,17 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
     },
     onRemoveModuleFromGroup: async (moduleId: string) => {
       setCtxMenu(null)
+      const oldGroupId = (nodes.find(n => n.id === moduleId)?.data as ModuleNodeData)?.groupId
       await removeModuleFromGroup(moduleId, topicId)
-      setNodes(ns => ns.map(n => n.id === moduleId
-        ? { ...n, data: { ...n.data, groupId: null } }
-        : n
-      ))
+      const remainingMembers = nodes.filter(n =>
+        (n.data as ModuleNodeData).groupId === oldGroupId && n.id !== moduleId
+      )
+      const fit = oldGroupId ? await fitGroupToMembers(oldGroupId, remainingMembers) : null
+      setNodes(ns => ns.map(n => {
+        if (n.id === moduleId) return { ...n, data: { ...n.data, groupId: null } }
+        if (fit && n.id === oldGroupId) return { ...n, position: fit.pos, style: { ...n.style, width: fit.w, height: fit.h } }
+        return n
+      }))
     },
   }), [nodes, setNodes, setEdges, topicId])
 
@@ -401,10 +437,27 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
         await joinGroup(node.id, targetGroup.id)
       } else if (!targetGroup && currentGroupId) {
         await removeModuleFromGroup(node.id, topicId)
-        setNodes(ns => ns.map(n => n.id === node.id
-          ? { ...n, data: { ...n.data, groupId: null } }
-          : n
-        ))
+        const remainingMembers = nodes.filter(n =>
+          (n.data as ModuleNodeData).groupId === currentGroupId && n.id !== node.id
+        )
+        const fit = await fitGroupToMembers(currentGroupId, remainingMembers)
+        setNodes(ns => ns.map(n => {
+          if (n.id === node.id) return { ...n, data: { ...n.data, groupId: null } }
+          if (fit && n.id === currentGroupId) return { ...n, position: fit.pos, style: { ...n.style, width: fit.w, height: fit.h } }
+          return n
+        }))
+      } else if (currentGroupId) {
+        // 그룹 내부에서 이동 → 그룹 크기 재맞춤
+        const members = nodes
+          .filter(n => (n.data as ModuleNodeData).groupId === currentGroupId)
+          .map(n => n.id === node.id ? { ...n, position: node.position } : n)
+        const fit = await fitGroupToMembers(currentGroupId, members)
+        if (fit) {
+          setNodes(ns => ns.map(n => n.id === currentGroupId
+            ? { ...n, position: fit.pos, style: { ...n.style, width: fit.w, height: fit.h } }
+            : n
+          ))
+        }
       }
     }
 
@@ -522,6 +575,56 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
   }, [edges, brainCtxValue])
 
   const closeCtxMenu = useCallback(() => setCtxMenu(null), [])
+
+  async function handleCreateGroupForModule(moduleId: string) {
+    setCtxMenu(null)
+    const moduleNode = nodes.find(n => n.id === moduleId)
+    if (!moduleNode) return
+    const groupX = moduleNode.position.x - GROUP_PAD
+    const groupY = moduleNode.position.y - GROUP_PAD - 24
+    const groupW = MODULE_W + GROUP_PAD * 2
+    const groupH = MODULE_H + GROUP_PAD * 2 + 24
+    try {
+      const groupDbNode = await createGroup(topicId, '그룹', groupX, groupY)
+      await Promise.all([
+        addModuleToGroup(moduleId, groupDbNode.id),
+        updateGroupSize(groupDbNode.id, groupW, groupH),
+      ])
+      // 엣지 승계
+      const newRFEdges: Edge<ThoughtEdgeData>[] = []
+      for (const e of edges) {
+        const srcMatch = e.source === moduleId
+        const tgtMatch = e.target === moduleId
+        if (!srcMatch && !tgtMatch) continue
+        const otherId = srcMatch ? e.target : e.source
+        const relType = (e.data as ThoughtEdgeData)?.relationType ?? '#94a3b8'
+        try {
+          const dbEdge = await createEdge({
+            source_id: srcMatch ? groupDbNode.id : otherId,
+            target_id: srcMatch ? otherId : groupDbNode.id,
+            relation_type: relType,
+          })
+          newRFEdges.push(toRFEdge(dbEdge))
+        } catch { /* skip */ }
+      }
+      const rfGroup: Node<GroupNodeData> = {
+        id: groupDbNode.id,
+        type: 'group',
+        position: { x: groupX, y: groupY },
+        style: { width: groupW, height: groupH },
+        zIndex: 0,
+        data: { label: '그룹', isGroup: true as const },
+      }
+      setNodes(ns => [rfGroup, ...ns.map(n => n.id === moduleId
+        ? { ...n, data: { ...n.data, groupId: groupDbNode.id } }
+        : n
+      )])
+      setEdges(es => deduplicateEdges([...es, ...newRFEdges]))
+    } catch (err) {
+      console.error('그룹 생성 실패:', err)
+      alert('그룹 박스 생성에 실패했습니다.')
+    }
+  }
 
   async function handleCreateModule() {
     if (!ctxMenu?.canvasPos) return
@@ -664,6 +767,14 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
                     className="hover:bg-gray-50"
                   >
                     ◎ 날개 생성
+                  </button>
+                  <div style={{ height: 1, background: '#f1f5f9', margin: '2px 0' }} />
+                  <button
+                    onClick={() => handleCreateGroupForModule(ctxMenu.nodeId!)}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer' }}
+                    className="hover:bg-indigo-50"
+                  >
+                    ▣ 새 그룹 박스 생성
                   </button>
                   {availableGroups.length > 0 && (
                     <>
