@@ -1,10 +1,20 @@
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, useEffect, useRef } from 'react'
 import { useSearchParams, usePathname } from 'next/navigation'
 import { Sidebar, BottomNav } from './sidebar'
 import { UndoProvider } from '@/lib/undo-stack'
 import { UndoToast } from './UndoToast'
+
+function RoutineAutoTrigger() {
+  const triggered = useRef(false)
+  useEffect(() => {
+    if (triggered.current) return
+    triggered.current = true
+    fetch('/api/routine/generate', { method: 'POST' }).catch(() => {})
+  }, [])
+  return null
+}
 
 function ShellInner({ children }: { children: React.ReactNode }) {
   const params = useSearchParams()
@@ -36,6 +46,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
 
   return (
     <UndoProvider>
+      <RoutineAutoTrigger />
       <div className="flex min-h-screen">
         <Sidebar />
         <main className="flex-1 min-w-0 md:ml-64 p-4 md:p-8 pb-20 md:pb-8 overflow-x-hidden">

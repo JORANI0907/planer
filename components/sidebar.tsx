@@ -9,6 +9,7 @@ const navItems = [
   { href: '/decade', label: '10년 계획', icon: '🚀' },
   { href: '/flowmap', label: '플로우맵', icon: '🗺️' },
   { href: '/brain', label: '생각 확장 맵', icon: '🧠' },
+  { href: '/routine', label: '필수과업', icon: '🔄' },
   { href: '/shopping', label: '구입 관리', icon: '🛒' },
   { href: '/split', label: '분할 보기', icon: '🔳' },
 ]

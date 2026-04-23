@@ -214,10 +214,11 @@ function DailyItemCard({ item, onToggle, onDelete, onRename, onCopy, dragHandle 
   }
 
   const isDone = item.status === 'completed'
+  const isRoutine = !!item.routine_task_id
 
   return (
     <div className={`rounded-2xl border transition-all overflow-hidden ${
-      isDone ? 'border-gray-100 bg-gray-50' : expanded ? 'border-blue-200 bg-white shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300'
+      isDone ? 'border-gray-100 bg-gray-50' : expanded ? 'border-blue-200 bg-white shadow-sm' : isRoutine ? 'border-orange-200 bg-white hover:border-orange-300' : 'border-gray-200 bg-white hover:border-gray-300'
     }`}>
       {/* 메인 행 */}
       <div className="flex items-center gap-3 px-4 py-3.5">
@@ -249,8 +250,13 @@ function DailyItemCard({ item, onToggle, onDelete, onRename, onCopy, dragHandle 
         ) : (
           <span
             onDoubleClick={() => !isDone && setEditing(true)}
-            className={`flex-1 text-sm font-medium cursor-default ${isDone ? 'line-through text-gray-400' : 'text-gray-800'}`}
+            className={`flex-1 text-sm font-medium cursor-default flex items-center gap-1.5 ${isDone ? 'line-through text-gray-400' : 'text-gray-800'}`}
           >
+            {isRoutine && !isDone && (
+              <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 flex-shrink-0">
+                필수
+              </span>
+            )}
             {item.title}
           </span>
         )}

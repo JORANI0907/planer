@@ -75,9 +75,25 @@ export interface PlanItem {
   sort_order: number
   parent_plan_item_id: string | null
   section_id: string | null
+  routine_task_id?: string | null
   created_at: string
   updated_at: string
 }
+
+export interface RoutineTask {
+  id: string
+  title: string
+  is_active: boolean
+  schedule_type: 'weekly' | 'monthly'
+  weekly_days: number[]
+  monthly_dates: number[]
+  color: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토']
 
 export interface PlanMapping {
   id: string
