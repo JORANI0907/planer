@@ -9,8 +9,8 @@ import {
   ReactFlowProvider, useReactFlow,
   ConnectionMode,
 } from '@xyflow/react'
-import type { ThoughtNode, ThoughtEdge, EdgeRelationType } from '@/lib/brain-types'
-import { mapRelationType, EDGE_RELATION_CONFIG } from '@/lib/brain-types'
+import type { ThoughtNode, ThoughtEdge } from '@/lib/brain-types'
+import { mapRelationType, EDGE_COLORS, getEdgeColor } from '@/lib/brain-types'
 import {
   getCanvasNodes, getCanvasEdges, createModule, createWing,
   updateNode, updateNodePosition, deleteNode, createEdge, updateEdge, deleteEdge,
@@ -85,7 +85,7 @@ interface CtxMenu {
   nodeId?: string
   isWing?: boolean
   edgeId?: string
-  edgeRelationType?: EdgeRelationType
+  edgeRelationType?: string
   canvasPos?: { x: number; y: number }
 }
 
@@ -181,7 +181,7 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
     onContextMenu: (nodeId: string, isWing: boolean, x: number, y: number) => {
       setCtxMenu({ x, y, type: 'node', nodeId, isWing })
     },
-    onEdgeChangeType: async (edgeId: string, type: EdgeRelationType) => {
+    onEdgeChangeType: async (edgeId: string, type: string) => {
       const updated = await updateEdge(edgeId, { relation_type: type })
       setEdges(es => es.map(e => e.id === edgeId
         ? { ...e, data: { ...e.data, relationType: mapRelationType(updated.relation_type) } }
@@ -295,7 +295,7 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
       // 가상 엣지 → DB 엣지로 자동 승격 후 메뉴 표시 (레거시 날개 호환)
       createEdge({ source_id: edge.source, target_id: edge.target, relation_type: 'wing' }).then(dbEdge => {
         setEdges(es => es.map(ed => ed.id === edge.id
-          ? { ...ed, id: dbEdge.id, data: { relationType: 'wing' as EdgeRelationType, label: '' } }
+          ? { ...ed, id: dbEdge.id, data: { relationType: 'wing', label: '' } }
           : ed
         ))
         setCtxEdgeLabel('')
@@ -471,31 +471,36 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
 
             {ctxMenu.type === 'edge' && (
               <>
-                <div style={{ padding: '7px 14px 5px', fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>선 종류</div>
-                {(['center', 'assist', 'negative'] as EdgeRelationType[]).map(rt => {
-                  const c = EDGE_RELATION_CONFIG[rt]
-                  const isActive = ctxMenu.edgeRelationType === rt
-                  return (
-                    <button
-                      key={rt}
-                      onClick={async () => {
-                        await brainCtxValue.onEdgeChangeType(ctxMenu.edgeId!, rt)
-                        setCtxMenu(m => m ? { ...m, edgeRelationType: rt } : null)
-                      }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        width: '100%', textAlign: 'left', padding: '7px 14px',
-                        fontSize: 12, color: isActive ? c.color : '#374151',
-                        background: isActive ? `${c.color}18` : 'none',
-                        border: 'none', cursor: 'pointer', fontWeight: isActive ? 700 : 400,
-                      }}
-                      className="hover:bg-gray-50"
-                    >
-                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: c.color, display: 'inline-block', flexShrink: 0 }} />
-                      {c.label}
-                    </button>
-                  )
-                })}
+                {/* 8색상 picker */}
+                <div style={{ padding: '8px 12px 6px' }}>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 6 }}>선 색상</div>
+                  <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                    {EDGE_COLORS.map(color => {
+                      const isActive = getEdgeColor(ctxMenu.edgeRelationType ?? '') === color
+                      return (
+                        <button
+                          key={color}
+                          onClick={async () => {
+                            await brainCtxValue.onEdgeChangeType(ctxMenu.edgeId!, color)
+                            setCtxMenu(m => m ? { ...m, edgeRelationType: color } : null)
+                          }}
+                          style={{
+                            width: 24, height: 24,
+                            borderRadius: '50%',
+                            background: color,
+                            border: isActive ? '3px solid #1e293b' : '2px solid transparent',
+                            outline: isActive ? `2px solid ${color}` : 'none',
+                            outlineOffset: 1,
+                            cursor: 'pointer',
+                            padding: 0,
+                            transform: isActive ? 'scale(1.15)' : 'scale(1)',
+                            transition: 'transform 0.1s',
+                          }}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
                 <div style={{ height: 1, background: '#f1f5f9', margin: '4px 0' }} />
                 <div style={{ padding: '4px 10px 6px' }}>
                   <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 4 }}>선 내용</div>
