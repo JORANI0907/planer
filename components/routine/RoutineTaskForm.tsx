@@ -2,11 +2,11 @@
 
 import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import type { RoutineTask } from '@/lib/types'
-import { WEEKDAY_LABELS } from '@/lib/types'
+import { WEEKDAY_LABELS, type RoutineCategory } from '@/lib/types'
 
 interface FormData {
   title: string
+  category: RoutineCategory
   schedule_type: 'weekly' | 'monthly'
   weekly_days: number[]
   monthly_dates: number[]
@@ -33,6 +33,7 @@ const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0] // 월~토,일
 
 export function RoutineTaskForm({ open, onOpenChange, initialData, onSubmit, submitLabel = '저장' }: RoutineTaskFormProps) {
   const [title, setTitle] = useState(initialData?.title ?? '')
+  const [category, setCategory] = useState<RoutineCategory>(initialData?.category ?? '개인')
   const [scheduleType, setScheduleType] = useState<'weekly' | 'monthly'>(initialData?.schedule_type ?? 'weekly')
   const [weeklyDays, setWeeklyDays] = useState<number[]>(initialData?.weekly_days ?? [])
   const [monthlyDates, setMonthlyDates] = useState<number[]>(initialData?.monthly_dates ?? [])
@@ -58,7 +59,7 @@ export function RoutineTaskForm({ open, onOpenChange, initialData, onSubmit, sub
 
     setSubmitting(true)
     try {
-      await onSubmit({ title: title.trim(), schedule_type: scheduleType, weekly_days: weeklyDays, monthly_dates: monthlyDates, color })
+      await onSubmit({ title: title.trim(), category, schedule_type: scheduleType, weekly_days: weeklyDays, monthly_dates: monthlyDates, color })
       onOpenChange(false)
     } finally {
       setSubmitting(false)
@@ -88,6 +89,28 @@ export function RoutineTaskForm({ open, onOpenChange, initialData, onSubmit, sub
               placeholder="예: 팀 일지 작성, 재고 점검..."
               className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
             />
+          </div>
+
+          {/* 카테고리 선택 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">카테고리</label>
+            <div className="flex gap-2">
+              {(['개인', '업무'] as RoutineCategory[]).map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setCategory(cat)}
+                  className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors ${
+                    category === cat
+                      ? cat === '개인'
+                        ? 'bg-purple-500 text-white border-purple-500'
+                        : 'bg-blue-500 text-white border-blue-500'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* 주기 선택 */}

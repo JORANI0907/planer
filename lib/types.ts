@@ -80,10 +80,18 @@ export interface PlanItem {
   updated_at: string
 }
 
+export type RoutineCategory = '개인' | '업무'
+
+export const ROUTINE_CATEGORY_CONFIG: Record<RoutineCategory, { label: string; color: string }> = {
+  '개인': { label: '개인', color: 'bg-purple-100 text-purple-700' },
+  '업무': { label: '업무', color: 'bg-blue-100 text-blue-700' },
+}
+
 export interface RoutineTask {
   id: string
   title: string
   is_active: boolean
+  category: RoutineCategory
   schedule_type: 'weekly' | 'monthly'
   weekly_days: number[]
   monthly_dates: number[]

@@ -2,13 +2,13 @@
 
 import { useState } from 'react'
 import type { RoutineTask } from '@/lib/types'
-import { WEEKDAY_LABELS } from '@/lib/types'
+import { WEEKDAY_LABELS, ROUTINE_CATEGORY_CONFIG } from '@/lib/types'
 import { RoutineTaskForm } from './RoutineTaskForm'
 
 interface RoutineTaskCardProps {
   task: RoutineTask
   onToggle: (id: string, isActive: boolean) => Promise<void>
-  onUpdate: (id: string, data: { title: string; schedule_type: 'weekly' | 'monthly'; weekly_days: number[]; monthly_dates: number[]; color: string }) => Promise<void>
+  onUpdate: (id: string, data: { title: string; category: RoutineTask['category']; schedule_type: 'weekly' | 'monthly'; weekly_days: number[]; monthly_dates: number[]; color: string }) => Promise<void>
   onDelete: (id: string) => Promise<void>
 }
 
@@ -73,9 +73,14 @@ export function RoutineTaskCard({ task, onToggle, onUpdate, onDelete }: RoutineT
 
           {/* 제목 + 주기 */}
           <div className="flex-1 min-w-0">
-            <p className={`text-sm font-medium truncate ${task.is_active ? 'text-gray-900' : 'text-gray-500'}`}>
-              {task.title}
-            </p>
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <p className={`text-sm font-medium truncate ${task.is_active ? 'text-gray-900' : 'text-gray-500'}`}>
+                {task.title}
+              </p>
+              <span className={`flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${ROUTINE_CATEGORY_CONFIG[task.category].color}`}>
+                {ROUTINE_CATEGORY_CONFIG[task.category].label}
+              </span>
+            </div>
             <ScheduleLabel task={task} />
           </div>
 
@@ -130,6 +135,7 @@ export function RoutineTaskCard({ task, onToggle, onUpdate, onDelete }: RoutineT
         onOpenChange={setEditOpen}
         initialData={{
           title: task.title,
+          category: task.category,
           schedule_type: task.schedule_type,
           weekly_days: task.weekly_days,
           monthly_dates: task.monthly_dates,
