@@ -54,18 +54,19 @@ function getIntersection(node: InternalNode, targetCenter: { x: number; y: numbe
   return isWing ? circleIntersection(node, targetCenter) : rectIntersection(node, targetCenter)
 }
 
-// 교차점이 노드의 어느 면에 있는지 (Top/Right/Bottom/Left)
+// 교차점이 노드의 어느 면에 있는지 — 수평(좌/우) 우선으로 판단해 선이 위로 튀는 현상 방지
 function getEdgePosition(node: InternalNode, p: { x: number; y: number }): Position {
   const w = node.measured.width ?? 150
   const h = node.measured.height ?? 64
-  const nx = node.internals.positionAbsolute.x
-  const ny = node.internals.positionAbsolute.y
-  const epsX = w * 0.15
-  const epsY = h * 0.15
-  if (p.x <= nx + epsX) return Position.Left
-  if (p.x >= nx + w - epsX) return Position.Right
-  if (p.y <= ny + epsY) return Position.Top
-  return Position.Bottom
+  const cx = node.internals.positionAbsolute.x + w / 2
+  const cy = node.internals.positionAbsolute.y + h / 2
+  const dx = p.x - cx
+  const dy = p.y - cy
+  // 수평 거리가 수직 거리 이상이면 좌/우 — 선이 수평으로 연결되어 위로 호가 생기지 않음
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx >= 0 ? Position.Right : Position.Left
+  }
+  return dy >= 0 ? Position.Bottom : Position.Top
 }
 
 export function getEdgeParams(source: InternalNode, target: InternalNode) {
