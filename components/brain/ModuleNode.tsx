@@ -9,6 +9,7 @@ export type ModuleNodeData = {
   content: string | null
   isWing?: boolean
   autoFocus?: boolean
+  groupId?: string | null
 }
 
 function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeData; selected: boolean }) {
