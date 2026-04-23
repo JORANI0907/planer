@@ -1,7 +1,6 @@
 export type ThoughtNodeKind = 'topic' | 'module' | 'wing'
-// DB 호환용 단순 타입 (UI에서는 사용 안 함)
 export type ThoughtNodeType = string
-export type EdgeRelationType = 'center' | 'assist' | 'negative' | 'wing'
+export type EdgeRelationType = string  // hex 색상 또는 'wing'
 
 export interface ThoughtNode {
   id: string
@@ -31,22 +30,33 @@ export interface ThoughtEdge {
   created_at: string
 }
 
-// 축 관계 설정: center=중심(초록), assist=보조(파랑), negative=부정(빨강), wing=날개(회색)
-export const EDGE_RELATION_CONFIG: Record<EdgeRelationType, { label: string; color: string }> = {
-  center:   { label: '중심축', color: '#16a34a' },
-  assist:   { label: '보조축', color: '#2563eb' },
-  negative: { label: '부정축', color: '#dc2626' },
-  wing:     { label: '날개축', color: '#94a3b8' },
+// 8가지 선 색상
+export const EDGE_COLORS = [
+  '#94a3b8',  // 회색 (기본)
+  '#16a34a',  // 초록
+  '#2563eb',  // 파랑
+  '#dc2626',  // 빨강
+  '#f97316',  // 주황
+  '#9333ea',  // 보라
+  '#06b6d4',  // 청록
+  '#ec4899',  // 핑크
+] as const
+
+export type EdgeColor = typeof EDGE_COLORS[number]
+
+export function getEdgeColor(relationType: string): string {
+  if ((EDGE_COLORS as readonly string[]).includes(relationType)) return relationType
+  if (relationType === 'wing') return '#94a3b8'
+  // 레거시 타입 변환
+  switch (relationType) {
+    case 'center': case 'leads_to': case 'related': return '#16a34a'
+    case 'assist': case 'supports': return '#2563eb'
+    case 'negative': case 'contradicts': return '#dc2626'
+    default: return '#94a3b8'
+  }
 }
 
-// 구버전 relation_type 매핑 (기존 데이터 호환)
-export function mapRelationType(type: string): EdgeRelationType {
-  switch (type) {
-    case 'supports':    return 'assist'
-    case 'contradicts': return 'negative'
-    case 'leads_to':    return 'center'
-    case 'related':     return 'center'
-    case 'center': case 'assist': case 'negative': case 'wing': return type as EdgeRelationType
-    default:            return 'center'
-  }
+// 레거시 호환: DB에서 읽은 relation_type을 그대로 반환 (이제 색상 hex 또는 'wing')
+export function mapRelationType(type: string): string {
+  return getEdgeColor(type) === '#94a3b8' && type === 'wing' ? 'wing' : getEdgeColor(type)
 }
