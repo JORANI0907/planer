@@ -14,6 +14,7 @@ export interface ShoppingItem {
   status: ShoppingStatus
   purchased_at: string | null
   sort_order: number
+  service_date: string | null
   created_at: string
   updated_at: string
 }

@@ -199,6 +199,9 @@ export function ShoppingItemCard({ item, knownCategories, onUpdated, onDeleted }
             </Link>
           </div>
         )}
+        {item.service_date && (
+          <p className="text-[11px] text-orange-500 mt-1 font-medium">📅 시공일자: {item.service_date}</p>
+        )}
         {item.memo && (
           <p className="text-[11px] text-gray-500 mt-1 whitespace-pre-wrap line-clamp-2">{item.memo}</p>
         )}
