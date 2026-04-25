@@ -5,7 +5,7 @@ import type { PlanItem } from '@/lib/types'
 import { updatePlanItem, deletePlanItem } from '@/lib/api'
 import { Plus, Loader2, Clipboard, Pencil, Trash2, Check, BarChart3, ListChecks } from 'lucide-react'
 import { SubTaskPanel } from '@/components/SubTaskPanel'
-import { ConnectionDot } from './ConnectionContext'
+import { ConnectionDot, useConnection } from './ConnectionContext'
 
 const STATUS_DOT: Record<string, string> = { completed: '#22c55e', in_progress: '#3b82f6', on_hold: '#f97316', pending: '#9ca3af' }
 const PROGRESS: Record<string, number> = { completed: 100, in_progress: 50, on_hold: 25, pending: 0 }
@@ -41,6 +41,9 @@ export function DashboardItemCard({ item, isSelected, showProgress, onSelect, on
   const [saving, setSaving] = useState(false)
   const [savingDesc, setSavingDesc] = useState(false)
 
+  const { colorMap: connMap, highlightedIds: hlIds } = useConnection()
+  const connColor = connMap.get(item.id)
+  const isConnHL = hlIds.has(item.id)
   const dot = STATUS_DOT[item.status] ?? '#9ca3af'
   const progress = PROGRESS[item.status] ?? 0
   const { labels: flowLabels, currentIdx: stepIdx } = parseFlowSteps(item)
@@ -69,9 +72,14 @@ export function DashboardItemCard({ item, isSelected, showProgress, onSelect, on
 
   return (
     <div style={{
-      border: `2px solid ${isSelected ? '#3b82f6' : '#1e293b'}`,
       borderRadius: 12, overflow: 'hidden', backgroundColor: '#fff',
-      boxShadow: isSelected ? '0 0 0 2px rgba(59,130,246,0.2)' : '0 2px 8px rgba(0,0,0,0.06)',
+      border: `2px solid ${isSelected ? '#3b82f6' : isConnHL ? (connColor ?? '#22c55e') : connColor ? connColor + '40' : '#1e293b'}`,
+      boxShadow: isConnHL
+        ? `inset 4px 0 0 ${connColor ?? '#22c55e'}, 0 0 0 2px ${connColor ?? '#22c55e'}30, 0 2px 8px rgba(0,0,0,0.06)`
+        : connColor
+        ? `inset 4px 0 0 ${connColor}, 0 2px 8px rgba(0,0,0,0.06)`
+        : isSelected ? '0 0 0 2px rgba(59,130,246,0.2), 0 2px 8px rgba(0,0,0,0.06)'
+        : '0 2px 8px rgba(0,0,0,0.06)',
       transition: 'all 0.12s',
     }}>
       {/* Compact header */}
