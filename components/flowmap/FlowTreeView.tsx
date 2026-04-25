@@ -271,16 +271,17 @@ export function FlowTreeView({ year, annualItems, itemsByQuarter, searchQuery, f
     <div ref={scrollRef} style={{ height: '100%', overflowY: 'auto', position: 'relative' }}>
       {lines.length > 0 && (
         <svg ref={svgRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: svgHeight || '100%', pointerEvents: 'none', zIndex: 5, overflow: 'visible' }}>
-          {lines.map(line => {
+          {lines.map((line, idx) => {
             const isHL = connectingId ? (line.source_id === connectingId || line.target_id === connectingId) : false
             const isDim = !!connectingId && !isHL
+            const laneX = Math.max(2, Math.min(line.x1, line.x2) - 22 - (idx % 5) * 6)
+            const d = `M ${line.x1} ${line.y1} H ${laneX} V ${line.y2} H ${line.x2}`
             return (
-              <line key={line.id}
-                x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2}
+              <path key={line.id} d={d} fill="none"
                 stroke={line.color} strokeWidth={isHL ? 2.5 : 1.5}
                 strokeDasharray={isHL ? undefined : '5 4'}
                 strokeOpacity={isDim ? 0.12 : isHL ? 0.9 : 0.5}
-                strokeLinecap="round"
+                strokeLinecap="round" strokeLinejoin="round"
               />
             )
           })}
@@ -355,7 +356,7 @@ export function FlowTreeView({ year, annualItems, itemsByQuarter, searchQuery, f
           boxShadow: '0 8px 24px rgba(59,130,246,0.35)', zIndex: 50,
           animation: 'flowFadeIn 0.15s ease',
         }}>
-          <span>🔗 연결할 항목의 점을 클릭하세요</span>
+          <span>🔗 연결할 항목의 [+ 연결] 버튼을 클릭하세요</span>
           <button onClick={() => setConnectingId(null)}
             style={{ padding: '2px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.3)', background: 'transparent', color: '#fff', cursor: 'pointer', fontSize: 10 }}>취소</button>
         </div>
