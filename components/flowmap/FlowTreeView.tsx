@@ -6,7 +6,8 @@ import { STATUS_CONFIG, getMonthWeeks, getWeekDays, getISOWeekPublic } from '@/l
 import { getPlanItems, createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
 import { useUndo } from '@/lib/undo-stack'
 import { formatPeriodKey } from '@/lib/flowmap-layout'
-import { ChevronDown, ChevronRight, Plus, Loader2, Clipboard, ClipboardPaste, Pencil, Trash2, Check, X, BarChart3 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Loader2, Clipboard, ClipboardPaste, Pencil, Trash2, Check, X, BarChart3, ListChecks } from 'lucide-react'
+import { SubTaskPanel } from '@/components/SubTaskPanel'
 
 // ── Config ──────────────────────────────────────────
 
@@ -25,9 +26,9 @@ const STYLE_MAP: Record<string, { hBg: string; hColor: string; accent: string; l
   'q-Q2':   { hBg: '#15803d', hColor: '#fff',     accent: '#bbf7d0', leftBorder: '#22c55e' },
   'q-Q3':   { hBg: '#b45309', hColor: '#fff',     accent: '#fde68a', leftBorder: '#f59e0b' },
   'q-Q4':   { hBg: '#6d28d9', hColor: '#fff',     accent: '#ddd6fe', leftBorder: '#8b5cf6' },
-  monthly:  { hBg: '#374151', hColor: '#fff',     accent: '#d1d5db', leftBorder: '#6b7280' },
-  weekly:   { hBg: '#4b5563', hColor: '#fff',     accent: '#e5e7eb', leftBorder: '#9ca3af' },
-  daily:    { hBg: '#6b7280', hColor: '#fff',     accent: '#f3f4f6', leftBorder: '#d1d5db' },
+  monthly:  { hBg: '#374151', hColor: '#fff',     accent: '#d1d5db', leftBorder: '#eab308' },
+  weekly:   { hBg: '#4b5563', hColor: '#fff',     accent: '#e5e7eb', leftBorder: '#f97316' },
+  daily:    { hBg: '#6b7280', hColor: '#fff',     accent: '#f3f4f6', leftBorder: '#ef4444' },
 }
 function getStyle(level: string, periodKey: string) {
   if (level === 'quarterly') return STYLE_MAP[`q-${periodKey.split('-')[1]}`] ?? STYLE_MAP.monthly
@@ -514,12 +515,13 @@ function statusForStepIdx(idx: number, totalSteps: number): PlanItem['status'] {
   return 'completed'
 }
 
-function DashboardItemCard({ item, isSelected, showProgress, onSelect, onUpdated, onDeleted, onCopy }: {
+export function DashboardItemCard({ item, isSelected, showProgress, onSelect, onUpdated, onDeleted, onCopy }: {
   item: PlanItem; isSelected: boolean; showProgress: boolean
   onSelect: (id: string) => void; onUpdated: (item: PlanItem) => void; onDeleted: (item: PlanItem) => void
   onCopy: (item: PlanItem | null) => void
 }) {
   const [showDash, setShowDash] = useState(false)
+  const [showDetail, setShowDetail] = useState(false)
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(item.title)
   const [desc, setDesc] = useState(item.description ?? '')
@@ -579,6 +581,11 @@ function DashboardItemCard({ item, isSelected, showProgress, onSelect, onUpdated
         <button onClick={e => { e.stopPropagation(); setShowDash(d => !d) }} title="대시보드"
           style={{ padding: '3px 6px', border: `1px solid ${showDash ? '#3b82f6' : '#e5e7eb'}`, background: showDash ? '#eff6ff' : '#fff', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: showDash ? '#1d4ed8' : '#6b7280', fontWeight: showDash ? 600 : 400 }}>
           <BarChart3 size={10} /> 대시보드
+        </button>
+        {/* 세부내용 토글 */}
+        <button onClick={e => { e.stopPropagation(); setShowDetail(d => !d) }} title="세부내용"
+          style={{ padding: '3px 6px', border: `1px solid ${showDetail ? '#8b5cf6' : '#e5e7eb'}`, background: showDetail ? '#f5f3ff' : '#fff', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: showDetail ? '#6d28d9' : '#6b7280', fontWeight: showDetail ? 600 : 400 }}>
+          <ListChecks size={10} /> 세부내용
         </button>
         <button onClick={e => { e.stopPropagation(); setEditing(true) }} title="수정"
           style={{ padding: '3px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex' }}>
@@ -720,6 +727,13 @@ function DashboardItemCard({ item, isSelected, showProgress, onSelect, onUpdated
               }}
             />
           </div>
+        </div>
+      )}
+
+      {/* 세부내용 패널 */}
+      {showDetail && (
+        <div style={{ borderTop: '1px solid #e5e7eb', animation: 'flowFadeIn 0.15s ease', padding: '4px 0 0' }}>
+          <SubTaskPanel itemId={item.id} autoFocus={false} />
         </div>
       )}
     </div>
