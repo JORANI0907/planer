@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import type { PlanItem, PlanLevel } from '@/lib/types'
 import { STATUS_CONFIG, getMonthWeeks, getWeekDays, getISOWeekPublic } from '@/lib/types'
 import { getPlanItems, createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
@@ -8,7 +8,7 @@ import { useUndo } from '@/lib/undo-stack'
 import { formatPeriodKey } from '@/lib/flowmap-layout'
 import { ChevronDown, ChevronRight, Plus, Loader2, Clipboard, ClipboardPaste, Pencil, Trash2, Check } from 'lucide-react'
 import { DashboardItemCard } from './DashboardItemCard'
-import { ConnectionContext, ConnectionDot } from './ConnectionContext'
+import { ConnectionContext, ConnectionDot, useConnection } from './ConnectionContext'
 import { getConnectionsForYear, createConnection, deleteConnectionBetween, isConnected, buildColorMap } from '@/lib/plan-connections'
 import type { PlanConnection } from '@/lib/plan-connections'
 
@@ -177,6 +177,9 @@ export function FlowTreeView({ year, annualItems, itemsByQuarter, searchQuery, f
   const [colorMap, setColorMap] = useState<Map<string, string>>(new Map())
   const [connectingId, setConnectingId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
+  const [lines, setLines] = useState<Array<{ id: string; source_id: string; target_id: string; x1: number; y1: number; x2: number; y2: number; color: string }>>([])
+  const [svgHeight, setSvgHeight] = useState(0)
   const { expandKeys, todayKey } = getTodayKeys(year)
 
   useEffect(() => {
@@ -184,6 +187,57 @@ export function FlowTreeView({ year, annualItems, itemsByQuarter, searchQuery, f
   }, [year])
 
   useEffect(() => { setColorMap(buildColorMap(connections)) }, [connections])
+
+  const highlightedIds = useMemo<Set<string>>(() => {
+    if (!connectingId) return new Set()
+    const s = new Set<string>()
+    for (const c of connections) {
+      if (c.source_id === connectingId) s.add(c.target_id)
+      if (c.target_id === connectingId) s.add(c.source_id)
+    }
+    return s
+  }, [connectingId, connections])
+
+  const updateLines = useCallback(() => {
+    const container = scrollRef.current
+    if (!container) return
+    const cRect = container.getBoundingClientRect()
+    const sTop = container.scrollTop
+    const nl: Array<{ id: string; source_id: string; target_id: string; x1: number; y1: number; x2: number; y2: number; color: string }> = []
+    for (const conn of connections) {
+      const srcEl = container.querySelector<HTMLElement>(`[data-dot-id="${conn.source_id}"]`)
+      const tgtEl = container.querySelector<HTMLElement>(`[data-dot-id="${conn.target_id}"]`)
+      if (!srcEl || !tgtEl) continue
+      const sr = srcEl.getBoundingClientRect()
+      const tr = tgtEl.getBoundingClientRect()
+      nl.push({
+        id: conn.id, source_id: conn.source_id, target_id: conn.target_id,
+        x1: sr.left - cRect.left + sr.width / 2,
+        y1: sr.top - cRect.top + sTop + sr.height / 2,
+        x2: tr.left - cRect.left + tr.width / 2,
+        y2: tr.top - cRect.top + sTop + tr.height / 2,
+        color: colorMap.get(conn.source_id) ?? '#d1d5db',
+      })
+    }
+    setLines(nl)
+    setSvgHeight(container.scrollHeight)
+  }, [connections, colorMap])
+
+  useEffect(() => {
+    const rafId = requestAnimationFrame(updateLines)
+    return () => cancelAnimationFrame(rafId)
+  }, [updateLines])
+
+  useEffect(() => {
+    const container = scrollRef.current
+    if (!container) return
+    let rafId = 0
+    const schedule = () => { cancelAnimationFrame(rafId); rafId = requestAnimationFrame(updateLines) }
+    const obs = new MutationObserver(schedule)
+    obs.observe(container, { subtree: true, childList: true })
+    container.addEventListener('scroll', schedule, { passive: true })
+    return () => { obs.disconnect(); container.removeEventListener('scroll', schedule); cancelAnimationFrame(rafId) }
+  }, [updateLines])
 
   const handleConnectClick = async (itemId: string) => {
     if (connectingId === null) { setConnectingId(itemId); return }
@@ -213,8 +267,25 @@ export function FlowTreeView({ year, annualItems, itemsByQuarter, searchQuery, f
   }, [todayKey])
 
   return (
-    <ConnectionContext.Provider value={{ colorMap, connectingId, onConnectClick: handleConnectClick }}>
+    <ConnectionContext.Provider value={{ colorMap, connectingId, highlightedIds, onConnectClick: handleConnectClick }}>
     <div ref={scrollRef} style={{ height: '100%', overflowY: 'auto', position: 'relative' }}>
+      {lines.length > 0 && (
+        <svg ref={svgRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: svgHeight || '100%', pointerEvents: 'none', zIndex: 5, overflow: 'visible' }}>
+          {lines.map(line => {
+            const isHL = connectingId ? (line.source_id === connectingId || line.target_id === connectingId) : false
+            const isDim = !!connectingId && !isHL
+            return (
+              <line key={line.id}
+                x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2}
+                stroke={line.color} strokeWidth={isHL ? 2.5 : 1.5}
+                strokeDasharray={isHL ? undefined : '5 4'}
+                strokeOpacity={isDim ? 0.12 : isHL ? 0.9 : 0.5}
+                strokeLinecap="round"
+              />
+            )
+          })}
+        </svg>
+      )}
       <div className="mx-auto w-full md:max-w-3xl px-4 pt-3 pb-20">
       <SectionNode
         key={`${year}-annual`} level="annual" periodKey={`${year}`}
@@ -545,6 +616,9 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
   const [title, setTitle] = useState(item.title)
   const [saving, setSaving] = useState(false)
   const dot = STATUS_DOT[item.status] ?? '#9ca3af'
+  const { colorMap: connMap, highlightedIds: hlIds } = useConnection()
+  const connColor = connMap.get(item.id)
+  const isConnHL = hlIds.has(item.id)
 
   const handleSave = async () => {
     if (!title.trim()) return; setSaving(true)
@@ -576,10 +650,10 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
       style={{
         display: 'flex', alignItems: 'center', gap: 7,
         padding: compact ? '4px 7px' : '6px 10px', borderRadius: 7,
-        border: `1.5px solid ${isSelected ? '#3b82f6' : '#e5e7eb'}`,
-        backgroundColor: isSelected ? '#eff6ff' : '#fff',
+        border: `1.5px solid ${isSelected ? '#3b82f6' : isConnHL ? (connColor ?? '#22c55e') : connColor ? connColor + '50' : '#e5e7eb'}`,
+        backgroundColor: isSelected ? '#eff6ff' : isConnHL ? `${connColor ?? '#22c55e'}12` : '#fff',
         cursor: 'pointer', userSelect: 'none', transition: 'all 0.1s',
-        boxShadow: isSelected ? '0 0 0 1px rgba(59,130,246,0.2)' : 'none',
+        boxShadow: isConnHL ? `inset 3px 0 0 ${connColor ?? '#22c55e'}, 0 0 0 2px ${connColor ?? '#22c55e'}25` : isSelected ? '0 0 0 1px rgba(59,130,246,0.2)' : 'none',
       }}
       onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)' } }}
       onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.boxShadow = 'none' } }}
