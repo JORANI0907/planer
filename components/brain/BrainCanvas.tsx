@@ -683,15 +683,17 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
             elevateEdgesOnSelect
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#d1d5db" />
-            <Controls style={{ bottom: 16, left: 16 }} />
-            <MiniMap
-              style={{ bottom: 16, right: 16 }}
-              maskColor="rgba(249,250,251,0.6)"
-              nodeColor={n => {
-                if ((n.data as GroupNodeData)?.isGroup) return '#e0e7ff'
-                return (n.data as ModuleNodeData)?.isWing ? '#bae6fd' : '#cbd5e1'
-              }}
-            />
+            <Controls style={{ bottom: isTouchDevice ? 72 : 16, left: 16 }} />
+            {!isTouchDevice && (
+              <MiniMap
+                style={{ bottom: 16, right: 16 }}
+                maskColor="rgba(249,250,251,0.6)"
+                nodeColor={n => {
+                  if ((n.data as GroupNodeData)?.isGroup) return '#e0e7ff'
+                  return (n.data as ModuleNodeData)?.isWing ? '#bae6fd' : '#cbd5e1'
+                }}
+              />
+            )}
           </ReactFlow>
 
           {/* 상단 툴바 힌트 */}
@@ -721,8 +723,8 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
           <div
             style={{
               position: 'fixed',
-              top: ctxMenu.y,
-              left: ctxMenu.x,
+              top: Math.min(ctxMenu.y, window.innerHeight - 220),
+              left: Math.min(ctxMenu.x, window.innerWidth - 180),
               zIndex: 1000,
               background: '#ffffff',
               border: '1px solid #e2e8f0',
