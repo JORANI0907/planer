@@ -169,6 +169,7 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
           />
         ) : (
           <p
+            className="nodrag"
             onClick={() => setEditingTitle(true)}
             style={{
               fontSize: 11, fontWeight: 600, color: '#1e40af',
@@ -226,6 +227,7 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
         />
       ) : (
         <p
+          className="nodrag"
           onClick={() => setEditingTitle(true)}
           style={{
             fontSize: 13, fontWeight: 700, color: '#1e293b',
@@ -264,6 +266,7 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
             />
           ) : (
             <p
+              className="nodrag"
               onClick={() => setEditingContent(true)}
               style={{
                 fontSize: 11, color: '#64748b', margin: 0,
