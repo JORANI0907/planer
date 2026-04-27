@@ -84,32 +84,39 @@ export function DashboardItemCard({ item, isSelected, showProgress, onSelect, on
     }}>
       {/* Compact header */}
       <div onClick={() => onSelect(item.id)}
-        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', cursor: 'pointer', backgroundColor: '#fafbfc' }}>
-        <ConnectionDot itemId={item.id} />
-        {isSelected && (
-          <div style={{ width: 16, height: 16, borderRadius: 4, backgroundColor: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <span style={{ color: '#fff', fontSize: 9, fontWeight: 900 }}>✓</span>
-          </div>
-        )}
-        <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: dot, flexShrink: 0 }} />
-        <span style={{ fontSize: 14, fontWeight: 700, color: '#111827', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
-        <span style={{ fontSize: 10, color: dot, fontWeight: 600, flexShrink: 0 }}>{flowLabels[stepIdx]}</span>
-        <button onClick={e => { e.stopPropagation(); onCopy(item) }} title="복사"
-          style={{ padding: '3px 5px', border: '1px solid #e5e7eb', background: '#fff', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: '#6b7280' }}>
-          <Clipboard size={10} /> 복사
-        </button>
-        <button onClick={e => { e.stopPropagation(); setShowDash(d => !d) }} title="대시보드"
-          style={{ padding: '3px 6px', border: `1px solid ${showDash ? '#3b82f6' : '#e5e7eb'}`, background: showDash ? '#eff6ff' : '#fff', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: showDash ? '#1d4ed8' : '#6b7280', fontWeight: showDash ? 600 : 400 }}>
-          <BarChart3 size={10} /> 대시보드
-        </button>
-        <button onClick={e => { e.stopPropagation(); setShowDetail(d => !d) }} title="세부내용"
-          style={{ padding: '3px 6px', border: `1px solid ${showDetail ? '#8b5cf6' : '#e5e7eb'}`, background: showDetail ? '#f5f3ff' : '#fff', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: showDetail ? '#6d28d9' : '#6b7280', fontWeight: showDetail ? 600 : 400 }}>
-          <ListChecks size={10} /> 세부내용
-        </button>
-        <button onClick={e => { e.stopPropagation(); setEditing(true) }} title="수정"
-          style={{ padding: '3px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex' }}>
-          <Pencil size={11} color="#9ca3af" />
-        </button>
+        style={{ display: 'flex', flexDirection: 'column', padding: '10px 14px', cursor: 'pointer', backgroundColor: '#fafbfc', gap: 5 }}>
+        {/* 제목 행 — 항상 전체 너비 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <ConnectionDot itemId={item.id} />
+          {isSelected && (
+            <div style={{ width: 16, height: 16, borderRadius: 4, backgroundColor: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{ color: '#fff', fontSize: 9, fontWeight: 900 }}>✓</span>
+            </div>
+          )}
+          <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: dot, flexShrink: 0 }} />
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#111827', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
+        </div>
+        {/* 액션 행 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingLeft: 22 }}>
+          <span style={{ fontSize: 10, color: dot, fontWeight: 600, flexShrink: 0 }}>{flowLabels[stepIdx]}</span>
+          <div style={{ flex: 1 }} />
+          <button onClick={e => { e.stopPropagation(); onCopy(item) }} title="복사"
+            style={{ padding: '2px 5px', border: '1px solid #e5e7eb', background: '#fff', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: '#6b7280' }}>
+            <Clipboard size={10} /> 복사
+          </button>
+          <button onClick={e => { e.stopPropagation(); setShowDash(d => !d) }} title="대시보드"
+            style={{ padding: '2px 6px', border: `1px solid ${showDash ? '#3b82f6' : '#e5e7eb'}`, background: showDash ? '#eff6ff' : '#fff', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: showDash ? '#1d4ed8' : '#6b7280', fontWeight: showDash ? 600 : 400 }}>
+            <BarChart3 size={10} /> 대시보드
+          </button>
+          <button onClick={e => { e.stopPropagation(); setShowDetail(d => !d) }} title="세부내용"
+            style={{ padding: '2px 6px', border: `1px solid ${showDetail ? '#8b5cf6' : '#e5e7eb'}`, background: showDetail ? '#f5f3ff' : '#fff', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: showDetail ? '#6d28d9' : '#6b7280', fontWeight: showDetail ? 600 : 400 }}>
+            <ListChecks size={10} /> 세부내용
+          </button>
+          <button onClick={e => { e.stopPropagation(); setEditing(true) }} title="수정"
+            style={{ padding: '2px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex' }}>
+            <Pencil size={11} color="#9ca3af" />
+          </button>
+        </div>
       </div>
 
       {/* 인라인 편집 */}
