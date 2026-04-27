@@ -40,7 +40,7 @@ export function FlowMapToolbar({ year, searchQuery, filterStatus, onYearChange, 
       <div style={{ width: 1, height: 22, backgroundColor: '#e5e7eb', flexShrink: 0 }} />
 
       {/* Status filter chips */}
-      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+      <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
         {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
           const active = filterStatus === key
           const colors: Record<string, { bg: string; border: string; text: string }> = {
@@ -49,24 +49,27 @@ export function FlowMapToolbar({ year, searchQuery, filterStatus, onYearChange, 
             completed: { bg: '#dcfce7', border: '#86efac', text: '#15803d' },
             on_hold: { bg: '#ffedd5', border: '#fdba74', text: '#c2410c' },
           }
+          const SHORT: Record<string, string> = { pending: '대기', in_progress: '진행', completed: '완료', on_hold: '보류' }
           const c = colors[key] ?? colors.pending
           return (
             <button
               key={key}
               onClick={() => onFilterStatus(active ? null : key)}
               style={{
-                padding: '4px 12px',
+                padding: '4px 8px',
                 borderRadius: 20,
-                fontSize: 12,
+                fontSize: 11,
                 border: `1.5px solid ${active ? c.border : '#e5e7eb'}`,
                 cursor: 'pointer',
                 fontWeight: active ? 700 : 400,
                 backgroundColor: active ? c.bg : '#fff',
                 color: active ? c.text : '#6b7280',
                 transition: 'all 0.15s',
+                whiteSpace: 'nowrap',
               }}
             >
-              {cfg.label}
+              <span className="hidden md:inline">{cfg.label}</span>
+              <span className="md:hidden">{SHORT[key] ?? cfg.label}</span>
             </button>
           )
         })}
@@ -79,9 +82,10 @@ export function FlowMapToolbar({ year, searchQuery, filterStatus, onYearChange, 
         <Search size={13} color="#9ca3af" style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)' }} />
         <input
           type="text"
-          placeholder="계획 검색..."
+          placeholder="검색..."
           value={searchQuery}
           onChange={e => onSearchChange(e.target.value)}
+          className="w-24 md:w-36"
           style={{
             paddingLeft: 26,
             paddingRight: searchQuery ? 26 : 10,
@@ -91,7 +95,6 @@ export function FlowMapToolbar({ year, searchQuery, filterStatus, onYearChange, 
             fontSize: 12,
             backgroundColor: searchQuery ? '#eff6ff' : '#f9fafb',
             outline: 'none',
-            width: 150,
             color: '#374151',
           }}
         />
@@ -104,7 +107,7 @@ export function FlowMapToolbar({ year, searchQuery, filterStatus, onYearChange, 
 
       <div style={{ flex: 1 }} />
 
-      <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>카드를 드래그하여 분기 이동 가능</span>
+      <span className="hidden md:block" style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>카드를 드래그하여 분기 이동 가능</span>
     </div>
   )
 }
