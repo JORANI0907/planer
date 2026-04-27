@@ -41,18 +41,18 @@ export default function BrainPage() {
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] md:h-[calc(100vh-2rem)] -mt-4 -mx-4 md:-mt-8 md:-mx-8 overflow-hidden">
       {/* 헤더 */}
-      <div className="flex items-center gap-3 px-4 md:px-6 py-3 bg-white border-b border-gray-200 shrink-0">
-        <span className="text-xl">🧠</span>
-        <h1 className="font-bold text-gray-900">생각 확장 맵</h1>
+      <div className="flex items-center gap-2 px-4 md:px-6 py-3 bg-white border-b border-gray-200 shrink-0 min-w-0">
+        <span className="text-xl shrink-0">🧠</span>
+        <h1 className="font-bold text-gray-900 shrink-0">생각 확장 맵</h1>
         {activeTopic && (
           <>
-            <span className="text-gray-300">/</span>
-            <span className="text-sm font-medium text-indigo-600 truncate max-w-xs">{activeTopic.title}</span>
+            <span className="text-gray-300 shrink-0">/</span>
+            <span className="text-sm font-medium text-indigo-600 truncate min-w-0 flex-1">{activeTopic.title}</span>
             <button
               onClick={() => setActiveTopic(null)}
-              className="ml-auto px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 shrink-0"
+              className="ml-2 px-2 md:px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 shrink-0"
             >
-              ← 주제 목록
+              ← <span className="hidden md:inline">주제 </span>목록
             </button>
           </>
         )}
