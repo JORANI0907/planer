@@ -502,7 +502,7 @@ function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery
         onMouseLeave={e => { if (!isTop && !isToday) e.currentTarget.style.backgroundColor = 'transparent' }}
       >
         {expanded ? <ChevronDown size={isTop ? 15 : 13} style={{ flexShrink: 0 }} /> : <ChevronRight size={isTop ? 15 : 13} style={{ flexShrink: 0 }} />}
-        <span style={{ fontWeight: isTop ? 700 : 600, fontSize: isTop ? 13 : depth === 1 ? 12 : 11, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <span style={{ fontWeight: isTop ? 700 : 600, fontSize: isTop ? 13 : depth === 1 ? 12 : 11, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {label}
           {isToday && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, backgroundColor: '#f59e0b', color: '#fff', padding: '1px 6px', borderRadius: 8 }}>오늘</span>}
         </span>
@@ -662,7 +662,7 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
       <ConnectionDot itemId={item.id} />
       {isSelected && <div style={{ width: 14, height: 14, borderRadius: 3, backgroundColor: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><span style={{ color: '#fff', fontSize: 8, fontWeight: 900 }}>✓</span></div>}
       <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: dot, flexShrink: 0 }} />
-      <span style={{ fontSize: compact ? 11 : 12, fontWeight: 500, color: '#111827', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
+      <span style={{ fontSize: compact ? 11 : 12, fontWeight: 500, color: '#111827', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
       <span style={{ fontSize: 9, color: dot, fontWeight: 600, flexShrink: 0 }}>{STATUS_CONFIG[item.status]?.label}</span>
       <button onClick={e => { e.stopPropagation(); onCopy(item) }} title="복사"
         style={{ padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', borderRadius: 3, flexShrink: 0 }}>
