@@ -9,6 +9,7 @@ export interface ConnectionContextValue {
   highlightedIds: Set<string>
   onConnectClick: (itemId: string) => void
   connections: PlanConnection[]
+  onConnectionCreated: (conn: PlanConnection) => void
 }
 
 export const ConnectionContext = createContext<ConnectionContextValue>({
@@ -17,6 +18,7 @@ export const ConnectionContext = createContext<ConnectionContextValue>({
   highlightedIds: new Set(),
   onConnectClick: () => {},
   connections: [],
+  onConnectionCreated: () => {},
 })
 
 export function useConnection() {
