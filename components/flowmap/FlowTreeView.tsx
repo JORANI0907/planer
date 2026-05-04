@@ -386,7 +386,7 @@ interface SectionNodeProps {
 function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery, filterStatus, onTopLevelChanged, copiedItem, onCopy, autoExpandKeys, todayKey }: SectionNodeProps) {
   const isPast = isPastPeriod(level, periodKey)
   const [expanded, setExpanded] = useState(
-    autoExpandKeys.has(periodKey) || (!isPast && depth === 0)
+    autoExpandKeys.has(periodKey) || level === 'annual'
   )
   const isToday = level === 'daily' && periodKey === todayKey
   const [items, setItems] = useState<PlanItem[]>(initialItems ?? [])
