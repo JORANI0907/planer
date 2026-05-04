@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import type { PlanItem } from '@/lib/types'
 import { updatePlanItem, deletePlanItem } from '@/lib/api'
 import { Plus, Loader2, Clipboard, Pencil, Trash2, Check, BarChart3, ListChecks, Link2 } from 'lucide-react'
@@ -34,8 +34,8 @@ export function DashboardItemCard({ item, isSelected, showProgress, onSelect, on
   onSelect: (id: string) => void; onUpdated: (item: PlanItem) => void; onDeleted: (item: PlanItem) => void
   onCopy: (item: PlanItem | null) => void
 }) {
-  const [showDash, setShowDash] = useState(false)
-  const [showDetail, setShowDetail] = useState(false)
+  const [showPanel, setShowPanel] = useState(false)
+  const [detailTab, setDetailTab] = useState<'subtask' | 'memo'>('subtask')
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(item.title)
   const [desc, setDesc] = useState(item.description ?? '')
@@ -51,6 +51,7 @@ export function DashboardItemCard({ item, isSelected, showProgress, onSelect, on
   const { labels: flowLabels, currentIdx: stepIdx } = parseFlowSteps(item)
   const [editingFlow, setEditingFlow] = useState(false)
   const [flowDraft, setFlowDraft] = useState<string[]>(flowLabels)
+  const isCompleted = item.status === 'completed'
 
   const handleSave = async () => {
     if (!title.trim()) return
@@ -72,6 +73,12 @@ export function DashboardItemCard({ item, isSelected, showProgress, onSelect, on
     try { await deletePlanItem(item.id); onDeleted(item) } catch { /* ignore */ }
   }
 
+  const handleToggleComplete = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const newStatus: PlanItem['status'] = isCompleted ? 'pending' : 'completed'
+    try { const u = await updatePlanItem(item.id, { status: newStatus }); onUpdated(u) } catch { /* ignore */ }
+  }
+
   return (
     <>
     {showChainPanel && (
@@ -91,11 +98,12 @@ export function DashboardItemCard({ item, isSelected, showProgress, onSelect, on
         : isSelected ? '0 0 0 2px rgba(59,130,246,0.2), 0 2px 8px rgba(0,0,0,0.06)'
         : '0 2px 8px rgba(0,0,0,0.06)',
       transition: 'all 0.12s',
+      opacity: isCompleted ? 0.85 : 1,
     }}>
-      {/* Compact header */}
+      {/* 헤더 */}
       <div onClick={() => onSelect(item.id)}
         style={{ display: 'flex', flexDirection: 'column', padding: '10px 14px', cursor: 'pointer', backgroundColor: '#fafbfc', gap: 5 }}>
-        {/* 제목 행 — 항상 전체 너비 */}
+        {/* 제목 행 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <ConnectionDot itemId={item.id} />
           {isSelected && (
@@ -104,7 +112,23 @@ export function DashboardItemCard({ item, isSelected, showProgress, onSelect, on
             </div>
           )}
           <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: dot, flexShrink: 0 }} />
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#111827', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#111827', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: isCompleted ? 'line-through' : 'none', opacity: isCompleted ? 0.6 : 1 }}>
+            {item.title}
+          </span>
+          {/* 완료 체크 버튼 */}
+          <button
+            onClick={handleToggleComplete}
+            title={isCompleted ? '완료 취소' : '완료로 표시'}
+            style={{
+              width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
+              border: `2px solid ${isCompleted ? '#22c55e' : '#d1d5db'}`,
+              backgroundColor: isCompleted ? '#22c55e' : '#fff',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+              transition: 'all 0.15s',
+            }}
+          >
+            {isCompleted && <Check size={12} color="#fff" strokeWidth={3} />}
+          </button>
         </div>
         {/* 액션 행 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingLeft: 22 }}>
@@ -118,13 +142,10 @@ export function DashboardItemCard({ item, isSelected, showProgress, onSelect, on
             style={{ padding: '2px 5px', border: '1px solid #e5e7eb', background: '#fff', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: '#6b7280' }}>
             <Clipboard size={10} /> 복사
           </button>
-          <button onClick={e => { e.stopPropagation(); setShowDash(d => !d) }} title="대시보드"
-            style={{ padding: '2px 6px', border: `1px solid ${showDash ? '#3b82f6' : '#e5e7eb'}`, background: showDash ? '#eff6ff' : '#fff', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: showDash ? '#1d4ed8' : '#6b7280', fontWeight: showDash ? 600 : 400 }}>
-            <BarChart3 size={10} /> 대시보드
-          </button>
-          <button onClick={e => { e.stopPropagation(); setShowDetail(d => !d) }} title="세부내용"
-            style={{ padding: '2px 6px', border: `1px solid ${showDetail ? '#8b5cf6' : '#e5e7eb'}`, background: showDetail ? '#f5f3ff' : '#fff', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: showDetail ? '#6d28d9' : '#6b7280', fontWeight: showDetail ? 600 : 400 }}>
-            <ListChecks size={10} /> 세부내용
+          {/* 통합 상세 버튼 */}
+          <button onClick={e => { e.stopPropagation(); setShowPanel(d => !d) }} title="상세보기"
+            style={{ padding: '2px 6px', border: `1px solid ${showPanel ? '#3b82f6' : '#e5e7eb'}`, background: showPanel ? '#eff6ff' : '#fff', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: showPanel ? '#1d4ed8' : '#6b7280', fontWeight: showPanel ? 600 : 400 }}>
+            <BarChart3 size={10} /> 상세
           </button>
           <button onClick={e => { e.stopPropagation(); setEditing(true) }} title="수정"
             style={{ padding: '2px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex' }}>
@@ -152,9 +173,10 @@ export function DashboardItemCard({ item, isSelected, showProgress, onSelect, on
         </div>
       )}
 
-      {/* 대시보드 */}
-      {showDash && (
+      {/* 통합 상세 패널 */}
+      {showPanel && (
         <div style={{ padding: '16px 18px', borderTop: '1px solid #e5e7eb', animation: 'flowFadeIn 0.15s ease' }}>
+          {/* 진행률 */}
           {showProgress && (
             <div style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
@@ -167,6 +189,7 @@ export function DashboardItemCard({ item, isSelected, showProgress, onSelect, on
             </div>
           )}
 
+          {/* 플랜 플로우 */}
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>플랜 플로우</span>
@@ -240,31 +263,54 @@ export function DashboardItemCard({ item, isSelected, showProgress, onSelect, on
             )}
           </div>
 
+          {/* 세부내용 / 메모 탭 */}
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>진행 메모</span>
-              {savingDesc && <span style={{ fontSize: 9, color: '#3b82f6' }}>저장 중...</span>}
+            <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #f1f5f9', marginBottom: 10 }}>
+              <button
+                onClick={() => setDetailTab('subtask')}
+                style={{
+                  padding: '5px 12px', border: 'none', background: 'transparent', cursor: 'pointer',
+                  fontSize: 11, fontWeight: detailTab === 'subtask' ? 700 : 400,
+                  color: detailTab === 'subtask' ? '#1d4ed8' : '#6b7280',
+                  borderBottom: detailTab === 'subtask' ? '2px solid #3b82f6' : '2px solid transparent',
+                  marginBottom: -1, display: 'flex', alignItems: 'center', gap: 3,
+                }}
+              >
+                <ListChecks size={11} /> 세부내용
+              </button>
+              <button
+                onClick={() => setDetailTab('memo')}
+                style={{
+                  padding: '5px 12px', border: 'none', background: 'transparent', cursor: 'pointer',
+                  fontSize: 11, fontWeight: detailTab === 'memo' ? 700 : 400,
+                  color: detailTab === 'memo' ? '#1d4ed8' : '#6b7280',
+                  borderBottom: detailTab === 'memo' ? '2px solid #3b82f6' : '2px solid transparent',
+                  marginBottom: -1,
+                }}
+              >
+                메모
+              </button>
+              {savingDesc && <span style={{ fontSize: 9, color: '#3b82f6', marginLeft: 'auto' }}>저장 중...</span>}
             </div>
-            <textarea
-              value={desc}
-              onChange={e => setDesc(e.target.value)}
-              onBlur={handleSaveDesc}
-              placeholder="계획 진행 상황, 주요 성과, 다음 단계 등을 자유롭게 기록하세요..."
-              style={{
-                width: '100%', minHeight: 120, padding: '12px 14px', borderRadius: 10,
-                border: '1.5px solid #e5e7eb', fontSize: 13, lineHeight: 1.7,
-                outline: 'none', resize: 'vertical', boxSizing: 'border-box',
-                fontFamily: 'inherit', backgroundColor: '#fafbfc',
-              }}
-            />
-          </div>
-        </div>
-      )}
 
-      {/* 세부내용 패널 */}
-      {showDetail && (
-        <div style={{ borderTop: '1px solid #e5e7eb', animation: 'flowFadeIn 0.15s ease', padding: '4px 0 0' }}>
-          <SubTaskPanel itemId={item.id} autoFocus={false} />
+            {detailTab === 'subtask' && (
+              <SubTaskPanel itemId={item.id} autoFocus={false} />
+            )}
+            {detailTab === 'memo' && (
+              <textarea
+                value={desc}
+                onChange={e => setDesc(e.target.value)}
+                onBlur={handleSaveDesc}
+                placeholder="계획 진행 상황, 주요 성과, 다음 단계 등을 자유롭게 기록하세요..."
+                style={{
+                  width: '100%', minHeight: 120, padding: '12px 14px', borderRadius: 10,
+                  border: '1.5px solid #e5e7eb', fontSize: 13, lineHeight: 1.7,
+                  outline: 'none', resize: 'vertical', boxSizing: 'border-box',
+                  fontFamily: 'inherit', backgroundColor: '#fafbfc',
+                }}
+              />
+            )}
+          </div>
         </div>
       )}
     </div>
