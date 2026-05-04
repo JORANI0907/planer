@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import type { PlanItem, PlanLevel } from '@/lib/types'
-import { LEVEL_LABEL } from '@/lib/flowmap-layout'
 import type { PlanConnection } from '@/lib/plan-connections'
+import { createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
-import { X, Link2, ChevronRight } from 'lucide-react'
+import { X, Link2, ChevronRight, Plus, Pencil, Trash2, Check, Loader2 } from 'lucide-react'
 
 const LEVEL_ORDER: PlanLevel[] = ['annual', 'quarterly', 'monthly', 'weekly', 'daily']
 
@@ -22,6 +22,32 @@ const STATUS_DOT: Record<string, string> = {
 }
 const STATUS_LABEL: Record<string, string> = {
   completed: '완료', in_progress: '진행중', on_hold: '보류', pending: '미시작',
+}
+const DAY_KR = ['일', '월', '화', '수', '목', '금', '토']
+
+function formatPeriodLabel(level: PlanLevel, periodKey: string): string {
+  if (level === 'annual') return `${periodKey}년`
+  if (level === 'quarterly') {
+    const q = periodKey.split('-')[1]?.replace('Q', '')
+    return q ? `${q}분기` : periodKey
+  }
+  if (level === 'monthly') {
+    const m = periodKey.split('-')[1]
+    return m ? `${parseInt(m)}월` : periodKey
+  }
+  if (level === 'weekly') {
+    const w = periodKey.split('-W')[1]
+    return w ? `${parseInt(w)}주차` : periodKey
+  }
+  if (level === 'daily') {
+    const parts = periodKey.split('-').map(Number)
+    if (parts.length >= 3) {
+      const dt = new Date(parts[0], parts[1] - 1, parts[2])
+      return `${parts[1]}/${parts[2]}(${DAY_KR[dt.getDay()]})`
+    }
+    return periodKey
+  }
+  return periodKey
 }
 
 interface ConnectedChainPanelProps {
@@ -55,30 +81,105 @@ function collectConnectedIds(rootId: string, connections: PlanConnection[]): Set
   return visited
 }
 
+type GroupKey = string // `${level}::${periodKey}`
+
+interface Group {
+  level: PlanLevel
+  periodKey: string
+  label: string
+  entries: { item: PlanItem; isRoot: boolean }[]
+}
+
 export function ConnectedChainPanel({ targetItem, connections, onClose }: ConnectedChainPanelProps) {
-  const [chainItems, setChainItems] = useState<PlanItem[]>([])
+  const [allItems, setAllItems] = useState<{ item: PlanItem; isRoot: boolean }[]>([])
   const [loading, setLoading] = useState(true)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [addingGroup, setAddingGroup] = useState<GroupKey | null>(null)
+  const [newTitle, setNewTitle] = useState('')
+  const [addingSaving, setAddingSaving] = useState(false)
 
   useEffect(() => {
     const relatedIds = collectConnectedIds(targetItem.id, connections)
     setLoading(true)
     fetchItemsByIds([...relatedIds])
-      .then(items => { setChainItems(items); setLoading(false) })
+      .then(chainItems => {
+        setAllItems([
+          { item: targetItem, isRoot: true },
+          ...chainItems.map(i => ({ item: i, isRoot: false })),
+        ])
+        setLoading(false)
+      })
       .catch(() => setLoading(false))
   }, [targetItem.id, connections])
 
-  // 레벨별로 그룹화 (기준 항목 포함)
-  const byLevel: Record<PlanLevel, { item: PlanItem; isRoot: boolean }[]> = {
-    annual: [], quarterly: [], monthly: [], weekly: [], daily: [],
-  }
-  const rootLevel = targetItem.level as PlanLevel
-  if (byLevel[rootLevel]) byLevel[rootLevel].push({ item: targetItem, isRoot: true })
-  for (const item of chainItems) {
-    const l = item.level as PlanLevel
-    if (byLevel[l]) byLevel[l].push({ item, isRoot: false })
+  const groups = useMemo<Group[]>(() => {
+    const groupMap = new Map<GroupKey, Group>()
+    for (const { item, isRoot } of allItems) {
+      const level = item.level as PlanLevel
+      const periodKey = item.period_key ?? ''
+      const key: GroupKey = `${level}::${periodKey}`
+      if (!groupMap.has(key)) {
+        groupMap.set(key, { level, periodKey, label: formatPeriodLabel(level, periodKey), entries: [] })
+      }
+      groupMap.get(key)!.entries.push({ item, isRoot })
+    }
+    return [...groupMap.values()].sort((a, b) => {
+      const diff = LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level)
+      return diff !== 0 ? diff : a.periodKey.localeCompare(b.periodKey)
+    })
+  }, [allItems])
+
+  const hasConnections = allItems.length > 1
+
+  // CRUD handlers
+  const handleEdit = (item: PlanItem) => { setEditingId(item.id); setEditTitle(item.title) }
+
+  const handleSaveEdit = async (itemId: string) => {
+    if (!editTitle.trim()) return
+    setSavingId(itemId)
+    try {
+      const updated = await updatePlanItem(itemId, { title: editTitle.trim() })
+      setAllItems(prev => prev.map(e => e.item.id === itemId ? { ...e, item: updated } : e))
+      setEditingId(null)
+    } catch { /* ignore */ } finally { setSavingId(null) }
   }
 
-  const hasChain = chainItems.length > 0
+  const handleDelete = async (item: PlanItem) => {
+    setDeletingId(item.id)
+    try {
+      await deletePlanItem(item.id)
+      if (item.id === targetItem.id) {
+        onClose()
+        return
+      }
+      setAllItems(prev => prev.filter(e => e.item.id !== item.id))
+    } catch { /* ignore */ } finally { setDeletingId(null) }
+  }
+
+  const handleAdd = async (level: PlanLevel, periodKey: string, groupKey: GroupKey) => {
+    if (!newTitle.trim()) return
+    setAddingSaving(true)
+    try {
+      const created = await createPlanItem({
+        title: newTitle.trim(),
+        level,
+        period_key: periodKey,
+        status: 'pending',
+        priority: 'medium',
+        sort_order: 0,
+        description: null,
+        categories: [],
+      })
+      setAllItems(prev => [...prev, { item: created, isRoot: false }])
+      setAddingGroup(null)
+      setNewTitle('')
+    } catch { /* ignore */ } finally { setAddingSaving(false) }
+  }
+
+  const rootDisplay = allItems.find(e => e.isRoot)?.item ?? targetItem
 
   return (
     <div
@@ -91,7 +192,7 @@ export function ConnectedChainPanel({ targetItem, connections, onClose }: Connec
     >
       <div
         style={{
-          width: '100%', maxWidth: 360, backgroundColor: '#fff',
+          width: '100%', maxWidth: 380, backgroundColor: '#fff',
           boxShadow: '-4px 0 32px rgba(0,0,0,0.15)',
           display: 'flex', flexDirection: 'column',
           animation: 'chainSlideIn 0.22s ease',
@@ -110,7 +211,6 @@ export function ConnectedChainPanel({ targetItem, connections, onClose }: Connec
               <X size={16} color="#6b7280" />
             </button>
           </div>
-          {/* 기준 계획 표시 */}
           <div style={{
             padding: '8px 12px', borderRadius: 8,
             backgroundColor: '#eff6ff', border: '1.5px solid #3b82f6',
@@ -118,14 +218,14 @@ export function ConnectedChainPanel({ targetItem, connections, onClose }: Connec
           }}>
             <span style={{
               fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 10,
-              backgroundColor: LEVEL_BADGE[rootLevel]?.bg ?? '#374151',
-              color: LEVEL_BADGE[rootLevel]?.color ?? '#fff',
+              backgroundColor: LEVEL_BADGE[rootDisplay.level as PlanLevel]?.bg ?? '#374151',
+              color: LEVEL_BADGE[rootDisplay.level as PlanLevel]?.color ?? '#fff',
               flexShrink: 0,
             }}>
-              {LEVEL_LABEL[rootLevel] ?? rootLevel}
+              {formatPeriodLabel(rootDisplay.level as PlanLevel, rootDisplay.period_key ?? '')}
             </span>
             <span style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {targetItem.title}
+              {rootDisplay.title}
             </span>
           </div>
           <div style={{
@@ -133,7 +233,7 @@ export function ConnectedChainPanel({ targetItem, connections, onClose }: Connec
             padding: '6px 10px', backgroundColor: '#f0f9ff',
             borderRadius: 7, borderLeft: '3px solid #3b82f6', lineHeight: 1.5,
           }}>
-            💡 이 계획과 연결된 모든 단계를 확인하세요
+            💡 이 계획과 연결된 모든 단계를 확인하고 수정하세요
           </div>
         </div>
 
@@ -144,73 +244,170 @@ export function ConnectedChainPanel({ targetItem, connections, onClose }: Connec
               <div style={{ width: 22, height: 22, border: '2px solid #e5e7eb', borderTopColor: '#3b82f6', borderRadius: '50%', animation: 'chainSpin 0.8s linear infinite' }} />
               <span style={{ fontSize: 12 }}>연결 체인 불러오는 중...</span>
             </div>
-          ) : !hasChain ? (
-            <div style={{ textAlign: 'center', padding: '40px 16px', color: '#9ca3af' }}>
-              <div style={{ fontSize: 36, marginBottom: 10 }}>🔗</div>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>연결된 계획이 없습니다</div>
-              <div style={{ fontSize: 11, lineHeight: 1.6 }}>
-                계획 항목 왼쪽의 <strong>원형 점(●)</strong>을 클릭해<br />
-                다른 단계 계획과 연결해보세요
-              </div>
-            </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {LEVEL_ORDER.map(level => {
-                const entries = byLevel[level]
-                if (entries.length === 0) return null
-                const badge = LEVEL_BADGE[level]
+              {groups.map(group => {
+                const badge = LEVEL_BADGE[group.level]
+                const groupKey: GroupKey = `${group.level}::${group.periodKey}`
                 return (
-                  <div key={level}>
-                    {/* Level header */}
+                  <div key={groupKey}>
+                    {/* Group header */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
                       <span style={{
                         fontSize: 10, fontWeight: 700, padding: '3px 10px',
                         borderRadius: 12, backgroundColor: badge.bg, color: badge.color,
                         letterSpacing: '0.03em',
                       }}>
-                        {LEVEL_LABEL[level]}
+                        {group.label}
                       </span>
                       <div style={{ flex: 1, height: 1, backgroundColor: '#f1f5f9' }} />
-                      <span style={{ fontSize: 10, color: '#9ca3af' }}>{entries.length}개</span>
+                      <span style={{ fontSize: 10, color: '#9ca3af' }}>{group.entries.length}개</span>
+                      <button
+                        onClick={() => { setAddingGroup(groupKey); setNewTitle('') }}
+                        title={`${group.label}에 계획 추가`}
+                        style={{
+                          width: 20, height: 20, borderRadius: 5, flexShrink: 0,
+                          border: '1px solid #d1d5db', background: '#f9fafb',
+                          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                        }}
+                      >
+                        <Plus size={10} color="#6b7280" />
+                      </button>
                     </div>
+
+                    {/* Inline add form */}
+                    {addingGroup === groupKey && (
+                      <div style={{
+                        display: 'flex', gap: 4, marginBottom: 6,
+                        padding: '7px 9px', borderRadius: 7,
+                        border: '1.5px solid #3b82f6', backgroundColor: '#eff6ff',
+                        animation: 'chainFadeIn 0.12s ease',
+                      }}>
+                        <input
+                          autoFocus
+                          value={newTitle}
+                          onChange={e => setNewTitle(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleAdd(group.level, group.periodKey, groupKey)
+                            if (e.key === 'Escape') { setAddingGroup(null); setNewTitle('') }
+                          }}
+                          placeholder="새 계획 제목..."
+                          style={{ flex: 1, fontSize: 11, border: 'none', background: 'transparent', outline: 'none', color: '#111827' }}
+                        />
+                        <button
+                          onClick={() => handleAdd(group.level, group.periodKey, groupKey)}
+                          disabled={addingSaving}
+                          style={{ padding: '2px 7px', borderRadius: 4, border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 2 }}
+                        >
+                          {addingSaving ? <Loader2 size={8} style={{ animation: 'chainSpin 0.8s linear infinite' }} /> : <Check size={8} />}
+                          추가
+                        </button>
+                        <button
+                          onClick={() => { setAddingGroup(null); setNewTitle('') }}
+                          style={{ padding: '2px 5px', borderRadius: 4, border: '1px solid #bfdbfe', background: '#fff', cursor: 'pointer', fontSize: 9, color: '#6b7280' }}
+                        >취소</button>
+                      </div>
+                    )}
 
                     {/* Items */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingLeft: 4 }}>
-                      {entries.map(({ item, isRoot }) => (
-                        <div key={item.id} style={{
-                          padding: '8px 10px', borderRadius: 8,
-                          border: `1.5px solid ${isRoot ? '#3b82f6' : '#e5e7eb'}`,
-                          backgroundColor: isRoot ? '#eff6ff' : '#fafafa',
-                          display: 'flex', alignItems: 'center', gap: 8,
-                        }}>
-                          {isRoot ? (
-                            <span style={{
-                              fontSize: 9, fontWeight: 700, padding: '1px 6px',
-                              borderRadius: 4, backgroundColor: '#dbeafe', color: '#1d4ed8',
-                              flexShrink: 0, whiteSpace: 'nowrap',
-                            }}>기준</span>
-                          ) : (
-                            <ChevronRight size={11} color="#9ca3af" style={{ flexShrink: 0 }} />
-                          )}
-                          <span style={{
-                            fontSize: 12, fontWeight: isRoot ? 700 : 500, color: '#111827',
-                            flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      {group.entries.map(({ item, isRoot }) => {
+                        const isEditing = editingId === item.id
+                        const isDeleting = deletingId === item.id
+                        const isSaving = savingId === item.id
+
+                        if (isEditing) {
+                          return (
+                            <div key={item.id} style={{
+                              display: 'flex', gap: 5, alignItems: 'center',
+                              padding: '7px 10px', borderRadius: 8,
+                              border: '1.5px solid #3b82f6', backgroundColor: '#eff6ff',
+                              animation: 'chainFadeIn 0.12s ease',
+                            }}>
+                              <input
+                                autoFocus
+                                value={editTitle}
+                                onChange={e => setEditTitle(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') handleSaveEdit(item.id)
+                                  if (e.key === 'Escape') setEditingId(null)
+                                }}
+                                style={{ flex: 1, fontSize: 12, border: 'none', background: 'transparent', outline: 'none', color: '#111827' }}
+                              />
+                              <button
+                                onClick={() => handleSaveEdit(item.id)}
+                                disabled={!!isSaving}
+                                style={{ padding: '3px 6px', borderRadius: 4, border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontSize: 9, display: 'flex', alignItems: 'center', gap: 2 }}
+                              >
+                                {isSaving ? <Loader2 size={8} style={{ animation: 'chainSpin 0.8s linear infinite' }} /> : <Check size={8} />}
+                              </button>
+                              <button
+                                onClick={() => setEditingId(null)}
+                                style={{ padding: '3px 5px', borderRadius: 4, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 9, color: '#6b7280' }}
+                              >✕</button>
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <div key={item.id} style={{
+                            padding: '7px 10px', borderRadius: 8,
+                            border: `1.5px solid ${isRoot ? '#3b82f6' : '#e5e7eb'}`,
+                            backgroundColor: isRoot ? '#eff6ff' : '#fafafa',
+                            display: 'flex', alignItems: 'center', gap: 7,
+                            opacity: isDeleting ? 0.45 : 1,
+                            transition: 'opacity 0.15s',
                           }}>
-                            {item.title}
-                          </span>
-                          <span style={{
-                            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                            backgroundColor: STATUS_DOT[item.status] ?? '#9ca3af',
-                          }} />
-                          <span style={{ fontSize: 9, color: '#9ca3af', flexShrink: 0 }}>
-                            {STATUS_LABEL[item.status] ?? item.status}
-                          </span>
-                        </div>
-                      ))}
+                            {isRoot ? (
+                              <span style={{
+                                fontSize: 9, fontWeight: 700, padding: '1px 6px',
+                                borderRadius: 4, backgroundColor: '#dbeafe', color: '#1d4ed8',
+                                flexShrink: 0, whiteSpace: 'nowrap',
+                              }}>기준</span>
+                            ) : (
+                              <ChevronRight size={11} color="#9ca3af" style={{ flexShrink: 0 }} />
+                            )}
+                            <span style={{
+                              fontSize: 12, fontWeight: isRoot ? 700 : 500, color: '#111827',
+                              flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            }}>
+                              {item.title}
+                            </span>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, backgroundColor: STATUS_DOT[item.status] ?? '#9ca3af' }} />
+                            <span style={{ fontSize: 9, color: '#9ca3af', flexShrink: 0 }}>{STATUS_LABEL[item.status] ?? item.status}</span>
+                            <button
+                              onClick={() => handleEdit(item)}
+                              title="수정"
+                              style={{ padding: '2px 3px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', borderRadius: 3, flexShrink: 0 }}
+                            >
+                              <Pencil size={9} color="#9ca3af" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(item)}
+                              title="삭제"
+                              disabled={isDeleting}
+                              style={{ padding: '2px 3px', border: 'none', background: 'transparent', cursor: isDeleting ? 'default' : 'pointer', display: 'flex', borderRadius: 3, flexShrink: 0 }}
+                            >
+                              <Trash2 size={9} color={isDeleting ? '#fca5a5' : '#ef4444'} />
+                            </button>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )
               })}
+
+              {/* No connections hint */}
+              {!hasConnections && !loading && (
+                <div style={{ textAlign: 'center', padding: '24px 16px', color: '#9ca3af', borderTop: '1px solid #f1f5f9', marginTop: 4 }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>🔗</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>연결된 계획이 없습니다</div>
+                  <div style={{ fontSize: 11, lineHeight: 1.6 }}>
+                    계획 항목 왼쪽의 <strong>원형 점(●)</strong>을 클릭해<br />다른 단계와 연결해보세요
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -219,6 +416,7 @@ export function ConnectedChainPanel({ targetItem, connections, onClose }: Connec
       <style>{`
         @keyframes chainSlideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes chainSpin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        @keyframes chainFadeIn { from{opacity:0;transform:translateY(-3px)} to{opacity:1;transform:translateY(0)} }
       `}</style>
     </div>
   )
