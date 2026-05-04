@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import type { PlanItem, PlanLevel } from '@/lib/types'
 import { getISOWeekPublic } from '@/lib/types'
 import type { PlanConnection } from '@/lib/plan-connections'
+import { createConnection } from '@/lib/plan-connections'
 import { createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
 import { X, Link2, ChevronDown, ChevronRight, Plus, Pencil, Trash2, Check, Loader2 } from 'lucide-react'
@@ -154,6 +155,10 @@ export function ConnectedChainPanel({ targetItem, connections, onClose }: Connec
   const [newTitle, setNewTitle] = useState('')
   const [addingSaving, setAddingSaving] = useState(false)
 
+  // connections는 ref로만 보관 — 배열 참조가 바뀌어도 fetch가 재실행되지 않도록 함
+  const connectionsRef = useRef(connections)
+  connectionsRef.current = connections
+
   // 그룹 접힘 상태: 지난 기간 자동 접힘
   const [collapsedGroups, setCollapsedGroups] = useState<Set<GroupKey>>(new Set())
   const collapsedInitRef = useRef(false)
@@ -175,7 +180,7 @@ export function ConnectedChainPanel({ targetItem, connections, onClose }: Connec
   const [expandFlowDraft, setExpandFlowDraft] = useState<string[]>([])
 
   useEffect(() => {
-    const relatedIds = collectConnectedIds(targetItem.id, connections)
+    const relatedIds = collectConnectedIds(targetItem.id, connectionsRef.current)
     setLoading(true)
     fetchItemsByIds([...relatedIds])
       .then(chainItems => {
@@ -186,7 +191,9 @@ export function ConnectedChainPanel({ targetItem, connections, onClose }: Connec
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [targetItem.id, connections])
+  // connections 배열 참조가 바뀌어도 재실행되지 않아야 함 — connectionsRef 사용
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetItem.id])
 
   const groups = useMemo<Group[]>(() => {
     const groupMap = new Map<GroupKey, Group>()
@@ -286,6 +293,8 @@ export function ConnectedChainPanel({ targetItem, connections, onClose }: Connec
         description: null,
         categories: [],
       })
+      // 체인에 포함되도록 루트 항목과 연결 생성
+      try { await createConnection(targetItem.id, created.id) } catch { /* ignore duplicate */ }
       setAllItems(prev => [...prev, { item: created, isRoot: false }])
       setAddingGroup(null)
       setNewTitle('')
