@@ -1,12 +1,14 @@
 'use client'
 
 import { createContext, useContext } from 'react'
+import type { PlanConnection } from '@/lib/plan-connections'
 
 export interface ConnectionContextValue {
   colorMap: Map<string, string>
   connectingId: string | null
   highlightedIds: Set<string>
   onConnectClick: (itemId: string) => void
+  connections: PlanConnection[]
 }
 
 export const ConnectionContext = createContext<ConnectionContextValue>({
@@ -14,6 +16,7 @@ export const ConnectionContext = createContext<ConnectionContextValue>({
   connectingId: null,
   highlightedIds: new Set(),
   onConnectClick: () => {},
+  connections: [],
 })
 
 export function useConnection() {
