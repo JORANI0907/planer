@@ -11,6 +11,7 @@ import { DashboardItemCard } from './DashboardItemCard'
 import { ConnectionContext, ConnectionDot, useConnection } from './ConnectionContext'
 import { getConnectionsForYear, createConnection, deleteConnectionBetween, isConnected, buildColorMap } from '@/lib/plan-connections'
 import type { PlanConnection } from '@/lib/plan-connections'
+import { ConnectedChainPanel } from './ConnectedChainPanel'
 
 // ── Config ──────────────────────────────────────────
 
@@ -267,7 +268,7 @@ export function FlowTreeView({ year, annualItems, itemsByQuarter, searchQuery, f
   }, [todayKey])
 
   return (
-    <ConnectionContext.Provider value={{ colorMap, connectingId, highlightedIds, onConnectClick: handleConnectClick }}>
+    <ConnectionContext.Provider value={{ colorMap, connectingId, highlightedIds, onConnectClick: handleConnectClick, connections }}>
     <div ref={scrollRef} style={{ height: '100%', overflowY: 'auto', position: 'relative' }}>
       {lines.length > 0 && (
         <svg ref={svgRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: svgHeight || '100%', pointerEvents: 'none', zIndex: 5, overflow: 'visible' }}>
@@ -396,7 +397,10 @@ function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery
   const [deletingBulk, setDeletingBulk] = useState(false)
   const [addingNew, setAddingNew] = useState(false)
   const [pasting, setPasting] = useState(false)
+  const [showChainPanel, setShowChainPanel] = useState(false)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { push: pushUndo } = useUndo()
+  const { connections } = useConnection()
 
   const restorePlanItem = useCallback(async (src: PlanItem) => {
     return createPlanItem({
@@ -483,10 +487,36 @@ function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery
     } catch { /* ignore */ } finally { setPasting(false) }
   }
 
+  const handleHeaderContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setShowChainPanel(true)
+  }
+
+  const handleTouchStartLong = () => {
+    longPressTimer.current = setTimeout(() => { setShowChainPanel(true) }, 500)
+  }
+
+  const handleTouchCancelLong = () => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
+  }
+
   return (
+    <>
+    {showChainPanel && (
+      <ConnectedChainPanel
+        sectionLabel={label}
+        sectionItems={items}
+        connections={connections}
+        onClose={() => setShowChainPanel(false)}
+      />
+    )}
     <div style={{ marginBottom: isTop ? 12 : depth === 1 ? 6 : 3 }} data-today={isToday ? 'true' : undefined}>
       {/* Header */}
       <div onClick={() => setExpanded(e => !e)}
+        onContextMenu={handleHeaderContextMenu}
+        onTouchStart={handleTouchStartLong}
+        onTouchEnd={handleTouchCancelLong}
+        onTouchMove={handleTouchCancelLong}
         style={{
           display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none',
           padding: isTop ? '9px 14px' : depth === 1 ? '6px 10px' : '4px 8px',
@@ -592,6 +622,7 @@ function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery
       )}
       {showDeleteConfirm && <DeleteConfirm count={selCount} deleting={deletingBulk} onConfirm={handleBulkDelete} onCancel={() => setShowDeleteConfirm(false)} />}
     </div>
+    </>
   )
 }
 
