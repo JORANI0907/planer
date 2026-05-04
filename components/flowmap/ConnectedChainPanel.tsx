@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import type { PlanItem, PlanLevel } from '@/lib/types'
+import { getISOWeekPublic } from '@/lib/types'
 import type { PlanConnection } from '@/lib/plan-connections'
 import { createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
-import { X, Link2, ChevronRight, Plus, Pencil, Trash2, Check, Loader2 } from 'lucide-react'
+import { X, Link2, ChevronDown, ChevronRight, Plus, Pencil, Trash2, Check, Loader2 } from 'lucide-react'
 import { SubTaskPanel } from '@/components/SubTaskPanel'
 
 const LEVEL_ORDER: PlanLevel[] = ['annual', 'quarterly', 'monthly', 'weekly', 'daily']
@@ -44,6 +45,40 @@ function statusForStepIdx(idx: number, totalSteps: number): PlanItem['status'] {
   if (pct <= 37.5) return 'on_hold'
   if (pct <= 75) return 'in_progress'
   return 'completed'
+}
+
+function isPastGroup(level: PlanLevel, periodKey: string): boolean {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth() + 1
+  const d = now.getDate()
+  if (level === 'annual') return parseInt(periodKey) < y
+  if (level === 'quarterly') {
+    const [pyStr, qStr] = periodKey.split('-Q')
+    const py = parseInt(pyStr), q = parseInt(qStr)
+    if (py < y) return true
+    if (py > y) return false
+    return q < Math.ceil(m / 3)
+  }
+  if (level === 'monthly') {
+    const parts = periodKey.split('-').map(Number)
+    if (parts[0] < y) return true
+    if (parts[0] > y) return false
+    return parts[1] < m
+  }
+  if (level === 'weekly') {
+    const [pyStr, pwStr] = periodKey.split('-W')
+    const py = parseInt(pyStr), pw = parseInt(pwStr)
+    if (py < y) return true
+    if (py > y) return false
+    return pw < getISOWeekPublic(now)
+  }
+  if (level === 'daily') {
+    const parts = periodKey.split('-').map(Number)
+    const dt = new Date(parts[0], parts[1] - 1, parts[2])
+    return dt.getTime() < new Date(y, m - 1, d).getTime()
+  }
+  return false
 }
 
 function formatPeriodLabel(level: PlanLevel, periodKey: string): string {
@@ -119,6 +154,19 @@ export function ConnectedChainPanel({ targetItem, connections, onClose }: Connec
   const [newTitle, setNewTitle] = useState('')
   const [addingSaving, setAddingSaving] = useState(false)
 
+  // 그룹 접힘 상태: 지난 기간 자동 접힘
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<GroupKey>>(new Set())
+  const collapsedInitRef = useRef(false)
+
+  const toggleGroup = (key: GroupKey) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
   // 확장 패널 상태
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [expandTitle, setExpandTitle] = useState('')
@@ -156,6 +204,18 @@ export function ConnectedChainPanel({ targetItem, connections, onClose }: Connec
       return diff !== 0 ? diff : a.periodKey.localeCompare(b.periodKey)
     })
   }, [allItems])
+
+  // 지난 기간 그룹 최초 1회 자동 접힘 초기화
+  useEffect(() => {
+    if (collapsedInitRef.current || groups.length === 0) return
+    collapsedInitRef.current = true
+    const pastKeys = new Set(
+      groups
+        .filter(g => isPastGroup(g.level, g.periodKey))
+        .map(g => `${g.level}::${g.periodKey}` as GroupKey)
+    )
+    setCollapsedGroups(pastKeys)
+  }, [groups])
 
   const hasConnections = allItems.length > 1
 
@@ -302,34 +362,57 @@ export function ConnectedChainPanel({ targetItem, connections, onClose }: Connec
               {groups.map(group => {
                 const badge = LEVEL_BADGE[group.level]
                 const groupKey: GroupKey = `${group.level}::${group.periodKey}`
+                const isPast = isPastGroup(group.level, group.periodKey)
+                const isCollapsed = collapsedGroups.has(groupKey)
                 return (
                   <div key={groupKey}>
                     {/* Group header */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+                    <div
+                      onClick={isPast ? () => toggleGroup(groupKey) : undefined}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8, marginBottom: isCollapsed ? 4 : 7,
+                        cursor: isPast ? 'pointer' : 'default',
+                        padding: isPast ? '5px 8px' : '0',
+                        borderRadius: isPast ? 7 : 0,
+                        backgroundColor: isPast ? (isCollapsed ? '#f8fafc' : '#f1f5f9') : 'transparent',
+                        borderLeft: isPast ? '3px solid #d1d5db' : 'none',
+                        transition: 'background-color 0.1s',
+                      }}
+                    >
+                      {isPast && (
+                        isCollapsed
+                          ? <ChevronRight size={12} color="#9ca3af" style={{ flexShrink: 0 }} />
+                          : <ChevronDown size={12} color="#9ca3af" style={{ flexShrink: 0 }} />
+                      )}
                       <span style={{
                         fontSize: 10, fontWeight: 700, padding: '3px 10px',
                         borderRadius: 12, backgroundColor: badge.bg, color: badge.color,
-                        letterSpacing: '0.03em',
+                        letterSpacing: '0.03em', opacity: isPast && isCollapsed ? 0.7 : 1,
                       }}>
                         {group.label}
                       </span>
                       <div style={{ flex: 1, height: 1, backgroundColor: '#f1f5f9' }} />
-                      <span style={{ fontSize: 10, color: '#9ca3af' }}>{group.entries.length}개</span>
-                      <button
-                        onClick={() => { setAddingGroup(groupKey); setNewTitle('') }}
-                        title={`${group.label}에 계획 추가`}
-                        style={{
-                          width: 20, height: 20, borderRadius: 5, flexShrink: 0,
-                          border: '1px solid #d1d5db', background: '#f9fafb',
-                          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
-                        }}
-                      >
-                        <Plus size={10} color="#6b7280" />
-                      </button>
+                      {isCollapsed
+                        ? <span style={{ fontSize: 10, color: '#9ca3af', fontStyle: 'italic' }}>{group.entries.length}개 숨김</span>
+                        : <span style={{ fontSize: 10, color: '#9ca3af' }}>{group.entries.length}개</span>
+                      }
+                      {!isCollapsed && (
+                        <button
+                          onClick={e => { e.stopPropagation(); setAddingGroup(groupKey); setNewTitle('') }}
+                          title={`${group.label}에 계획 추가`}
+                          style={{
+                            width: 20, height: 20, borderRadius: 5, flexShrink: 0,
+                            border: '1px solid #d1d5db', background: '#f9fafb',
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                          }}
+                        >
+                          <Plus size={10} color="#6b7280" />
+                        </button>
+                      )}
                     </div>
 
                     {/* Inline add form */}
-                    {addingGroup === groupKey && (
+                    {!isCollapsed && addingGroup === groupKey && (
                       <div style={{
                         display: 'flex', gap: 4, marginBottom: 6,
                         padding: '7px 9px', borderRadius: 7,
@@ -363,7 +446,7 @@ export function ConnectedChainPanel({ targetItem, connections, onClose }: Connec
                     )}
 
                     {/* Items */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 4 }}>
+                    {!isCollapsed && <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 4 }}>
                       {group.entries.map(({ item, isRoot }) => {
                         const isDeleting = deletingId === item.id
                         const isExpanded = expandedId === item.id
@@ -521,7 +604,7 @@ export function ConnectedChainPanel({ targetItem, connections, onClose }: Connec
                           </div>
                         )
                       })}
-                    </div>
+                    </div>}
                   </div>
                 )
               })}
