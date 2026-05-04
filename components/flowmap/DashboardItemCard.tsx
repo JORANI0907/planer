@@ -38,7 +38,7 @@ export function DashboardItemCard({ item, isSelected, showProgress, onSelect, on
   const [title, setTitle] = useState(item.title)
   const [saving, setSaving] = useState(false)
   const [showChainPanel, setShowChainPanel] = useState(false)
-  const { colorMap: connMap, highlightedIds: hlIds, connections } = useConnection()
+  const { colorMap: connMap, highlightedIds: hlIds, connections, onConnectionCreated } = useConnection()
   const connColor = connMap.get(item.id)
   const isConnHL = hlIds.has(item.id)
   const dot = STATUS_DOT[item.status] ?? '#9ca3af'
@@ -75,6 +75,7 @@ export function DashboardItemCard({ item, isSelected, showProgress, onSelect, on
       <ConnectedChainPanel
         targetItem={item}
         connections={connections}
+        onConnectionCreated={onConnectionCreated}
         onClose={() => setShowChainPanel(false)}
       />
     )}
