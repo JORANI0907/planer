@@ -6,7 +6,7 @@ import { STATUS_CONFIG, getMonthWeeks, getWeekDays, getISOWeekPublic } from '@/l
 import { getPlanItems, createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
 import { useUndo } from '@/lib/undo-stack'
 import { formatPeriodKey } from '@/lib/flowmap-layout'
-import { ChevronDown, ChevronRight, Plus, Loader2, Clipboard, ClipboardPaste, Pencil, Trash2, Check } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Loader2, Clipboard, ClipboardPaste, Pencil, Trash2, Check, Link2 } from 'lucide-react'
 import { DashboardItemCard } from './DashboardItemCard'
 import { ConnectionContext, ConnectionDot, useConnection } from './ConnectionContext'
 import { getConnectionsForYear, createConnection, deleteConnectionBetween, isConnected, buildColorMap } from '@/lib/plan-connections'
@@ -542,6 +542,16 @@ function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery
             {selCount}선택
           </span>
         )}
+        <button
+          onClick={e => { e.stopPropagation(); setShowChainPanel(true) }}
+          title="연결된 계획 체인 보기"
+          style={{
+            ...actionBtn(isTop, true, false),
+            flexShrink: 0,
+          }}
+        >
+          <Link2 size={isTop ? 12 : 10} />
+        </button>
         <button onClick={e => { e.stopPropagation(); selCount > 0 && setShowDeleteConfirm(true) }} style={{ ...actionBtn(isTop, selCount > 0, true), flexShrink: 0 }}>−</button>
         <button onClick={e => { e.stopPropagation(); setAddingNew(true); setExpanded(true) }} style={{ ...actionBtn(isTop, true, false), flexShrink: 0 }}><Plus size={isTop ? 12 : 10} /></button>
         {copiedItem && (
