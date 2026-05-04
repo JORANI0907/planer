@@ -6,7 +6,7 @@ import { STATUS_CONFIG, getMonthWeeks, getWeekDays, getISOWeekPublic } from '@/l
 import { getPlanItems, createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
 import { useUndo } from '@/lib/undo-stack'
 import { formatPeriodKey } from '@/lib/flowmap-layout'
-import { ChevronDown, ChevronRight, Plus, Loader2, Clipboard, ClipboardPaste, Pencil, Trash2, Check, Link2, BarChart3, ListChecks } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Loader2, Clipboard, ClipboardPaste, Pencil, Trash2, Check, Link2 } from 'lucide-react'
 import { DashboardItemCard } from './DashboardItemCard'
 import { ConnectionContext, ConnectionDot, useConnection } from './ConnectionContext'
 import { getConnectionsForYear, createConnection, deleteConnectionBetween, isConnected, buildColorMap } from '@/lib/plan-connections'
@@ -615,56 +615,28 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
   onSelect: (id: string) => void; onUpdated: (item: PlanItem) => void; onDeleted: (item: PlanItem) => void
   onCopy: (item: PlanItem | null) => void
 }) {
-  const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(item.title)
   const [saving, setSaving] = useState(false)
   const [showChainPanel, setShowChainPanel] = useState(false)
   const [showPanel, setShowPanel] = useState(false)
-  const [detailTab, setDetailTab] = useState<'subtask' | 'memo'>('subtask')
-  const [desc, setDesc] = useState(item.description ?? '')
-  const [savingDesc, setSavingDesc] = useState(false)
   const dot = STATUS_DOT[item.status] ?? '#9ca3af'
   const { colorMap: connMap, highlightedIds: hlIds, connections } = useConnection()
   const connColor = connMap.get(item.id)
   const isConnHL = hlIds.has(item.id)
   const isCompleted = item.status === 'completed'
 
+  useEffect(() => { setTitle(item.title) }, [item.title])
+
   const handleSave = async () => {
     if (!title.trim()) return; setSaving(true)
-    try { const u = await updatePlanItem(item.id, { title: title.trim() }); onUpdated(u); setEditing(false) }
+    try { const u = await updatePlanItem(item.id, { title: title.trim() }); onUpdated(u) }
     catch { /* ignore */ } finally { setSaving(false) }
-  }
-
-  const handleSaveDesc = async () => {
-    if (desc === (item.description ?? '')) return
-    setSavingDesc(true)
-    try { const u = await updatePlanItem(item.id, { description: desc || null }); onUpdated(u) }
-    catch { /* ignore */ } finally { setSavingDesc(false) }
   }
 
   const handleToggleComplete = async (e: React.MouseEvent) => {
     e.stopPropagation()
     const newStatus: PlanItem['status'] = isCompleted ? 'pending' : 'completed'
     try { const u = await updatePlanItem(item.id, { status: newStatus }); onUpdated(u) } catch { /* ignore */ }
-  }
-
-  if (editing) {
-    return (
-      <div style={{ border: '1.5px solid #3b82f6', borderRadius: 8, padding: '8px 10px', backgroundColor: '#eff6ff', display: 'flex', flexDirection: 'column', gap: 6, animation: 'flowFadeIn 0.12s ease' }}>
-        <input autoFocus value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') { setEditing(false); setTitle(item.title) } }}
-          style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid #bfdbfe', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}>
-          <button onClick={async () => { try { await deletePlanItem(item.id); onDeleted(item) } catch { /* ignore */ } }}
-            style={{ padding: '3px 6px', borderRadius: 4, border: '1px solid #fca5a5', background: '#fff', color: '#ef4444', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2 }}><Trash2 size={10} />삭제</button>
-          <button onClick={() => { setEditing(false); setTitle(item.title) }}
-            style={{ padding: '3px 8px', borderRadius: 4, border: '1px solid #e5e7eb', background: '#fff', fontSize: 10, cursor: 'pointer' }}>취소</button>
-          <button onClick={handleSave} disabled={saving}
-            style={{ padding: '3px 8px', borderRadius: 4, border: 'none', background: '#3b82f6', color: '#fff', fontSize: 10, fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
-            {saving ? <Loader2 size={10} style={{ animation: 'flowSpin 1s linear infinite' }} /> : <Check size={10} />} 저장
-          </button>
-        </div>
-      </div>
-    )
   }
 
   const borderColor = isSelected ? '#3b82f6' : isConnHL ? (connColor ?? '#22c55e') : connColor ? connColor + '50' : '#e5e7eb'
@@ -702,55 +674,47 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
           style={{ padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', borderRadius: 3, flexShrink: 0 }}>
           <Link2 size={compact ? 9 : 10} color="#93c5fd" />
         </button>
-        {/* 상세 */}
-        <button onClick={e => { e.stopPropagation(); setShowPanel(d => !d) }} title="상세보기"
-          style={{ padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', borderRadius: 3, flexShrink: 0 }}>
-          <BarChart3 size={compact ? 9 : 10} color={showPanel ? '#3b82f6' : '#9ca3af'} />
-        </button>
         {/* 복사 */}
         <button onClick={e => { e.stopPropagation(); onCopy(item) }} title="복사"
           style={{ padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', borderRadius: 3, flexShrink: 0 }}>
           <Clipboard size={compact ? 9 : 10} color="#9ca3af" />
         </button>
-        {/* 수정 */}
-        <button onClick={e => { e.stopPropagation(); setEditing(true) }} title="수정"
+        {/* 수정 + 세부내용 통합 버튼 */}
+        <button onClick={e => { e.stopPropagation(); setShowPanel(d => !d) }} title="수정 / 세부내용"
           style={{ padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', borderRadius: 3, flexShrink: 0 }}>
-          <Pencil size={compact ? 9 : 10} color="#9ca3af" />
+          <Pencil size={compact ? 9 : 10} color={showPanel ? '#3b82f6' : '#9ca3af'} />
         </button>
       </div>
 
-      {/* 상세 패널 */}
+      {/* 수정 + 세부내용 통합 패널 */}
       {showPanel && (
         <div style={{ borderTop: '1px solid #e5e7eb', animation: 'flowFadeIn 0.15s ease' }}>
-          {/* 탭 헤더 */}
-          <div style={{ display: 'flex', alignItems: 'center', padding: '0 10px', borderBottom: '1px solid #f1f5f9' }}>
-            <button onClick={() => setDetailTab('subtask')}
-              style={{ padding: '6px 10px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 11, fontWeight: detailTab === 'subtask' ? 700 : 400, color: detailTab === 'subtask' ? '#1d4ed8' : '#6b7280', borderBottom: detailTab === 'subtask' ? '2px solid #3b82f6' : '2px solid transparent', marginBottom: -1, display: 'flex', alignItems: 'center', gap: 3 }}>
-              <ListChecks size={11} /> 세부내용
-            </button>
-            <button onClick={() => setDetailTab('memo')}
-              style={{ padding: '6px 10px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 11, fontWeight: detailTab === 'memo' ? 700 : 400, color: detailTab === 'memo' ? '#1d4ed8' : '#6b7280', borderBottom: detailTab === 'memo' ? '2px solid #3b82f6' : '2px solid transparent', marginBottom: -1 }}>
-              메모
-            </button>
-            {savingDesc && <span style={{ fontSize: 9, color: '#3b82f6', marginLeft: 'auto' }}>저장 중...</span>}
+          {/* 제목 수정 */}
+          <div style={{ padding: compact ? '7px 8px' : '9px 10px', backgroundColor: '#f8fafc', borderBottom: '1px solid #f0f4f8', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <input
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setTitle(item.title) }}
+              placeholder="제목 수정..."
+              style={{ width: '100%', padding: compact ? '4px 7px' : '5px 8px', borderRadius: 5, border: '1px solid #d1d5db', fontSize: compact ? 11 : 12, outline: 'none', boxSizing: 'border-box', backgroundColor: '#fff' }}
+            />
+            <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end', alignItems: 'center' }}>
+              <button onClick={async () => { try { await deletePlanItem(item.id); onDeleted(item) } catch { /* ignore */ } }}
+                style={{ padding: '2px 6px', borderRadius: 4, border: '1px solid #fca5a5', background: '#fff', color: '#ef4444', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Trash2 size={10} /> 삭제
+              </button>
+              <button onClick={() => setTitle(item.title)}
+                style={{ padding: '2px 6px', borderRadius: 4, border: '1px solid #e5e7eb', background: '#fff', fontSize: 10, cursor: 'pointer' }}>취소</button>
+              <button onClick={handleSave} disabled={saving}
+                style={{ padding: '2px 8px', borderRadius: 4, border: 'none', background: '#3b82f6', color: '#fff', fontSize: 10, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2, opacity: saving ? 0.7 : 1 }}>
+                {saving ? <Loader2 size={9} style={{ animation: 'flowSpin 1s linear infinite' }} /> : <Check size={9} />} 저장
+              </button>
+            </div>
           </div>
-          {/* 탭 내용 */}
-          {detailTab === 'subtask' && (
-            <div style={{ padding: '4px 0 0' }}>
-              <SubTaskPanel itemId={item.id} autoFocus={false} />
-            </div>
-          )}
-          {detailTab === 'memo' && (
-            <div style={{ padding: '10px 12px' }}>
-              <textarea
-                value={desc}
-                onChange={e => setDesc(e.target.value)}
-                onBlur={handleSaveDesc}
-                placeholder="메모를 자유롭게 기록하세요..."
-                style={{ width: '100%', minHeight: 80, padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e5e7eb', fontSize: 12, lineHeight: 1.6, outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit', backgroundColor: '#fafbfc' }}
-              />
-            </div>
-          )}
+          {/* 세부내용 */}
+          <div style={{ padding: '4px 0 0' }}>
+            <SubTaskPanel itemId={item.id} autoFocus={false} />
+          </div>
         </div>
       )}
     </div>
