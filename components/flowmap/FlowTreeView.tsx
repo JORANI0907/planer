@@ -6,12 +6,13 @@ import { STATUS_CONFIG, getMonthWeeks, getWeekDays, getISOWeekPublic } from '@/l
 import { getPlanItems, createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
 import { useUndo } from '@/lib/undo-stack'
 import { formatPeriodKey } from '@/lib/flowmap-layout'
-import { ChevronDown, ChevronRight, Plus, Loader2, Clipboard, ClipboardPaste, Pencil, Trash2, Check, Link2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Loader2, Clipboard, ClipboardPaste, Pencil, Trash2, Check, Link2, BarChart3, ListChecks } from 'lucide-react'
 import { DashboardItemCard } from './DashboardItemCard'
 import { ConnectionContext, ConnectionDot, useConnection } from './ConnectionContext'
 import { getConnectionsForYear, createConnection, deleteConnectionBetween, isConnected, buildColorMap } from '@/lib/plan-connections'
 import type { PlanConnection } from '@/lib/plan-connections'
 import { ConnectedChainPanel } from './ConnectedChainPanel'
+import { SubTaskPanel } from '@/components/SubTaskPanel'
 
 // ── Config ──────────────────────────────────────────
 
@@ -618,15 +619,33 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
   const [title, setTitle] = useState(item.title)
   const [saving, setSaving] = useState(false)
   const [showChainPanel, setShowChainPanel] = useState(false)
+  const [showPanel, setShowPanel] = useState(false)
+  const [detailTab, setDetailTab] = useState<'subtask' | 'memo'>('subtask')
+  const [desc, setDesc] = useState(item.description ?? '')
+  const [savingDesc, setSavingDesc] = useState(false)
   const dot = STATUS_DOT[item.status] ?? '#9ca3af'
   const { colorMap: connMap, highlightedIds: hlIds, connections } = useConnection()
   const connColor = connMap.get(item.id)
   const isConnHL = hlIds.has(item.id)
+  const isCompleted = item.status === 'completed'
 
   const handleSave = async () => {
     if (!title.trim()) return; setSaving(true)
     try { const u = await updatePlanItem(item.id, { title: title.trim() }); onUpdated(u); setEditing(false) }
     catch { /* ignore */ } finally { setSaving(false) }
+  }
+
+  const handleSaveDesc = async () => {
+    if (desc === (item.description ?? '')) return
+    setSavingDesc(true)
+    try { const u = await updatePlanItem(item.id, { description: desc || null }); onUpdated(u) }
+    catch { /* ignore */ } finally { setSavingDesc(false) }
+  }
+
+  const handleToggleComplete = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const newStatus: PlanItem['status'] = isCompleted ? 'pending' : 'completed'
+    try { const u = await updatePlanItem(item.id, { status: newStatus }); onUpdated(u) } catch { /* ignore */ }
   }
 
   if (editing) {
@@ -648,6 +667,10 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
     )
   }
 
+  const borderColor = isSelected ? '#3b82f6' : isConnHL ? (connColor ?? '#22c55e') : connColor ? connColor + '50' : '#e5e7eb'
+  const bgColor = isSelected ? '#eff6ff' : isConnHL ? `${connColor ?? '#22c55e'}12` : '#fff'
+  const cardShadow = isConnHL ? `inset 3px 0 0 ${connColor ?? '#22c55e'}, 0 0 0 2px ${connColor ?? '#22c55e'}25` : isSelected ? '0 0 0 1px rgba(59,130,246,0.2)' : 'none'
+
   return (
     <>
     {showChainPanel && (
@@ -657,35 +680,79 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
         onClose={() => setShowChainPanel(false)}
       />
     )}
-    <div onClick={() => onSelect(item.id)}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 7,
-        padding: compact ? '4px 7px' : '6px 10px', borderRadius: 7,
-        border: `1.5px solid ${isSelected ? '#3b82f6' : isConnHL ? (connColor ?? '#22c55e') : connColor ? connColor + '50' : '#e5e7eb'}`,
-        backgroundColor: isSelected ? '#eff6ff' : isConnHL ? `${connColor ?? '#22c55e'}12` : '#fff',
-        cursor: 'pointer', userSelect: 'none', transition: 'all 0.1s',
-        boxShadow: isConnHL ? `inset 3px 0 0 ${connColor ?? '#22c55e'}, 0 0 0 2px ${connColor ?? '#22c55e'}25` : isSelected ? '0 0 0 1px rgba(59,130,246,0.2)' : 'none',
-      }}
-      onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)' } }}
-      onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.boxShadow = 'none' } }}
-    >
-      <ConnectionDot itemId={item.id} />
-      {isSelected && <div style={{ width: 14, height: 14, borderRadius: 3, backgroundColor: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><span style={{ color: '#fff', fontSize: 8, fontWeight: 900 }}>✓</span></div>}
-      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: dot, flexShrink: 0 }} />
-      <span style={{ fontSize: compact ? 11 : 12, fontWeight: 500, color: '#111827', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
-      <span style={{ fontSize: 9, color: dot, fontWeight: 600, flexShrink: 0 }}>{STATUS_CONFIG[item.status]?.label}</span>
-      <button onClick={e => { e.stopPropagation(); setShowChainPanel(true) }} title="연결된 계획 체인"
-        style={{ padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', borderRadius: 3, flexShrink: 0 }}>
-        <Link2 size={compact ? 9 : 10} color="#93c5fd" />
-      </button>
-      <button onClick={e => { e.stopPropagation(); onCopy(item) }} title="복사"
-        style={{ padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', borderRadius: 3, flexShrink: 0 }}>
-        <Clipboard size={compact ? 9 : 10} color="#9ca3af" />
-      </button>
-      <button onClick={e => { e.stopPropagation(); setEditing(true) }} title="수정"
-        style={{ padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', borderRadius: 3, flexShrink: 0 }}>
-        <Pencil size={compact ? 9 : 10} color="#9ca3af" />
-      </button>
+    <div style={{ borderRadius: 7, overflow: 'hidden', border: `1.5px solid ${borderColor}`, backgroundColor: bgColor, boxShadow: cardShadow, transition: 'all 0.1s', opacity: isCompleted ? 0.8 : 1 }}>
+      {/* 카드 행 */}
+      <div onClick={() => onSelect(item.id)}
+        style={{ display: 'flex', alignItems: 'center', gap: 7, padding: compact ? '4px 7px' : '6px 10px', cursor: 'pointer', userSelect: 'none' }}
+        onMouseEnter={e => { if (!isSelected) e.currentTarget.style.backgroundColor = '#f9fafb' }}
+        onMouseLeave={e => { if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent' }}
+      >
+        <ConnectionDot itemId={item.id} />
+        {isSelected && <div style={{ width: 14, height: 14, borderRadius: 3, backgroundColor: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><span style={{ color: '#fff', fontSize: 8, fontWeight: 900 }}>✓</span></div>}
+        <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: dot, flexShrink: 0 }} />
+        <span style={{ fontSize: compact ? 11 : 12, fontWeight: 500, color: '#111827', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: isCompleted ? 'line-through' : 'none', opacity: isCompleted ? 0.6 : 1 }}>{item.title}</span>
+        <span style={{ fontSize: 9, color: dot, fontWeight: 600, flexShrink: 0 }}>{STATUS_CONFIG[item.status]?.label}</span>
+        {/* 완료 체크 버튼 */}
+        <button onClick={handleToggleComplete} title={isCompleted ? '완료 취소' : '완료로 표시'}
+          style={{ width: compact ? 16 : 18, height: compact ? 16 : 18, borderRadius: '50%', flexShrink: 0, border: `2px solid ${isCompleted ? '#22c55e' : '#d1d5db'}`, backgroundColor: isCompleted ? '#22c55e' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, transition: 'all 0.15s' }}>
+          {isCompleted && <Check size={compact ? 8 : 9} color="#fff" strokeWidth={3} />}
+        </button>
+        {/* 체인 */}
+        <button onClick={e => { e.stopPropagation(); setShowChainPanel(true) }} title="연결된 계획 체인"
+          style={{ padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', borderRadius: 3, flexShrink: 0 }}>
+          <Link2 size={compact ? 9 : 10} color="#93c5fd" />
+        </button>
+        {/* 상세 */}
+        <button onClick={e => { e.stopPropagation(); setShowPanel(d => !d) }} title="상세보기"
+          style={{ padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', borderRadius: 3, flexShrink: 0 }}>
+          <BarChart3 size={compact ? 9 : 10} color={showPanel ? '#3b82f6' : '#9ca3af'} />
+        </button>
+        {/* 복사 */}
+        <button onClick={e => { e.stopPropagation(); onCopy(item) }} title="복사"
+          style={{ padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', borderRadius: 3, flexShrink: 0 }}>
+          <Clipboard size={compact ? 9 : 10} color="#9ca3af" />
+        </button>
+        {/* 수정 */}
+        <button onClick={e => { e.stopPropagation(); setEditing(true) }} title="수정"
+          style={{ padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', borderRadius: 3, flexShrink: 0 }}>
+          <Pencil size={compact ? 9 : 10} color="#9ca3af" />
+        </button>
+      </div>
+
+      {/* 상세 패널 */}
+      {showPanel && (
+        <div style={{ borderTop: '1px solid #e5e7eb', animation: 'flowFadeIn 0.15s ease' }}>
+          {/* 탭 헤더 */}
+          <div style={{ display: 'flex', alignItems: 'center', padding: '0 10px', borderBottom: '1px solid #f1f5f9' }}>
+            <button onClick={() => setDetailTab('subtask')}
+              style={{ padding: '6px 10px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 11, fontWeight: detailTab === 'subtask' ? 700 : 400, color: detailTab === 'subtask' ? '#1d4ed8' : '#6b7280', borderBottom: detailTab === 'subtask' ? '2px solid #3b82f6' : '2px solid transparent', marginBottom: -1, display: 'flex', alignItems: 'center', gap: 3 }}>
+              <ListChecks size={11} /> 세부내용
+            </button>
+            <button onClick={() => setDetailTab('memo')}
+              style={{ padding: '6px 10px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 11, fontWeight: detailTab === 'memo' ? 700 : 400, color: detailTab === 'memo' ? '#1d4ed8' : '#6b7280', borderBottom: detailTab === 'memo' ? '2px solid #3b82f6' : '2px solid transparent', marginBottom: -1 }}>
+              메모
+            </button>
+            {savingDesc && <span style={{ fontSize: 9, color: '#3b82f6', marginLeft: 'auto' }}>저장 중...</span>}
+          </div>
+          {/* 탭 내용 */}
+          {detailTab === 'subtask' && (
+            <div style={{ padding: '4px 0 0' }}>
+              <SubTaskPanel itemId={item.id} autoFocus={false} />
+            </div>
+          )}
+          {detailTab === 'memo' && (
+            <div style={{ padding: '10px 12px' }}>
+              <textarea
+                value={desc}
+                onChange={e => setDesc(e.target.value)}
+                onBlur={handleSaveDesc}
+                placeholder="메모를 자유롭게 기록하세요..."
+                style={{ width: '100%', minHeight: 80, padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e5e7eb', fontSize: 12, lineHeight: 1.6, outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit', backgroundColor: '#fafbfc' }}
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
     </>
   )
