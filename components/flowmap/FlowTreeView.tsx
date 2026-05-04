@@ -269,7 +269,7 @@ export function FlowTreeView({ year, annualItems, itemsByQuarter, searchQuery, f
   }, [todayKey])
 
   return (
-    <ConnectionContext.Provider value={{ colorMap, connectingId, highlightedIds, onConnectClick: handleConnectClick, connections }}>
+    <ConnectionContext.Provider value={{ colorMap, connectingId, highlightedIds, onConnectClick: handleConnectClick, connections, onConnectionCreated: conn => setConnections(prev => [...prev, conn]) }}>
     <div ref={scrollRef} style={{ height: '100%', overflowY: 'auto', position: 'relative' }}>
       {lines.length > 0 && (
         <svg ref={svgRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: svgHeight || '100%', pointerEvents: 'none', zIndex: 5, overflow: 'visible' }}>
@@ -620,7 +620,7 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
   const [showChainPanel, setShowChainPanel] = useState(false)
   const [showPanel, setShowPanel] = useState(false)
   const dot = STATUS_DOT[item.status] ?? '#9ca3af'
-  const { colorMap: connMap, highlightedIds: hlIds, connections } = useConnection()
+  const { colorMap: connMap, highlightedIds: hlIds, connections, onConnectionCreated } = useConnection()
   const connColor = connMap.get(item.id)
   const isConnHL = hlIds.has(item.id)
   const isCompleted = item.status === 'completed'
@@ -649,6 +649,7 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
       <ConnectedChainPanel
         targetItem={item}
         connections={connections}
+        onConnectionCreated={onConnectionCreated}
         onClose={() => setShowChainPanel(false)}
       />
     )}
