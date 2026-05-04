@@ -397,10 +397,7 @@ function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery
   const [deletingBulk, setDeletingBulk] = useState(false)
   const [addingNew, setAddingNew] = useState(false)
   const [pasting, setPasting] = useState(false)
-  const [showChainPanel, setShowChainPanel] = useState(false)
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { push: pushUndo } = useUndo()
-  const { connections } = useConnection()
 
   const restorePlanItem = useCallback(async (src: PlanItem) => {
     return createPlanItem({
@@ -487,36 +484,10 @@ function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery
     } catch { /* ignore */ } finally { setPasting(false) }
   }
 
-  const handleHeaderContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault()
-    setShowChainPanel(true)
-  }
-
-  const handleTouchStartLong = () => {
-    longPressTimer.current = setTimeout(() => { setShowChainPanel(true) }, 500)
-  }
-
-  const handleTouchCancelLong = () => {
-    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
-  }
-
   return (
-    <>
-    {showChainPanel && (
-      <ConnectedChainPanel
-        sectionLabel={label}
-        sectionItems={items}
-        connections={connections}
-        onClose={() => setShowChainPanel(false)}
-      />
-    )}
     <div style={{ marginBottom: isTop ? 12 : depth === 1 ? 6 : 3 }} data-today={isToday ? 'true' : undefined}>
       {/* Header */}
       <div onClick={() => setExpanded(e => !e)}
-        onContextMenu={handleHeaderContextMenu}
-        onTouchStart={handleTouchStartLong}
-        onTouchEnd={handleTouchCancelLong}
-        onTouchMove={handleTouchCancelLong}
         style={{
           display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none',
           padding: isTop ? '9px 14px' : depth === 1 ? '6px 10px' : '4px 8px',
@@ -542,16 +513,6 @@ function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery
             {selCount}선택
           </span>
         )}
-        <button
-          onClick={e => { e.stopPropagation(); setShowChainPanel(true) }}
-          title="연결된 계획 체인 보기"
-          style={{
-            ...actionBtn(isTop, true, false),
-            flexShrink: 0,
-          }}
-        >
-          <Link2 size={isTop ? 12 : 10} />
-        </button>
         <button onClick={e => { e.stopPropagation(); selCount > 0 && setShowDeleteConfirm(true) }} style={{ ...actionBtn(isTop, selCount > 0, true), flexShrink: 0 }}>−</button>
         <button onClick={e => { e.stopPropagation(); setAddingNew(true); setExpanded(true) }} style={{ ...actionBtn(isTop, true, false), flexShrink: 0 }}><Plus size={isTop ? 12 : 10} /></button>
         {copiedItem && (
@@ -632,7 +593,6 @@ function SectionNode({ level, periodKey, label, depth, initialItems, searchQuery
       )}
       {showDeleteConfirm && <DeleteConfirm count={selCount} deleting={deletingBulk} onConfirm={handleBulkDelete} onCancel={() => setShowDeleteConfirm(false)} />}
     </div>
-    </>
   )
 }
 
@@ -657,8 +617,9 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(item.title)
   const [saving, setSaving] = useState(false)
+  const [showChainPanel, setShowChainPanel] = useState(false)
   const dot = STATUS_DOT[item.status] ?? '#9ca3af'
-  const { colorMap: connMap, highlightedIds: hlIds } = useConnection()
+  const { colorMap: connMap, highlightedIds: hlIds, connections } = useConnection()
   const connColor = connMap.get(item.id)
   const isConnHL = hlIds.has(item.id)
 
@@ -688,6 +649,14 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
   }
 
   return (
+    <>
+    {showChainPanel && (
+      <ConnectedChainPanel
+        targetItem={item}
+        connections={connections}
+        onClose={() => setShowChainPanel(false)}
+      />
+    )}
     <div onClick={() => onSelect(item.id)}
       style={{
         display: 'flex', alignItems: 'center', gap: 7,
@@ -705,6 +674,10 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
       <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: dot, flexShrink: 0 }} />
       <span style={{ fontSize: compact ? 11 : 12, fontWeight: 500, color: '#111827', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
       <span style={{ fontSize: 9, color: dot, fontWeight: 600, flexShrink: 0 }}>{STATUS_CONFIG[item.status]?.label}</span>
+      <button onClick={e => { e.stopPropagation(); setShowChainPanel(true) }} title="연결된 계획 체인"
+        style={{ padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', borderRadius: 3, flexShrink: 0 }}>
+        <Link2 size={compact ? 9 : 10} color="#93c5fd" />
+      </button>
       <button onClick={e => { e.stopPropagation(); onCopy(item) }} title="복사"
         style={{ padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', borderRadius: 3, flexShrink: 0 }}>
         <Clipboard size={compact ? 9 : 10} color="#9ca3af" />
@@ -714,6 +687,7 @@ function ItemCard({ item, isSelected, compact, onSelect, onUpdated, onDeleted, o
         <Pencil size={compact ? 9 : 10} color="#9ca3af" />
       </button>
     </div>
+    </>
   )
 }
 

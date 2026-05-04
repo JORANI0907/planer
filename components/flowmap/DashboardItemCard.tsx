@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import type { PlanItem } from '@/lib/types'
 import { updatePlanItem, deletePlanItem } from '@/lib/api'
-import { Plus, Loader2, Clipboard, Pencil, Trash2, Check, BarChart3, ListChecks } from 'lucide-react'
+import { Plus, Loader2, Clipboard, Pencil, Trash2, Check, BarChart3, ListChecks, Link2 } from 'lucide-react'
 import { SubTaskPanel } from '@/components/SubTaskPanel'
 import { ConnectionDot, useConnection } from './ConnectionContext'
+import { ConnectedChainPanel } from './ConnectedChainPanel'
 
 const STATUS_DOT: Record<string, string> = { completed: '#22c55e', in_progress: '#3b82f6', on_hold: '#f97316', pending: '#9ca3af' }
 const PROGRESS: Record<string, number> = { completed: 100, in_progress: 50, on_hold: 25, pending: 0 }
@@ -41,7 +42,8 @@ export function DashboardItemCard({ item, isSelected, showProgress, onSelect, on
   const [saving, setSaving] = useState(false)
   const [savingDesc, setSavingDesc] = useState(false)
 
-  const { colorMap: connMap, highlightedIds: hlIds } = useConnection()
+  const [showChainPanel, setShowChainPanel] = useState(false)
+  const { colorMap: connMap, highlightedIds: hlIds, connections } = useConnection()
   const connColor = connMap.get(item.id)
   const isConnHL = hlIds.has(item.id)
   const dot = STATUS_DOT[item.status] ?? '#9ca3af'
@@ -71,6 +73,14 @@ export function DashboardItemCard({ item, isSelected, showProgress, onSelect, on
   }
 
   return (
+    <>
+    {showChainPanel && (
+      <ConnectedChainPanel
+        targetItem={item}
+        connections={connections}
+        onClose={() => setShowChainPanel(false)}
+      />
+    )}
     <div style={{
       borderRadius: 12, overflow: 'hidden', backgroundColor: '#fff',
       border: `2px solid ${isSelected ? '#3b82f6' : isConnHL ? (connColor ?? '#22c55e') : connColor ? connColor + '40' : '#1e293b'}`,
@@ -100,6 +110,10 @@ export function DashboardItemCard({ item, isSelected, showProgress, onSelect, on
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingLeft: 22 }}>
           <span style={{ fontSize: 10, color: dot, fontWeight: 600, flexShrink: 0 }}>{flowLabels[stepIdx]}</span>
           <div style={{ flex: 1 }} />
+          <button onClick={e => { e.stopPropagation(); setShowChainPanel(true) }} title="연결된 계획 체인 보기"
+            style={{ padding: '2px 6px', border: '1px solid #bfdbfe', background: '#eff6ff', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: '#1d4ed8', fontWeight: 600 }}>
+            <Link2 size={10} /> 체인
+          </button>
           <button onClick={e => { e.stopPropagation(); onCopy(item) }} title="복사"
             style={{ padding: '2px 5px', border: '1px solid #e5e7eb', background: '#fff', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2, fontSize: 9, color: '#6b7280' }}>
             <Clipboard size={10} /> 복사
@@ -254,5 +268,6 @@ export function DashboardItemCard({ item, isSelected, showProgress, onSelect, on
         </div>
       )}
     </div>
+    </>
   )
 }
