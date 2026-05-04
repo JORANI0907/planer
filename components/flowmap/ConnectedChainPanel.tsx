@@ -111,6 +111,7 @@ interface ConnectedChainPanelProps {
   targetItem: PlanItem
   connections: PlanConnection[]
   onClose: () => void
+  onConnectionCreated?: (conn: PlanConnection) => void
 }
 
 async function fetchItemsByIds(ids: string[]): Promise<PlanItem[]> {
@@ -147,7 +148,7 @@ interface Group {
   entries: { item: PlanItem; isRoot: boolean }[]
 }
 
-export function ConnectedChainPanel({ targetItem, connections, onClose }: ConnectedChainPanelProps) {
+export function ConnectedChainPanel({ targetItem, connections, onClose, onConnectionCreated }: ConnectedChainPanelProps) {
   const [allItems, setAllItems] = useState<{ item: PlanItem; isRoot: boolean }[]>([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -293,8 +294,12 @@ export function ConnectedChainPanel({ targetItem, connections, onClose }: Connec
         description: null,
         categories: [],
       })
-      // 체인에 포함되도록 루트 항목과 연결 생성
-      try { await createConnection(targetItem.id, created.id) } catch { /* ignore duplicate */ }
+      // 체인에 포함되도록 루트 항목과 연결 생성 — ref & 부모 state 동시 업데이트
+      try {
+        const newConn = await createConnection(targetItem.id, created.id)
+        connectionsRef.current = [...connectionsRef.current, newConn]
+        onConnectionCreated?.(newConn)
+      } catch { /* ignore duplicate */ }
       setAllItems(prev => [...prev, { item: created, isRoot: false }])
       setAddingGroup(null)
       setNewTitle('')
