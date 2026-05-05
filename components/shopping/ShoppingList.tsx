@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Search, Loader2 } from 'lucide-react'
+import { Search, Loader2, ShoppingCart } from 'lucide-react'
 import type { ShoppingItem, ShoppingPriority } from '@/lib/shopping-types'
 import { PRIORITY_CONFIG, DEFAULT_CATEGORIES } from '@/lib/shopping-types'
 import { getShoppingItems, getKnownCategories } from '@/lib/shopping-api'
@@ -64,7 +64,7 @@ export function ShoppingList() {
       {/* 헤더 */}
       <div>
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-xl">🛒</span>
+          <ShoppingCart size={20} />
           <h1 className="text-xl font-bold text-gray-900">구입 관리</h1>
         </div>
         <p className="text-xs text-gray-500">필요한 물건을 적어 두었다가 하나씩 체크해 나가세요</p>

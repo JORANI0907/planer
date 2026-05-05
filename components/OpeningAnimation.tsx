@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Flag } from 'lucide-react'
 
 export function OpeningAnimation() {
   const [phase, setPhase] = useState<'enter' | 'burst' | 'exit' | 'done'>('enter')
@@ -76,12 +77,11 @@ export function OpeningAnimation() {
       >
         <div
           style={{
-            fontSize: 64,
             filter: phase === 'burst' ? 'drop-shadow(0 0 24px #818cf8)' : 'none',
             transition: 'filter 0.3s',
           }}
         >
-          🚩
+          <Flag size={64} />
         </div>
         <div>
           <p className="text-white font-bold text-xl tracking-wide">인생 플래너</p>

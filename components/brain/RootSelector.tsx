@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Brain, Sprout } from 'lucide-react'
 import type { ThoughtNode } from '@/lib/brain-types'
 
 interface Props {
@@ -25,7 +26,7 @@ export function RootSelector({ topics, onSelect, onCreate, onDelete }: Props) {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="text-center mb-8">
-        <div className="text-5xl mb-3">🧠</div>
+        <div className="flex justify-center mb-3"><Brain size={48} /></div>
         <h2 className="text-xl font-bold text-gray-900">생각 확장 맵</h2>
         <p className="text-sm text-gray-500 mt-1">주제를 선택하면 무한 캔버스에서 생각을 확장할 수 있습니다</p>
       </div>
@@ -80,7 +81,7 @@ export function RootSelector({ topics, onSelect, onCreate, onDelete }: Props) {
       </div>
 
       {topics.length === 0 && !creating && (
-        <p className="text-center text-xs text-gray-400 mt-4">아직 주제가 없습니다. 첫 번째 생각의 씨앗을 심어보세요 🌱</p>
+        <p className="text-center text-xs text-gray-400 mt-4 flex items-center justify-center gap-1">아직 주제가 없습니다. 첫 번째 생각의 씨앗을 심어보세요 <Sprout size={20} /></p>
       )}
     </div>
   )

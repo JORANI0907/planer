@@ -7,7 +7,7 @@ import type { PlanConnection } from '@/lib/plan-connections'
 import { createConnection } from '@/lib/plan-connections'
 import { createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
-import { X, Link2, ChevronDown, ChevronRight, Plus, Pencil, Trash2, Check, Loader2 } from 'lucide-react'
+import { X, Link2, ChevronDown, ChevronRight, Plus, Pencil, Trash2, Check, Loader2, Lightbulb, Link } from 'lucide-react'
 import { SubTaskPanel } from '@/components/SubTaskPanel'
 
 const LEVEL_ORDER: PlanLevel[] = ['annual', 'quarterly', 'monthly', 'weekly', 'daily']
@@ -360,7 +360,7 @@ export function ConnectedChainPanel({ targetItem, connections, onClose, onConnec
             padding: '6px 10px', backgroundColor: '#f0f9ff',
             borderRadius: 7, borderLeft: '3px solid #3b82f6', lineHeight: 1.5,
           }}>
-            💡 연필 버튼을 눌러 제목 수정, 플로우, 세부내용을 확인하세요
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Lightbulb size={14} /> 연필 버튼을 눌러 제목 수정, 플로우, 세부내용을 확인하세요</span>
           </div>
         </div>
 
@@ -626,7 +626,7 @@ export function ConnectedChainPanel({ targetItem, connections, onClose, onConnec
               {/* No connections hint */}
               {!hasConnections && !loading && (
                 <div style={{ textAlign: 'center', padding: '24px 16px', color: '#9ca3af', borderTop: '1px solid #f1f5f9', marginTop: 4 }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>🔗</div>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><Link size={28} /></div>
                   <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>연결된 계획이 없습니다</div>
                   <div style={{ fontSize: 11, lineHeight: 1.6 }}>
                     계획 항목 왼쪽의 <strong>원형 점(●)</strong>을 클릭해<br />다른 단계와 연결해보세요

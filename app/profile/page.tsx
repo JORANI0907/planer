@@ -1,18 +1,19 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
+import { Pencil, User, Calendar, PenLine, Activity, Monitor, ScrollText, Landmark, Award } from 'lucide-react'
 import { getProfile, updateProfile } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import type { Profile } from '@/lib/types'
 
 type ArrayField = 'physical_abilities' | 'computer_skills' | 'other_certificates' | 'social_career' | 'other_career' | 'religion'
 
-const FIELD_CONFIG: { key: ArrayField; label: string; icon: string; color: string }[] = [
-  { key: 'physical_abilities', label: '신체 능력', icon: '💪', color: 'bg-green-50 border-green-200' },
-  { key: 'computer_skills', label: '컴퓨터 활용 능력', icon: '💻', color: 'bg-blue-50 border-blue-200' },
-  { key: 'other_certificates', label: '기타 자격증', icon: '📜', color: 'bg-yellow-50 border-yellow-200' },
-  { key: 'social_career', label: '사회 경력', icon: '🏛️', color: 'bg-purple-50 border-purple-200' },
-  { key: 'other_career', label: '기타 경력', icon: '🎖️', color: 'bg-orange-50 border-orange-200' },
+const FIELD_CONFIG: { key: ArrayField; label: string; icon: React.ReactNode; color: string }[] = [
+  { key: 'physical_abilities', label: '신체 능력', icon: <Activity size={16} />, color: 'bg-green-50 border-green-200' },
+  { key: 'computer_skills', label: '컴퓨터 활용 능력', icon: <Monitor size={16} />, color: 'bg-blue-50 border-blue-200' },
+  { key: 'other_certificates', label: '기타 자격증', icon: <ScrollText size={16} />, color: 'bg-yellow-50 border-yellow-200' },
+  { key: 'social_career', label: '사회 경력', icon: <Landmark size={16} />, color: 'bg-purple-50 border-purple-200' },
+  { key: 'other_career', label: '기타 경력', icon: <Award size={16} />, color: 'bg-orange-50 border-orange-200' },
   { key: 'religion', label: '종교', icon: '✝️', color: 'bg-pink-50 border-pink-200' },
 ]
 
@@ -132,7 +133,7 @@ export default function ProfilePage() {
               <Button variant="outline" onClick={cancelEdit}>취소</Button>
             </>
           ) : (
-            <Button variant="outline" onClick={startEdit}>✏️ 편집</Button>
+            <Button variant="outline" onClick={startEdit}><Pencil size={14} className="mr-1" /> 편집</Button>
           )}
         </div>
       </div>
@@ -140,8 +141,8 @@ export default function ProfilePage() {
       {/* 기본 정보 */}
       <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-6 mb-6">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-3xl shadow-sm border border-blue-100">
-            👤
+          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm border border-blue-100">
+            <User size={20} />
           </div>
           <div className="flex-1">
             {editing ? (
@@ -164,7 +165,7 @@ export default function ProfilePage() {
                 />
               ) : (
                 data.birthday && (
-                  <span className="text-sm text-gray-600">📅 {data.birthday}</span>
+                  <span className="text-sm text-gray-600 inline-flex items-center gap-1"><Calendar size={14} /> {data.birthday}</span>
                 )
               )}
               {age !== null && (
@@ -205,7 +206,7 @@ export default function ProfilePage() {
 
       {/* 메모 */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <p className="text-xs font-semibold text-gray-700 mb-2">📝 메모</p>
+        <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1"><PenLine size={14} /> 메모</p>
         {editing ? (
           <textarea
             value={data.memo ?? ''}

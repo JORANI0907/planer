@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Brain } from 'lucide-react'
 import type { ThoughtNode } from '@/lib/brain-types'
 import { getTopics, createTopic, deleteTopic } from '@/lib/brain-api'
 import { RootSelector } from '@/components/brain/RootSelector'
@@ -42,7 +43,7 @@ export default function BrainPage() {
     <div className="flex flex-col h-[calc(100vh-4rem)] md:h-[calc(100vh-2rem)] -mt-4 -mx-4 md:-mt-8 md:-mx-8 overflow-hidden">
       {/* 헤더 */}
       <div className="flex items-center gap-2 px-4 md:px-6 py-3 bg-white border-b border-gray-200 shrink-0 min-w-0">
-        <span className="text-xl shrink-0">🧠</span>
+        <Brain size={20} className="shrink-0" />
         <h1 className="font-bold text-gray-900 shrink-0">생각 확장 맵</h1>
         {activeTopic && (
           <>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { ClipboardList, CheckSquare } from 'lucide-react'
 import {
   getPlanItems, createPlanItem, updatePlanItem, deletePlanItem,
   getTasksForItem, createTask, updateTask, deleteTask,
@@ -105,7 +106,7 @@ function DailyItemCard({ item, onToggle, onDelete, onRename, onCopy, dragHandle 
           onClick={onCopy}
           title="복사 (다른 날짜로 이동/복사)"
           className="flex-shrink-0 text-xs px-2 py-1 rounded-lg bg-gray-100 text-gray-500 hover:bg-blue-100 hover:text-blue-700 transition-all"
-        >📋</button>
+        ><ClipboardList size={14} /></button>
 
         {/* 삭제 */}
         <button
@@ -347,7 +348,7 @@ export default function DailyPage() {
         <div className="space-y-2 mb-4">
           {items.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
-              <p className="text-3xl mb-2">✅</p>
+              <div className="flex justify-center mb-2"><CheckSquare size={20} /></div>
               <p className="text-gray-500 font-medium">오늘의 할 일을 추가하세요</p>
               <p className="text-xs text-gray-400 mt-1">연간 계획에서 주간 계획으로 추가하면 자동 연동됩니다</p>
             </div>

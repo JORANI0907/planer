@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Rocket, Calendar } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { createMapping, deleteMapping, createLifeGoalAnnualMapping, deleteLifeGoalAnnualMapping } from '@/lib/api'
@@ -55,7 +56,7 @@ export function LoadLifeGoalsSheet({ open, onClose, annualPeriodKey, lifeGoals, 
     <Sheet open={open} onOpenChange={onClose}>
       <SheetContent className="w-[400px] sm:w-[480px] overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>🚀 10년 단위 목표 불러오기</SheetTitle>
+          <SheetTitle className="flex items-center gap-1"><Rocket size={20} /> 10년 단위 목표 불러오기</SheetTitle>
           <p className="text-xs text-gray-500">{annualPeriodKey}년 계획에 반영할 목표를 선택하세요</p>
         </SheetHeader>
 
@@ -108,7 +109,7 @@ export function LoadLifeGoalsSheet({ open, onClose, annualPeriodKey, lifeGoals, 
                         {progressConfig.label}
                       </span>
                       {goal.target_date && (
-                        <span className="text-xs text-gray-400">📅 {goal.target_date}</span>
+                        <span className="text-xs text-gray-400 inline-flex items-center gap-1"><Calendar size={14} /> {goal.target_date}</span>
                       )}
                     </div>
                   </div>
@@ -213,7 +214,7 @@ export function LoadPlanItemsSheet({ open, onClose, parentLabel, childPeriodKey,
                         <span className={`text-xs px-1.5 py-0.5 rounded-full ${STATUS_COLOR[item.status]}`}>
                           {STATUS_LABEL[item.status]}
                         </span>
-                        <span className="text-xs text-gray-400">📅 {item.period_key}</span>
+                        <span className="text-xs text-gray-400 inline-flex items-center gap-1"><Calendar size={14} /> {item.period_key}</span>
                       </div>
                     </div>
                     <span className={`text-xl mt-0.5 ${isSelected ? 'text-blue-500' : 'text-gray-300'}`}>

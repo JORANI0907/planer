@@ -5,7 +5,7 @@ import type { PlanItem, PlanLevel } from '@/lib/types'
 import { STATUS_CONFIG } from '@/lib/types'
 import { createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
 import { LEVEL_LABEL, formatPeriodKey } from '@/lib/flowmap-layout'
-import { X, Loader2, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, Loader2, Trash2, ChevronDown, ChevronUp, Lightbulb } from 'lucide-react'
 
 export interface FormTarget {
   mode: 'create' | 'edit'
@@ -195,7 +195,7 @@ export function PlanFormModal({ target, onClose, onSaved, onDeleted }: PlanFormM
             </div>
 
             <div style={{ fontSize: 11, color: '#9ca3af', padding: '4px 2px' }}>
-              💡 진행 단계는 저장 후 카드의 <strong>플랜 플로우</strong>에서 클릭하여 설정하세요.
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Lightbulb size={14} /> 진행 단계는 저장 후 카드의 <strong>플랜 플로우</strong>에서 클릭하여 설정하세요.</span>
             </div>
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center' }}>

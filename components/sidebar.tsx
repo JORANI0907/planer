@@ -1,17 +1,19 @@
 'use client'
 
+import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { Home, User, Rocket, Map, Brain, RefreshCw, ShoppingCart, LayoutGrid, Flag } from 'lucide-react'
 
-const navItems = [
-  { href: '/', label: '대시보드', icon: '🏠' },
-  { href: '/profile', label: '인적사항', icon: '👤' },
-  { href: '/decade', label: '10년 계획', icon: '🚀' },
-  { href: '/flowmap', label: '플로우맵', icon: '🗺️' },
-  { href: '/brain', label: '생각 확장 맵', icon: '🧠' },
-  { href: '/routine', label: '필수과업', icon: '🔄' },
-  { href: '/shopping', label: '구입 관리', icon: '🛒' },
-  { href: '/split', label: '분할 보기', icon: '🔳' },
+const navItems: { href: string; label: string; icon: React.ReactNode }[] = [
+  { href: '/', label: '대시보드', icon: <Home size={20} /> },
+  { href: '/profile', label: '인적사항', icon: <User size={20} /> },
+  { href: '/decade', label: '10년 계획', icon: <Rocket size={20} /> },
+  { href: '/flowmap', label: '플로우맵', icon: <Map size={20} /> },
+  { href: '/brain', label: '생각 확장 맵', icon: <Brain size={20} /> },
+  { href: '/routine', label: '필수과업', icon: <RefreshCw size={20} /> },
+  { href: '/shopping', label: '구입 관리', icon: <ShoppingCart size={20} /> },
+  { href: '/split', label: '분할 보기', icon: <LayoutGrid size={20} /> },
 ]
 
 export function Sidebar() {
@@ -21,7 +23,7 @@ export function Sidebar() {
     <aside className="hidden md:flex fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 flex-col shadow-sm z-10">
       <div className="p-6 border-b border-gray-100">
         <div className="flex items-center gap-2">
-          <span className="text-2xl">🚩</span>
+          <Flag size={20} />
           <div>
             <h1 className="font-bold text-gray-900 text-sm leading-tight">인생 플래너</h1>
             <p className="text-xs text-gray-500 mt-0.5">푯대를 향해 나아가는 자</p>
@@ -44,7 +46,7 @@ export function Sidebar() {
                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
               }`}
             >
-              <span className="text-base">{item.icon}</span>
+              <span className="flex items-center justify-center">{item.icon}</span>
               {item.label}
             </Link>
           )
@@ -74,7 +76,7 @@ export function BottomNav() {
                   : 'text-gray-400'
               }`}
             >
-              <span className="text-xl leading-none">{item.icon}</span>
+              <span className="flex items-center justify-center">{item.icon}</span>
               <span className="text-[10px] font-medium leading-tight">{item.label}</span>
             </Link>
           )

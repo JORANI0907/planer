@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { Calendar, Rocket, Pencil, Trash2, Target } from 'lucide-react'
 import { getLifeGoals, createLifeGoal, updateLifeGoal, deleteLifeGoal, getMappedAnnualPeriodKeys, createLifeGoalAnnualMapping } from '@/lib/api'
 import { useUndo } from '@/lib/undo-stack'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -133,7 +134,7 @@ function GoalDetailModal({ goal, onClose, onUpdate }: {
                   {progressConfig.label}
                 </span>
                 {goal.target_date && (
-                  <span className="text-xs text-gray-400">📅 {goal.target_date}</span>
+                  <span className="text-xs text-gray-400 inline-flex items-center gap-1"><Calendar size={14} /> {goal.target_date}</span>
                 )}
                 <span className="text-xs text-gray-300">|</span>
                 <span className="text-xs text-gray-400">{goal.age_group}</span>
@@ -341,8 +342,8 @@ function GoalCard({ goal, onUpdate, onDelete, onOpenDetail }: {
               {goal.title}
             </p>
             <div className="flex gap-1.5 shrink-0">
-              <button onClick={e => { e.stopPropagation(); setEditOpen(true) }} className="text-gray-400 hover:text-gray-600 text-sm">✏️</button>
-              <button onClick={e => { e.stopPropagation(); handleDelete() }} className="text-gray-400 hover:text-red-500 text-sm">🗑️</button>
+              <button onClick={e => { e.stopPropagation(); setEditOpen(true) }} className="text-gray-400 hover:text-gray-600 text-sm"><Pencil size={14} /></button>
+              <button onClick={e => { e.stopPropagation(); handleDelete() }} className="text-gray-400 hover:text-red-500 text-sm"><Trash2 size={14} /></button>
             </div>
           </div>
 
@@ -518,7 +519,7 @@ export default function DecadePage() {
 
       {/* 헤더 배너 */}
       <div className={`bg-gradient-to-r ${activeInfo.color} rounded-xl p-5 mb-6 text-white`}>
-        <p className="text-sm opacity-80">🚀 {activeGroup} 인생 목표</p>
+        <p className="text-sm opacity-80 flex items-center gap-1"><Rocket size={20} /> {activeGroup} 인생 목표</p>
         <p className="text-xs opacity-60 mt-1">{activeInfo.range} · {goals.length}개 목표 설정됨</p>
         <div className="flex gap-4 mt-3 text-xs">
           {(['사업목표', '개인목표', '가족목표'] as GoalType[]).map(t => (
@@ -533,7 +534,7 @@ export default function DecadePage() {
         <div className="text-center py-12 text-gray-400">불러오는 중...</div>
       ) : goals.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-dashed border-gray-200">
-          <p className="text-3xl mb-3">🎯</p>
+          <div className="flex justify-center mb-3"><Target size={20} /></div>
           <p className="text-gray-500 font-medium">{activeGroup} 목표를 설정해보세요</p>
           <Button variant="outline" className="mt-4" onClick={() => setAddOpen(true)}>첫 목표 추가하기</Button>
         </div>

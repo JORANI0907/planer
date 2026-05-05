@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { RefreshCw } from 'lucide-react'
 import {
   getRoutineTasks,
   createRoutineTask,
@@ -200,7 +201,7 @@ export default function RoutinePage() {
         <div className="text-center py-12 text-gray-400">불러오는 중...</div>
       ) : filteredTasks.length === 0 ? (
         <div className="text-center py-14 bg-white rounded-2xl border border-dashed border-gray-200">
-          <p className="text-4xl mb-3">🔄</p>
+          <div className="flex justify-center mb-3"><RefreshCw size={20} /></div>
           {tasks.length === 0 ? (
             <>
               <p className="text-gray-600 font-medium">등록된 필수과업이 없습니다</p>

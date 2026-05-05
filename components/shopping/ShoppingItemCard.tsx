@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ExternalLink, Trash2, Pencil, Check, X, Loader2 } from 'lucide-react'
+import { ExternalLink, Trash2, Pencil, Check, X, Loader2, Calendar } from 'lucide-react'
 import type { ShoppingItem, ShoppingPriority } from '@/lib/shopping-types'
 import { PRIORITY_CONFIG, DEFAULT_CATEGORIES } from '@/lib/shopping-types'
 import { markPurchased, updateShoppingItem, deleteShoppingItem } from '@/lib/shopping-api'
@@ -200,7 +200,7 @@ export function ShoppingItemCard({ item, knownCategories, onUpdated, onDeleted }
           </div>
         )}
         {item.service_date && (
-          <p className="text-[11px] text-orange-500 mt-1 font-medium">📅 시공일자: {item.service_date}</p>
+          <p className="text-[11px] text-orange-500 mt-1 font-medium inline-flex items-center gap-1"><Calendar size={14} /> 시공일자: {item.service_date}</p>
         )}
         {item.memo && (
           <p className="text-[11px] text-gray-500 mt-1 whitespace-pre-wrap line-clamp-2">{item.memo}</p>

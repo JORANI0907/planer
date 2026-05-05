@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { ClipboardList } from 'lucide-react'
 import {
   getPlanItems, createPlanItem, updatePlanItem, deletePlanItem,
   getTasksForItem, createTask,
@@ -150,7 +151,7 @@ function PeriodItemCard({ item, onToggle, onDelete, onRename, onCopy, dragHandle
           onClick={onCopy}
           title="다른 기간으로 복사/이동"
           className="flex-shrink-0 text-xs px-2 py-1 rounded-lg bg-gray-100 text-gray-500 hover:bg-blue-100 hover:text-blue-700 transition-all"
-        >📋</button>
+        ><ClipboardList size={14} /></button>
 
         {/* 삭제 */}
         <button
@@ -362,7 +363,7 @@ export function PeriodPlanSection({ period, initYear, initQuarter, initMonth }: 
         <div className="space-y-2 mb-4">
           {items.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
-              <p className="text-3xl mb-2">📋</p>
+              <div className="flex justify-center mb-2"><ClipboardList size={14} /></div>
               <p className="text-gray-500 font-medium">{label} 계획을 추가하세요</p>
               <p className="text-xs text-gray-400 mt-1">플로우맵에서 추가한 계획도 여기서 확인됩니다</p>
             </div>
@@ -414,7 +415,7 @@ export function PeriodPlanSection({ period, initYear, initQuarter, initMonth }: 
         <div className="fixed left-1/2 -translate-x-1/2 bottom-20 md:bottom-6 z-40 w-[calc(100%-2rem)] max-w-md">
           <div className="bg-slate-900 text-white rounded-2xl shadow-2xl p-3">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-lg">📋</span>
+              <ClipboardList size={14} />
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] text-gray-400 leading-none mb-0.5">원본: {clipboard.fromPeriodKey}</p>
                 <p className="text-xs font-medium truncate">{clipboard.item.title}</p>

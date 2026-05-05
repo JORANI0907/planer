@@ -4,7 +4,7 @@ import { useRef, useState, useCallback } from 'react'
 import type { PlanItem } from '@/lib/types'
 import { STATUS_CONFIG } from '@/lib/types'
 import { formatPeriodKey } from '@/lib/flowmap-layout'
-import { ChevronDown, ChevronRight, Plus, Pencil, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Pencil, Loader2, Trash2 } from 'lucide-react'
 
 const QUARTER_CONFIG: Record<string, {
   label: string; months: string
@@ -159,7 +159,7 @@ function DeleteConfirm({ count, deleting, onConfirm, onCancel }: DeleteConfirmPr
         boxShadow: '0 16px 48px rgba(0,0,0,0.2)', maxWidth: 300, width: '100%', textAlign: 'center',
         animation: 'kbPopIn 0.15s ease',
       }}>
-        <div style={{ fontSize: 30, marginBottom: 10 }}>🗑️</div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}><Trash2 size={30} /></div>
         <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 6 }}>계획 삭제</div>
         <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 20 }}>
           <strong style={{ color: '#ef4444' }}>{count}개</strong> 계획을 삭제하시겠습니까?<br />

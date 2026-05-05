@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { CategoryBadge } from '@/components/category-badge'
 import { StatusBadge, PriorityDot, StatusSelect } from '@/components/status-badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -60,12 +61,12 @@ export function PlanItemCard({ item, onUpdate, onDelete, mapButton, parentLabel 
                 onClick={() => setEditOpen(true)}
                 className="text-gray-400 hover:text-gray-600 text-sm"
                 title="편집"
-              >✏️</button>
+              ><Pencil size={14} /></button>
               <button
                 onClick={handleDelete}
                 className="text-gray-400 hover:text-red-500 text-sm"
                 title="삭제"
-              >🗑️</button>
+              ><Trash2 size={14} /></button>
             </div>
           </div>
 

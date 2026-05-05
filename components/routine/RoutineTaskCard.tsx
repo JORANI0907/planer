@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Pencil, Trash2 } from 'lucide-react'
 import type { RoutineTask } from '@/lib/types'
 import { WEEKDAY_LABELS, ROUTINE_CATEGORY_CONFIG } from '@/lib/types'
 import { RoutineTaskForm } from './RoutineTaskForm'
@@ -91,7 +92,7 @@ export function RoutineTaskCard({ task, onToggle, onUpdate, onDelete }: RoutineT
               className="text-gray-400 hover:text-gray-600 text-sm"
               title="편집"
             >
-              ✏️
+              <Pencil size={14} />
             </button>
             <button
               onClick={handleDelete}
@@ -99,7 +100,7 @@ export function RoutineTaskCard({ task, onToggle, onUpdate, onDelete }: RoutineT
               className="text-gray-300 hover:text-red-400 text-sm disabled:opacity-40"
               title="삭제"
             >
-              🗑️
+              <Trash2 size={14} />
             </button>
 
             {/* 토글 스위치 */}

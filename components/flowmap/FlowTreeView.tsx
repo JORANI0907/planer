@@ -6,7 +6,7 @@ import { STATUS_CONFIG, getMonthWeeks, getWeekDays, getISOWeekPublic } from '@/l
 import { getPlanItems, createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
 import { useUndo } from '@/lib/undo-stack'
 import { formatPeriodKey } from '@/lib/flowmap-layout'
-import { ChevronDown, ChevronRight, Plus, Loader2, Clipboard, ClipboardPaste, Pencil, Trash2, Check, Link2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Loader2, Clipboard, ClipboardPaste, Pencil, Trash2, Check, Link2, Link } from 'lucide-react'
 import { DashboardItemCard } from './DashboardItemCard'
 import { ConnectionContext, ConnectionDot, useConnection } from './ConnectionContext'
 import { getConnectionsForYear, createConnection, deleteConnectionBetween, isConnected, buildColorMap } from '@/lib/plan-connections'
@@ -358,7 +358,7 @@ export function FlowTreeView({ year, annualItems, itemsByQuarter, searchQuery, f
           boxShadow: '0 8px 24px rgba(59,130,246,0.35)', zIndex: 50,
           animation: 'flowFadeIn 0.15s ease',
         }}>
-          <span>🔗 연결할 항목의 [+ 연결] 버튼을 클릭하세요</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Link size={16} /> 연결할 항목의 [+ 연결] 버튼을 클릭하세요</span>
           <button onClick={() => setConnectingId(null)}
             style={{ padding: '2px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.3)', background: 'transparent', color: '#fff', cursor: 'pointer', fontSize: 10 }}>취소</button>
         </div>
@@ -758,7 +758,7 @@ function DeleteConfirm({ count, deleting, onConfirm, onCancel }: { count: number
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 80, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ backgroundColor: '#fff', borderRadius: 14, padding: '20px 24px', boxShadow: '0 16px 48px rgba(0,0,0,0.2)', maxWidth: 300, width: '100%', textAlign: 'center' }}>
-        <div style={{ fontSize: 28, marginBottom: 10 }}>🗑️</div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}><Trash2 size={28} /></div>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>계획 삭제</div>
         <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 16 }}><strong style={{ color: '#ef4444' }}>{count}개</strong> 계획을 삭제하시겠습니까?</div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>

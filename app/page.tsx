@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { Map, Rocket, Brain, CheckSquare, ShoppingCart, Flag } from 'lucide-react'
 import { getPlanItems } from '@/lib/api'
 import { getPendingCount } from '@/lib/shopping-api'
 import { getCurrentYear, getCurrentQuarter, getCurrentMonth } from '@/lib/types'
@@ -65,7 +66,7 @@ export default function DashboardPage() {
         <p className="text-sm text-gray-400 mb-1">
           {year}년 {month}월 {today.getDate()}일 {dayName}요일 · {quarter}분기
         </p>
-        <h1 className="text-2xl font-bold text-gray-900">오늘 하루도 화이팅! 🚩</h1>
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">오늘 하루도 화이팅! <Flag size={20} /></h1>
         <p className="text-sm text-gray-500 mt-1">푯대를 향해 한 걸음씩 나아가고 있습니다</p>
       </div>
 
@@ -86,13 +87,13 @@ export default function DashboardPage() {
 
       {showTop && (
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <NavCard href="/flowmap" icon="🗺️" title="플로우맵" desc="전체 계획 한눈에" color="#3b82f6" />
-          <NavCard href="/decade" icon="🚀" title="10년 계획" desc="장기 비전 & 목표" color="#8b5cf6" />
-          <NavCard href="/brain" icon="🧠" title="생각 확장 맵" desc="아이디어 연결하기" color="#06b6d4" />
-          <NavCard href="/daily" icon="✅" title="일일 계획" desc="오늘 할 일 관리" color="#22c55e" />
+          <NavCard href="/flowmap" icon={<Map size={20} />} title="플로우맵" desc="전체 계획 한눈에" color="#3b82f6" />
+          <NavCard href="/decade" icon={<Rocket size={20} />} title="10년 계획" desc="장기 비전 & 목표" color="#8b5cf6" />
+          <NavCard href="/brain" icon={<Brain size={20} />} title="생각 확장 맵" desc="아이디어 연결하기" color="#06b6d4" />
+          <NavCard href="/daily" icon={<CheckSquare size={20} />} title="일일 계획" desc="오늘 할 일 관리" color="#22c55e" />
           <NavCard
             href="/shopping"
-            icon="🛒"
+            icon={<ShoppingCart size={20} />}
             title="구입 관리"
             desc={shoppingPending > 0 ? `구입 예정 ${shoppingPending}건` : '필요한 물건 목록'}
             color="#f59e0b"
@@ -173,7 +174,7 @@ function StatButton({ label, pct, done, total, color, isActive, onClick }: {
 // ── 메뉴 카드 ────────────────────────────────────────────────
 
 function NavCard({ href, icon, title, desc, color, badge }: {
-  href: string; icon: string; title: string; desc: string; color: string; badge?: number
+  href: string; icon: React.ReactNode; title: string; desc: string; color: string; badge?: number
 }) {
   return (
     <Link

@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useCallback, useEffect, useState } from 'react'
+import { ClipboardList } from 'lucide-react'
 import type { PlanItem, PlanLevel } from '@/lib/types'
 import { calculateLayout, getColumnX, NODE_WIDTH, NEXT_LEVEL } from '@/lib/flowmap-layout'
 import { FlowNode } from './FlowNode'
@@ -259,7 +260,7 @@ export function FlowMapCanvas({
               pointerEvents: 'none',
             }}
           >
-            <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><ClipboardList size={40} /></div>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>
               연간 계획이 없습니다
             </div>

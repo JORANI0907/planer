@@ -5,7 +5,7 @@ import type { PlanItem, PlanLevel } from '@/lib/types'
 import { getMonthWeeks, getWeekDays } from '@/lib/types'
 import { getPlanItems, updatePlanItem, deletePlanItem } from '@/lib/api'
 import { LEVEL_LABEL, formatPeriodKey } from '@/lib/flowmap-layout'
-import { X, ChevronRight, Plus, Loader2, Pencil } from 'lucide-react'
+import { X, ChevronRight, Plus, Loader2, Pencil, Trash2, ClipboardList } from 'lucide-react'
 import { PlanCard } from './PlanCard'
 import { PlanFormModal } from './PlanFormModal'
 import type { FormTarget } from './PlanFormModal'
@@ -121,7 +121,7 @@ function DeleteConfirm({ count, deleting, onConfirm, onCancel }: DeleteConfirmPr
         boxShadow: '0 16px 48px rgba(0,0,0,0.2)', maxWidth: 320, width: '100%',
         animation: 'ppIn 0.15s ease', textAlign: 'center',
       }}>
-        <div style={{ fontSize: 32, marginBottom: 12 }}>🗑️</div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><Trash2 size={32} /></div>
         <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 6 }}>계획 삭제</div>
         <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 20 }}>
           선택한 <strong style={{ color: '#ef4444' }}>{count}개</strong> 계획을 삭제하시겠습니까?<br />
@@ -491,7 +491,7 @@ export function PlanPopup({ frames, onPush, onPopTo, onClose, onQuarterlyCreated
               )}
               {sections.length === 0 && (
                 <div style={{ textAlign: 'center', color: '#9ca3af', padding: '40px 0' }}>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><ClipboardList size={32} /></div>
                   <div style={{ fontSize: 13 }}>이 기간에 계획이 없습니다</div>
                 </div>
               )}
