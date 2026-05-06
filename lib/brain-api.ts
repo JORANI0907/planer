@@ -229,7 +229,7 @@ export async function createEdge(params: {
 
 export async function updateEdge(
   id: string,
-  updates: Partial<Pick<ThoughtEdge, 'label' | 'relation_type'>>
+  updates: Partial<Pick<ThoughtEdge, 'label' | 'relation_type' | 'source_handle'>>
 ): Promise<ThoughtEdge> {
   const { data, error } = await supabase
     .from('thought_edges').update(updates).eq('id', id).select().single()
