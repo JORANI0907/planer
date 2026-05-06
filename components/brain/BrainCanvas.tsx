@@ -61,6 +61,7 @@ function toRFEdge(e: ThoughtEdge): Edge<ThoughtEdgeData> {
     source: e.source_id,
     target: e.target_id,
     type: 'thought',
+    zIndex: 2,
     data: { label: e.label ?? '', relationType: relType },
   }
 }
@@ -71,6 +72,7 @@ function wingEdge(wingId: string, parentId: string): Edge<ThoughtEdgeData> {
     source: parentId,
     target: wingId,
     type: 'thought',
+    zIndex: 2,
     data: { isWingEdge: true },
   }
 }
@@ -478,6 +480,7 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
           source: dbEdge.source_id,
           target: dbEdge.target_id,
           type: 'thought',
+          zIndex: 2,
           data: { label: '', relationType: '#94a3b8' },
         }, es))
       }
@@ -501,6 +504,7 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
       source: dbEdge.source_id,
       target: dbEdge.target_id,
       type: 'thought',
+      zIndex: 2,
       data: { label: '', relationType: '#94a3b8' },
     }, es))
   }, [])
@@ -543,7 +547,7 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
     if (edgeData.isWingEdge) {
       createEdge({ source_id: edge.source, target_id: edge.target, relation_type: 'wing' }).then(dbEdge => {
         setEdges(es => es.map(ed => ed.id === edge.id
-          ? { ...ed, id: dbEdge.id, data: { relationType: 'wing', label: '' } }
+          ? { ...ed, id: dbEdge.id, zIndex: 2, data: { relationType: 'wing', label: '' } }
           : ed
         ))
         setCtxEdgeLabel('')
@@ -673,7 +677,7 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             connectionMode={ConnectionMode.Loose}
-            defaultEdgeOptions={{ type: 'thought' }}
+            defaultEdgeOptions={{ type: 'thought', zIndex: 2 }}
             fitView
             fitViewOptions={{ padding: 0.3 }}
             minZoom={0.2}
