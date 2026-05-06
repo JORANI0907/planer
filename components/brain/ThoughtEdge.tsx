@@ -23,7 +23,7 @@ const ARROW_OPTIONS: { type: ArrowType; symbol: string; title: string }[] = [
 function ThoughtEdgeInner({
   id, source, target,
   sourceX, sourceY, targetX, targetY,
-  data, selected, markerEnd,
+  data, selected, markerEnd, markerStart,
 }: EdgeProps) {
   const { onEdgeChangeType, onEdgeChangeLabel, onEdgeChangeArrow, onEdgeDelete } = useContext(BrainCtx)
   const edgeData = (data ?? {}) as ThoughtEdgeData
@@ -102,6 +102,7 @@ function ThoughtEdgeInner({
         id={id}
         path={edgePath}
         markerEnd={markerEnd}
+        markerStart={markerStart}
         style={{
           stroke: strokeColor,
           strokeWidth,
