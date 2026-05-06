@@ -7,9 +7,9 @@ import {
   useNodesState, useEdgesState, addEdge,
   BackgroundVariant, type Connection, type Node, type Edge,
   ReactFlowProvider, useReactFlow,
-  ConnectionMode,
+  ConnectionMode, MarkerType,
 } from '@xyflow/react'
-import type { ThoughtNode, ThoughtEdge } from '@/lib/brain-types'
+import type { ThoughtNode, ThoughtEdge, ArrowType } from '@/lib/brain-types'
 import { mapRelationType, EDGE_COLORS, getEdgeColor } from '@/lib/brain-types'
 import {
   getCanvasNodes, getCanvasEdges, createModule, createWing, createGroup,
@@ -54,15 +54,26 @@ function toRFNode(n: ThoughtNode, groupId: string | null, autoFocus = false): No
   }
 }
 
+function buildMarkers(arrowType: ArrowType, color: string) {
+  const marker = { type: MarkerType.ArrowClosed, color, width: 20, height: 20 }
+  return {
+    markerEnd: (arrowType === 'forward' || arrowType === 'both') ? marker : undefined,
+    markerStart: (arrowType === 'backward' || arrowType === 'both') ? marker : undefined,
+  }
+}
+
 function toRFEdge(e: ThoughtEdge): Edge<ThoughtEdgeData> {
   const relType = mapRelationType(e.relation_type)
+  const color = getEdgeColor(relType)
+  const arrowType = (e.source_handle as ArrowType | null) ?? 'none'
   return {
     id: e.id,
     source: e.source_id,
     target: e.target_id,
     type: 'thought',
     zIndex: 2,
-    data: { label: e.label ?? '', relationType: relType },
+    ...buildMarkers(arrowType, color),
+    data: { label: e.label ?? '', relationType: relType, arrowType },
   }
 }
 
@@ -162,6 +173,7 @@ interface CtxMenu {
   isGroup?: boolean
   edgeId?: string
   edgeRelationType?: string
+  edgeArrowType?: ArrowType
   canvasPos?: { x: number; y: number }
 }
 
@@ -336,10 +348,24 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
     },
     onEdgeChangeType: async (edgeId: string, type: string) => {
       const updated = await updateEdge(edgeId, { relation_type: type })
-      setEdges(es => es.map(e => e.id === edgeId
-        ? { ...e, data: { ...e.data, relationType: mapRelationType(updated.relation_type) } }
-        : e
-      ))
+      const newColor = getEdgeColor(mapRelationType(updated.relation_type))
+      setEdges(es => es.map(e => {
+        if (e.id !== edgeId) return e
+        const arrowType = (e.data as ThoughtEdgeData)?.arrowType ?? 'none'
+        return {
+          ...e,
+          ...buildMarkers(arrowType, newColor),
+          data: { ...e.data, relationType: mapRelationType(updated.relation_type) },
+        }
+      }))
+    },
+    onEdgeChangeArrow: async (edgeId: string, arrowType: ArrowType) => {
+      await updateEdge(edgeId, { source_handle: arrowType === 'none' ? null : arrowType })
+      setEdges(es => es.map(e => {
+        if (e.id !== edgeId) return e
+        const color = getEdgeColor((e.data as ThoughtEdgeData)?.relationType ?? '#94a3b8')
+        return { ...e, ...buildMarkers(arrowType, color), data: { ...e.data, arrowType } }
+      }))
     },
     onEdgeChangeLabel: async (edgeId: string, label: string) => {
       const updated = await updateEdge(edgeId, { label })
@@ -561,6 +587,7 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
       x: clientX, y: clientY,
       type: 'edge', edgeId: edge.id,
       edgeRelationType: edgeData.relationType ?? '#94a3b8',
+      edgeArrowType: edgeData.arrowType ?? 'none',
     })
   }, [setEdges])
 
@@ -881,6 +908,46 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
                             transition: 'transform 0.1s',
                           }}
                         />
+                      )
+                    })}
+                  </div>
+                </div>
+                <div style={{ padding: '4px 12px 6px' }}>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginBottom: 5 }}>화살표 방향</div>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {(
+                      [
+                        { type: 'none' as ArrowType, symbol: '—', title: '화살표 없음' },
+                        { type: 'forward' as ArrowType, symbol: '→', title: '일방향 (앞)' },
+                        { type: 'backward' as ArrowType, symbol: '←', title: '일방향 (뒤)' },
+                        { type: 'both' as ArrowType, symbol: '↔', title: '양방향' },
+                      ]
+                    ).map(opt => {
+                      const isActive = (ctxMenu.edgeArrowType ?? 'none') === opt.type
+                      const arrowColor = getEdgeColor(ctxMenu.edgeRelationType ?? '#94a3b8')
+                      return (
+                        <button
+                          key={opt.type}
+                          title={opt.title}
+                          onClick={async () => {
+                            await brainCtxValue.onEdgeChangeArrow(ctxMenu.edgeId!, opt.type)
+                            setCtxMenu(m => m ? { ...m, edgeArrowType: opt.type } : null)
+                          }}
+                          style={{
+                            width: 36, height: 26,
+                            borderRadius: 6,
+                            background: isActive ? arrowColor : '#f1f5f9',
+                            color: isActive ? '#fff' : '#64748b',
+                            border: `1.5px solid ${isActive ? arrowColor : '#e2e8f0'}`,
+                            cursor: 'pointer',
+                            fontSize: 14,
+                            fontWeight: 700,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            padding: 0,
+                          }}
+                        >
+                          {opt.symbol}
+                        </button>
                       )
                     })}
                   </div>
