@@ -2,7 +2,7 @@
 
 import { memo, useContext, useState, useRef, useEffect } from 'react'
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, useInternalNode, Position, type EdgeProps } from '@xyflow/react'
-import { EDGE_COLORS, getEdgeColor } from '@/lib/brain-types'
+import { EDGE_COLORS, getEdgeColor, type ArrowType } from '@/lib/brain-types'
 import { getEdgeParams } from '@/lib/floating-edge-utils'
 import { BrainCtx } from './BrainContext'
 
@@ -10,14 +10,22 @@ export type ThoughtEdgeData = {
   label?: string
   relationType?: string
   isWingEdge?: boolean
+  arrowType?: ArrowType
 }
+
+const ARROW_OPTIONS: { type: ArrowType; symbol: string; title: string }[] = [
+  { type: 'none', symbol: '—', title: '화살표 없음' },
+  { type: 'forward', symbol: '→', title: '일방향 (앞으로)' },
+  { type: 'backward', symbol: '←', title: '일방향 (뒤로)' },
+  { type: 'both', symbol: '↔', title: '양방향' },
+]
 
 function ThoughtEdgeInner({
   id, source, target,
   sourceX, sourceY, targetX, targetY,
   data, selected, markerEnd,
 }: EdgeProps) {
-  const { onEdgeChangeType, onEdgeChangeLabel, onEdgeDelete } = useContext(BrainCtx)
+  const { onEdgeChangeType, onEdgeChangeLabel, onEdgeChangeArrow, onEdgeDelete } = useContext(BrainCtx)
   const edgeData = (data ?? {}) as ThoughtEdgeData
   const isWing = edgeData.isWingEdge
   const relType = edgeData.relationType ?? '#94a3b8'
@@ -148,6 +156,35 @@ function ThoughtEdgeInner({
                         transform: isActive ? 'scale(1.15)' : 'scale(1)',
                       }}
                     />
+                  )
+                })}
+              </div>
+
+              {/* 화살표 방향 */}
+              <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                {ARROW_OPTIONS.map(opt => {
+                  const isActive = (edgeData.arrowType ?? 'none') === opt.type
+                  return (
+                    <button
+                      key={opt.type}
+                      onClick={() => onEdgeChangeArrow(id, opt.type)}
+                      title={opt.title}
+                      style={{
+                        width: 34, height: 26,
+                        borderRadius: 6,
+                        background: isActive ? activeColor : '#f1f5f9',
+                        color: isActive ? '#fff' : '#64748b',
+                        border: `1.5px solid ${isActive ? activeColor : '#e2e8f0'}`,
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all 0.1s',
+                        padding: 0,
+                      }}
+                    >
+                      {opt.symbol}
+                    </button>
                   )
                 })}
               </div>
