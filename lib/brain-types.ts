@@ -1,6 +1,7 @@
 export type ThoughtNodeKind = 'topic' | 'module' | 'wing' | 'group'
 export type ThoughtNodeType = string
 export type EdgeRelationType = string  // hex 색상 또는 'wing'
+export type ArrowType = 'none' | 'forward' | 'backward' | 'both'
 
 export interface ThoughtNode {
   id: string
