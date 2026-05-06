@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext } from 'react'
+import type { ArrowType } from '@/lib/brain-types'
 
 interface BrainContextValue {
   // Node actions
@@ -12,6 +13,7 @@ interface BrainContextValue {
   // Edge actions
   onEdgeChangeType: (edgeId: string, color: string) => void
   onEdgeChangeLabel: (edgeId: string, label: string) => void
+  onEdgeChangeArrow: (edgeId: string, arrowType: ArrowType) => void
   onEdgeDelete: (edgeId: string) => void
   // Group actions
   onGroupResize: (groupId: string, width: number, height: number) => void
@@ -26,6 +28,7 @@ export const BrainCtx = createContext<BrainContextValue>({
   onContextMenu: () => {},
   onEdgeChangeType: () => {},
   onEdgeChangeLabel: () => {},
+  onEdgeChangeArrow: () => {},
   onEdgeDelete: () => {},
   onGroupResize: () => {},
   onRemoveModuleFromGroup: () => {},
