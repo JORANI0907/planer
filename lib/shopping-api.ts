@@ -90,8 +90,8 @@ export async function deleteShoppingSite(id: string): Promise<void> {
 
 // ─── BBK Inventory Low Stock ──────────────────────────────────
 
-export async function getLowStockItems(threshold = 2): Promise<LowStockItem[]> {
-  const { data, error } = await supabase.rpc('get_low_stock_items', { threshold })
+export async function getLowStockItems(): Promise<LowStockItem[]> {
+  const { data, error } = await supabase.rpc('get_low_stock_items')
   if (error) throw error
   return (data ?? []) as LowStockItem[]
 }

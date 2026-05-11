@@ -33,7 +33,7 @@ export function LowStockSection() {
   const [filter, setFilter] = useState<CategoryKey>('all')
 
   useEffect(() => {
-    getLowStockItems(2)
+    getLowStockItems()
       .then(setItems)
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -86,7 +86,7 @@ export function LowStockSection() {
               </span>
             )}
           </div>
-          <p className="text-[11px] text-amber-700 mt-0.5">재고 2개 이하 품목 (BBK 재고관리 연동)</p>
+          <p className="text-[11px] text-amber-700 mt-0.5">품목별 알림 기준 수량 미만 (BBK 재고관리 연동)</p>
         </div>
       </button>
 
