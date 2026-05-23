@@ -8,9 +8,9 @@ const TAB_OPTIONS = [
   { path: '/profile', label: '인적사항' },
   { path: '/decade', label: '10년 계획' },
   { path: '/flowmap', label: '플로우맵' },
-  { path: '/brain', label: '생각 확장 맵' },
-  { path: '/daily', label: '일일계획' },
-  { path: '/shopping', label: '구입 관리' },
+  { path: '/brain', label: '생각확장' },
+  { path: '/routine', label: '필수과업' },
+  { path: '/shopping', label: '구입관리' },
 ]
 
 function withEmbed(path: string): string {

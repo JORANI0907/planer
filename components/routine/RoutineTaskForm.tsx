@@ -11,6 +11,7 @@ interface FormData {
   weekly_days: number[]
   monthly_dates: number[]
   color: string
+  end_date: string
 }
 
 interface RoutineTaskFormProps {
@@ -29,7 +30,18 @@ const COLOR_OPTIONS = [
   { value: '#10b981', label: '초록' },
 ]
 
-const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0] // 월~토,일
+const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
+
+function todayStr(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function formatDateKo(dateStr: string): string {
+  if (!dateStr) return ''
+  const [y, m, d] = dateStr.split('-')
+  return `${y}년 ${parseInt(m)}월 ${parseInt(d)}일`
+}
 
 export function RoutineTaskForm({ open, onOpenChange, initialData, onSubmit, submitLabel = '저장' }: RoutineTaskFormProps) {
   const [title, setTitle] = useState(initialData?.title ?? '')
@@ -38,6 +50,7 @@ export function RoutineTaskForm({ open, onOpenChange, initialData, onSubmit, sub
   const [weeklyDays, setWeeklyDays] = useState<number[]>(initialData?.weekly_days ?? [])
   const [monthlyDates, setMonthlyDates] = useState<number[]>(initialData?.monthly_dates ?? [])
   const [color, setColor] = useState(initialData?.color ?? '#f97316')
+  const [endDate, setEndDate] = useState(initialData?.end_date ?? '')
   const [submitting, setSubmitting] = useState(false)
 
   const toggleWeekday = (day: number) => {
@@ -53,13 +66,18 @@ export function RoutineTaskForm({ open, onOpenChange, initialData, onSubmit, sub
   }
 
   const handleSubmit = async () => {
-    if (!title.trim()) return
-    if (scheduleType === 'weekly' && weeklyDays.length === 0) return
-    if (scheduleType === 'monthly' && monthlyDates.length === 0) return
-
+    if (!isValid) return
     setSubmitting(true)
     try {
-      await onSubmit({ title: title.trim(), category, schedule_type: scheduleType, weekly_days: weeklyDays, monthly_dates: monthlyDates, color })
+      await onSubmit({
+        title: title.trim(),
+        category,
+        schedule_type: scheduleType,
+        weekly_days: weeklyDays,
+        monthly_dates: monthlyDates,
+        color,
+        end_date: endDate,
+      })
       onOpenChange(false)
     } finally {
       setSubmitting(false)
@@ -68,11 +86,28 @@ export function RoutineTaskForm({ open, onOpenChange, initialData, onSubmit, sub
 
   const isValid =
     title.trim().length > 0 &&
+    endDate.length > 0 &&
     (scheduleType === 'weekly' ? weeklyDays.length > 0 : monthlyDates.length > 0)
+
+  // 미리보기 문구 생성
+  function buildPreview(): string {
+    if (!endDate) return ''
+    const days = scheduleType === 'weekly'
+      ? weeklyDays.length > 0
+        ? `매주 ${[...weeklyDays].sort((a, b) => WEEKDAY_ORDER.indexOf(a) - WEEKDAY_ORDER.indexOf(b)).map(d => WEEKDAY_LABELS[d]).join('·')}요일`
+        : ''
+      : monthlyDates.length > 0
+        ? `매월 ${[...monthlyDates].sort((a, b) => a - b).join(', ')}일`
+        : ''
+    if (!days) return ''
+    return `${days} · ${formatDateKo(todayStr())} ~ ${formatDateKo(endDate)}까지 반복`
+  }
+
+  const preview = buildPreview()
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{submitLabel === '저장' ? '필수과업 추가' : '필수과업 수정'}</DialogTitle>
         </DialogHeader>
@@ -91,7 +126,7 @@ export function RoutineTaskForm({ open, onOpenChange, initialData, onSubmit, sub
             />
           </div>
 
-          {/* 카테고리 선택 */}
+          {/* 카테고리 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">카테고리</label>
             <div className="flex gap-2">
@@ -113,7 +148,7 @@ export function RoutineTaskForm({ open, onOpenChange, initialData, onSubmit, sub
             </div>
           </div>
 
-          {/* 주기 선택 */}
+          {/* 반복 주기 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">반복 주기</label>
             <div className="flex gap-2">
@@ -184,7 +219,30 @@ export function RoutineTaskForm({ open, onOpenChange, initialData, onSubmit, sub
             </div>
           )}
 
-          {/* 색상 선택 */}
+          {/* 반복 종료일 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              반복 종료일 <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              value={endDate}
+              min={todayStr()}
+              onChange={e => setEndDate(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+            />
+            <p className="text-xs text-gray-400 mt-1">이 날까지 설정한 요일/날짜에 자동으로 일정이 생성됩니다</p>
+          </div>
+
+          {/* 미리보기 */}
+          {preview && (
+            <div className="bg-orange-50 border border-orange-100 rounded-xl px-4 py-3">
+              <p className="text-xs font-semibold text-orange-700 mb-1">미리보기</p>
+              <p className="text-sm text-orange-800">{preview}</p>
+            </div>
+          )}
+
+          {/* 색상 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">구분 색상</label>
             <div className="flex gap-2">

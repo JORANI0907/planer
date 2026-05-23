@@ -47,31 +47,36 @@ export async function updateRoutineTask(
 }
 
 export async function deleteRoutineTask(id: string): Promise<void> {
-  // 미래 미완료 일정 먼저 삭제
   await deleteFutureSchedules(id)
   const { error } = await supabase.from('routine_tasks').delete().eq('id', id)
   if (error) throw error
 }
 
-/** 오늘부터 2주치(14일) 일정 생성 — 중복 skip */
+/**
+ * 오늘부터 end_date까지 반복 일정 생성 — 중복 skip
+ * end_date가 없거나 오늘 이전이면 생성하지 않음
+ */
 export async function generateRoutineSchedule(
   task: RoutineTask
 ): Promise<{ inserted: number; skipped: number }> {
-  const today = new Date()
-  const targetDates: string[] = []
+  if (!task.end_date) return { inserted: 0, skipped: 0 }
 
-  for (let i = 0; i <= 14; i++) {
-    const d = new Date(today)
-    d.setDate(today.getDate() + i)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const endDate = new Date(task.end_date)
+  endDate.setHours(0, 0, 0, 0)
+
+  if (endDate < today) return { inserted: 0, skipped: 0 }
+
+  const targetDates: string[] = []
+  for (let d = new Date(today); d <= endDate; d.setDate(d.getDate() + 1)) {
     const dayOfWeek = d.getDay()
     const dayOfMonth = d.getDate()
-
     const matches =
       task.schedule_type === 'weekly'
-        ? task.weekly_days.includes(dayOfWeek)
-        : task.monthly_dates.includes(dayOfMonth)
-
-    if (matches) targetDates.push(dateKey(d))
+        ? (task.weekly_days ?? []).includes(dayOfWeek)
+        : (task.monthly_dates ?? []).includes(dayOfMonth)
+    if (matches) targetDates.push(dateKey(new Date(d)))
   }
 
   if (targetDates.length === 0) return { inserted: 0, skipped: 0 }
@@ -106,36 +111,41 @@ export async function generateRoutineSchedule(
   return { inserted: newDates.length, skipped: existingSet.size }
 }
 
-/** 활성화된 모든 routine_tasks에 대해 2주치 일정 생성 */
-export async function generateAllActiveRoutineSchedules(): Promise<{
-  taskId: string
-  title: string
-  inserted: number
-  skipped: number
-}[]> {
-  const tasks = await getRoutineTasks()
-  const activeTasks = tasks.filter(t => t.is_active)
-  const results = []
-  for (const task of activeTasks) {
-    const { inserted, skipped } = await generateRoutineSchedule(task)
-    results.push({ taskId: task.id, title: task.title, inserted, skipped })
-  }
-  return results
-}
-
-/** off 전환 시: 오늘 이후 미완료 일정 삭제 */
+/**
+ * 오늘 이후 미완료 일정 삭제 (과거 + 완료된 항목은 보존)
+ */
 async function deleteFutureSchedules(taskId: string): Promise<void> {
   const today = todayKey()
   const { error } = await supabase
     .from('plan_items')
     .delete()
     .eq('routine_task_id', taskId)
-    .gt('period_key', today)
+    .gte('period_key', today)
     .neq('status', 'completed')
   if (error) throw error
 }
 
-/** 토글: on이면 2주치 생성, off이면 미래 미완료 삭제 */
+/**
+ * 과업 수정 + 미래 일정 자동 재반영
+ * - 오늘 이후 미완료 일정 삭제 → 새 설정으로 재생성
+ * - 과거 이력은 보존
+ */
+export async function updateRoutineTaskAndApplyToFuture(
+  id: string,
+  updates: Partial<Omit<RoutineTask, 'id' | 'created_at' | 'updated_at'>>
+): Promise<RoutineTask> {
+  await deleteFutureSchedules(id)
+  const updated = await updateRoutineTask(id, updates)
+  if (updated.is_active) {
+    await generateRoutineSchedule(updated)
+  }
+  return updated
+}
+
+/**
+ * 켜기: end_date까지 전체 일정 생성
+ * 끄기: 오늘 이후 미완료 일정 삭제
+ */
 export async function toggleRoutineTask(
   id: string,
   isActive: boolean
@@ -150,7 +160,7 @@ export async function toggleRoutineTask(
   return updated
 }
 
-/** 필수과업으로 생성된 daily 항목인지 확인용 (plan_items에서 사용) */
+/** 필수과업으로 생성된 daily 항목인지 확인 */
 export function isRoutineItem(item: PlanItem): boolean {
   return !!item.routine_task_id
 }

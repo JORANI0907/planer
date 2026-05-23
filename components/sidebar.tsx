@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Home, User, Rocket, Map, Brain, RefreshCw,
-  ShoppingCart, LayoutGrid, Flag, MoreHorizontal, X, Settings, Check,
+  ShoppingCart, LayoutGrid, MoreHorizontal, X, Settings, Check,
 } from 'lucide-react'
 
 const ALL_NAV_ITEMS: { href: string; label: string; icon: React.ReactNode }[] = [
@@ -53,9 +53,10 @@ export function Sidebar() {
 
   return (
     <aside className="hidden md:flex fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 flex-col shadow-sm z-10">
-      <div className="p-6 border-b border-gray-100">
-        <div className="flex items-center gap-2">
-          <Flag size={20} />
+      <div className="p-5 border-b border-gray-100">
+        <div className="flex items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.svg" alt="JDH" className="w-11 h-11 rounded-2xl flex-shrink-0" />
           <div>
             <h1 className="font-bold text-gray-900 text-sm leading-tight">인생 플래너</h1>
             <p className="text-xs text-gray-500 mt-0.5">푯대를 향해 나아가는 자</p>

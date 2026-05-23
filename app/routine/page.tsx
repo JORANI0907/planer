@@ -5,7 +5,7 @@ import { RefreshCw } from 'lucide-react'
 import {
   getRoutineTasks,
   createRoutineTask,
-  updateRoutineTask,
+  updateRoutineTaskAndApplyToFuture,
   deleteRoutineTask,
   toggleRoutineTask,
 } from '@/lib/routine-api'
@@ -17,7 +17,6 @@ import { RoutineTaskForm } from '@/components/routine/RoutineTaskForm'
 type CategoryTab = '전체' | RoutineCategory
 type ScheduleFilter = 'all' | 'weekly' | 'monthly'
 
-// 주간 정렬: 월(1)~토(6)~일(0) 순서
 const WEEKDAY_SORT_ORDER = [1, 2, 3, 4, 5, 6, 0]
 
 function getSortKey(task: RoutineTask): number {
@@ -28,7 +27,6 @@ function getSortKey(task: RoutineTask): number {
     }, 99)
     return min
   }
-  // monthly: 가장 이른 날짜
   return Math.min(...task.monthly_dates)
 }
 
@@ -64,9 +62,11 @@ export default function RoutinePage() {
     weekly_days: number[]
     monthly_dates: number[]
     color: string
+    end_date: string
   }) => {
     const task = await createRoutineTask({
       ...data,
+      end_date: data.end_date || null,
       is_active: false,
       sort_order: tasks.length,
     })
@@ -80,8 +80,12 @@ export default function RoutinePage() {
     weekly_days: number[]
     monthly_dates: number[]
     color: string
+    end_date: string
   }) => {
-    const updated = await updateRoutineTask(id, data)
+    const updated = await updateRoutineTaskAndApplyToFuture(id, {
+      ...data,
+      end_date: data.end_date || null,
+    })
     setTasks(prev => prev.map(t => t.id === id ? updated : t))
   }
 
@@ -95,32 +99,18 @@ export default function RoutinePage() {
     setTasks(prev => prev.filter(t => t.id !== id))
   }
 
-  // 필터링 + 정렬
   const filteredTasks = useMemo(() => {
     let list = tasks
-
-    // 카테고리 필터
-    if (categoryTab !== '전체') {
-      list = list.filter(t => t.category === categoryTab)
-    }
-
-    // 주기 필터
-    if (scheduleFilter !== 'all') {
-      list = list.filter(t => t.schedule_type === scheduleFilter)
-    }
-
-    // 주기 필터 적용 시 정렬 (월~일, 1~31일 순)
+    if (categoryTab !== '전체') list = list.filter(t => t.category === categoryTab)
+    if (scheduleFilter !== 'all') list = list.filter(t => t.schedule_type === scheduleFilter)
     if (scheduleFilter !== 'all') {
       list = [...list].sort((a, b) => getSortKey(a) - getSortKey(b))
     }
-
     return list
   }, [tasks, categoryTab, scheduleFilter])
 
   const activeCount = tasks.filter(t => t.is_active).length
   const filteredActiveCount = filteredTasks.filter(t => t.is_active).length
-
-  // 활성/비활성 분리
   const activeTasks = filteredTasks.filter(t => t.is_active)
   const inactiveTasks = filteredTasks.filter(t => !t.is_active)
 
@@ -131,7 +121,7 @@ export default function RoutinePage() {
         <div className="flex items-center justify-between mb-3">
           <div>
             <h1 className="text-xl font-bold text-gray-900">필수과업</h1>
-            <p className="text-sm text-gray-500 mt-0.5">켜면 오늘부터 2주치 일정에 자동 생성됩니다</p>
+            <p className="text-sm text-gray-500 mt-0.5">종료일까지 설정한 요일/날짜에 자동으로 일정이 생성됩니다</p>
           </div>
           <button
             onClick={() => setAddOpen(true)}
@@ -146,7 +136,7 @@ export default function RoutinePage() {
           <div className="bg-orange-50 border border-orange-100 rounded-xl px-4 py-2.5 flex items-center gap-2 mb-3">
             <span className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0 animate-pulse" />
             <p className="text-sm text-orange-700 font-medium">
-              {activeCount}개 과업이 활성화되어 2주치 일정을 자동 생성 중
+              {activeCount}개 과업이 활성화되어 종료일까지 일정을 자동 생성 중
             </p>
           </div>
         )}
@@ -186,11 +176,6 @@ export default function RoutinePage() {
               }`}
             >
               {f.label}
-              {f.value !== 'all' && scheduleFilter === f.value && (
-                <span className="ml-1 opacity-70">
-                  {f.value === 'weekly' ? '↑ 월~일' : '↑ 1~31일'}
-                </span>
-              )}
             </button>
           ))}
         </div>
@@ -205,7 +190,7 @@ export default function RoutinePage() {
           {tasks.length === 0 ? (
             <>
               <p className="text-gray-600 font-medium">등록된 필수과업이 없습니다</p>
-              <p className="text-sm text-gray-400 mt-1 mb-4">매일 반복할 업무를 등록해보세요</p>
+              <p className="text-sm text-gray-400 mt-1 mb-4">반복할 업무와 종료일을 설정해보세요</p>
               <button
                 onClick={() => setAddOpen(true)}
                 className="bg-orange-500 text-white rounded-xl px-5 py-2 text-sm font-medium hover:bg-orange-600 transition-colors"
@@ -219,12 +204,9 @@ export default function RoutinePage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {/* 활성 과업 */}
           {activeTasks.length > 0 && (
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-gray-400 px-1">
-                활성화됨 ({filteredActiveCount})
-              </p>
+              <p className="text-xs font-semibold text-gray-400 px-1">활성화됨 ({filteredActiveCount})</p>
               {activeTasks.map(task => (
                 <RoutineTaskCard
                   key={task.id}
@@ -236,8 +218,6 @@ export default function RoutinePage() {
               ))}
             </div>
           )}
-
-          {/* 비활성 과업 */}
           {inactiveTasks.length > 0 && (
             <div className="space-y-2">
               {activeTasks.length > 0 && (
@@ -257,28 +237,39 @@ export default function RoutinePage() {
         </div>
       )}
 
-      {/* 안내 카드 */}
+      {/* 사용 방법 안내 */}
       {tasks.length > 0 && (
         <div className="mt-6 bg-gray-50 rounded-2xl p-4 border border-gray-100">
           <p className="text-xs font-semibold text-gray-600 mb-2">사용 방법</p>
-          <ul className="space-y-1.5 text-xs text-gray-500">
+          <ul className="space-y-2 text-xs text-gray-500">
             <li className="flex items-start gap-1.5">
-              <span className="text-orange-500 font-bold flex-shrink-0">켜기</span>
-              오늘부터 14일 앞까지 해당 요일/날짜에 일정이 자동 생성됩니다
+              <span className="text-orange-500 font-bold flex-shrink-0 mt-0.5">생성</span>
+              <span>과업 이름, 반복 요일/날짜, <strong>종료일</strong>을 설정 후 저장합니다</span>
             </li>
             <li className="flex items-start gap-1.5">
-              <span className="text-gray-400 font-bold flex-shrink-0">끄기</span>
-              오늘 이후 미완료 일정이 삭제되고, 과거·완료 일정은 유지됩니다
+              <span className="text-orange-500 font-bold flex-shrink-0 mt-0.5">켜기</span>
+              <span>스위치를 켜면 오늘부터 종료일까지 해당 요일/날짜에 일정이 한꺼번에 생성됩니다</span>
             </li>
             <li className="flex items-start gap-1.5">
-              <span className="text-blue-500 font-bold flex-shrink-0">일정</span>
-              일일 계획 탭에서 주황색 테두리로 필수과업을 확인할 수 있습니다
+              <span className="text-gray-400 font-bold flex-shrink-0 mt-0.5">끄기</span>
+              <span>오늘 이후 미완료 일정이 삭제됩니다. 과거 기록과 완료된 일정은 보존됩니다</span>
+            </li>
+            <li className="flex items-start gap-1.5">
+              <span className="text-blue-500 font-bold flex-shrink-0 mt-0.5">수정</span>
+              <span>제목·주기·종료일을 수정하면 오늘 이후 미완료 일정이 새 설정으로 자동 반영됩니다. 과거 이력은 그대로 유지됩니다</span>
+            </li>
+            <li className="flex items-start gap-1.5">
+              <span className="text-red-400 font-bold flex-shrink-0 mt-0.5">삭제</span>
+              <span>오늘 이후 미완료 일정만 삭제됩니다. 과거 완료 이력은 보존됩니다</span>
+            </li>
+            <li className="flex items-start gap-1.5">
+              <span className="text-green-500 font-bold flex-shrink-0 mt-0.5">확인</span>
+              <span>일일 계획 탭에서 주황색 테두리로 필수과업 일정을 확인할 수 있습니다</span>
             </li>
           </ul>
         </div>
       )}
 
-      {/* 추가 폼 */}
       <RoutineTaskForm
         open={addOpen}
         onOpenChange={setAddOpen}

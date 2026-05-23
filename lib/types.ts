@@ -96,6 +96,7 @@ export interface RoutineTask {
   weekly_days: number[]
   monthly_dates: number[]
   color: string
+  end_date: string | null
   sort_order: number
   created_at: string
   updated_at: string

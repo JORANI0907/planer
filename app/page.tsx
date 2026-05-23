@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Map, Rocket, Brain, CheckSquare, ShoppingCart, Flag } from 'lucide-react'
+import { Map, Rocket, Brain, CheckSquare, ShoppingCart, Flag, Calendar } from 'lucide-react'
 import { getPlanItems } from '@/lib/api'
 import { getPendingCount } from '@/lib/shopping-api'
 import { getCurrentYear, getCurrentQuarter, getCurrentMonth } from '@/lib/types'
 import DailyPage from './daily/page'
 import { PeriodPlanSection } from '@/components/PeriodPlanSection'
+import { DashboardCalendar } from '@/components/DashboardCalendar'
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -31,6 +32,7 @@ export default function DashboardPage() {
   const [shoppingPending, setShoppingPending] = useState(0)
   const [showTop, setShowTop] = useState(false)
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('daily')
+  const [showCalendar, setShowCalendar] = useState(false)
 
   useEffect(() => {
     const aKey = `${year}`
@@ -66,7 +68,21 @@ export default function DashboardPage() {
         <p className="text-sm text-gray-400 mb-1">
           {year}년 {month}월 {today.getDate()}일 {dayName}요일 · {quarter}분기
         </p>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">오늘 하루도 화이팅! <Flag size={20} /></h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">오늘 하루도 화이팅! <Flag size={20} /></h1>
+          <button
+            onClick={() => setShowCalendar(v => !v)}
+            title="캘린더 보기"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
+              showCalendar
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            <Calendar size={15} />
+            <span>캘린더</span>
+          </button>
+        </div>
         <p className="text-sm text-gray-500 mt-1">푯대를 향해 한 걸음씩 나아가고 있습니다</p>
       </div>
 
@@ -126,19 +142,28 @@ export default function DashboardPage() {
         />
       </div>
 
+      {/* 캘린더 뷰 */}
+      {showCalendar && (
+        <div className="mb-4">
+          <DashboardCalendar />
+        </div>
+      )}
+
       {/* 기간별 계획 섹션 */}
-      <div className="mt-2">
-        {selectedPeriod === 'daily' && <DailyPage />}
-        {selectedPeriod === 'annual' && (
-          <PeriodPlanSection period="annual" initYear={year} initQuarter={quarter} initMonth={month} />
-        )}
-        {selectedPeriod === 'quarterly' && (
-          <PeriodPlanSection period="quarterly" initYear={year} initQuarter={quarter} initMonth={month} />
-        )}
-        {selectedPeriod === 'monthly' && (
-          <PeriodPlanSection period="monthly" initYear={year} initQuarter={quarter} initMonth={month} />
-        )}
-      </div>
+      {!showCalendar && (
+        <div className="mt-2">
+          {selectedPeriod === 'daily' && <DailyPage />}
+          {selectedPeriod === 'annual' && (
+            <PeriodPlanSection period="annual" initYear={year} initQuarter={quarter} initMonth={month} />
+          )}
+          {selectedPeriod === 'quarterly' && (
+            <PeriodPlanSection period="quarterly" initYear={year} initQuarter={quarter} initMonth={month} />
+          )}
+          {selectedPeriod === 'monthly' && (
+            <PeriodPlanSection period="monthly" initYear={year} initQuarter={quarter} initMonth={month} />
+          )}
+        </div>
+      )}
     </div>
   )
 }
