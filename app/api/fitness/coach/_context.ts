@@ -7,25 +7,22 @@ const supabase = createClient(
 
 type SetRow = { exercise_name: string; weight_kg: number; reps: number; created_at: string }
 type SessionRow = { date: string; split_name: string | null; is_completed: boolean; duration_min: number | null }
-type DietRow = { date: string; calories: number; protein_g: number; carbs_g: number; fat_g: number; water_l: number; memo?: string }
+type DietRow = { calories: number; protein_g: number; carbs_g: number; fat_g: number; water_l: number; memo?: string }
 type ProgramRow = { name: string; description?: string }
 type ProfileRow = { weight_kg: number | null; height_cm: number | null; age: number | null; goal: string; weekly_days: number; experience_level: string; notes: string | null }
 
 export async function buildContext(): Promise<string> {
-  const today = new Date().toISOString().split('T')[0]
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]
 
   const [
     { data: sessions },
-    { data: todayDiet },
-    { data: recentDiet },
+    { data: dietPlan },
     { data: activeProgram },
     { data: recentSets },
     { data: profile },
   ] = await Promise.all([
     supabase.from('fitness_sessions').select('date,split_name,duration_min,is_completed').gte('date', weekAgo).order('date', { ascending: false }).limit(10),
-    supabase.from('fitness_diet').select('*').eq('date', today).maybeSingle(),
-    supabase.from('fitness_diet').select('*').order('date', { ascending: false }).limit(7),
+    supabase.from('fitness_diet_plan').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('fitness_programs').select('name,description').eq('is_active', true).maybeSingle(),
     supabase.from('fitness_sets').select('exercise_name,weight_kg,reps,created_at').order('created_at', { ascending: false }).limit(100),
     supabase.from('fitness_profile').select('weight_kg,height_cm,age,goal,weekly_days,experience_level,notes').limit(1).maybeSingle(),
@@ -91,20 +88,14 @@ export async function buildContext(): Promise<string> {
     lines.push('- 데이터 없음')
   }
 
-  lines.push('', '=== 오늘 식단 ===')
-  if (todayDiet) {
-    const d = todayDiet as DietRow
+  lines.push('', '=== 현재 식단 플랜 ===')
+  if (dietPlan) {
+    const d = dietPlan as DietRow
     lines.push(`칼로리: ${d.calories}kcal | 단백질: ${d.protein_g}g | 탄수화물: ${d.carbs_g}g | 지방: ${d.fat_g}g | 수분: ${d.water_l}L`)
     if (d.memo) lines.push(`메모: ${d.memo}`)
   } else {
-    lines.push('- 기록 없음')
+    lines.push('- 아직 식단 플랜 없음')
   }
-
-  lines.push('', '=== 최근 7일 식단 ===')
-  for (const d of (recentDiet ?? []) as DietRow[]) {
-    lines.push(`- ${d.date}: ${d.calories}kcal | 단백질 ${d.protein_g}g`)
-  }
-  if (!recentDiet?.length) lines.push('- 데이터 없음')
 
   return lines.join('\n')
 }
