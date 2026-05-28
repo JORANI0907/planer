@@ -124,8 +124,15 @@ export interface FitnessProfile {
   updated_at: string
 }
 
+export interface FitnessChatSession {
+  id: string
+  title: string
+  created_at: string
+}
+
 export interface FitnessCoachMessage {
   id: string
+  session_id: string | null
   role: 'user' | 'assistant'
   content: string
   created_at: string
