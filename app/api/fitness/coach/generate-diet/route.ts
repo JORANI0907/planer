@@ -12,21 +12,26 @@ export type GeneratedDiet = {
   carbs_g: number
   fat_g: number
   water_l: number
+  breakfast: string
+  lunch: string
+  dinner: string
+  snack: string
   memo: string
   coaching_note: string
 }
 
-const SYSTEM = `당신은 스포츠 영양 전문가입니다. 사용자의 운동 강도와 목표, 그리고 대화에서 수집한 요구사항을 모두 반영해 하루 식단 매크로를 계산합니다.
+const SYSTEM = `당신은 스포츠 영양 전문가입니다. 사용자의 프로필(몸무게·키·나이·목표·운동량)과 운동 기록을 분석해 영구적으로 사용할 수 있는 기본 일일 식단 플랜을 설계합니다.
 
 계산 원칙:
-- 사용자가 대화에서 언급한 목표(벌크/린벌크/컷팅/유지), 식이 제한 등 최우선 반영
-- 단백질: 체중 × 1.8~2.2g (근비대 필수)
+- 단백질: 체중 × 1.8~2.2g (근비대/린벌크), 컷팅 시 × 2.2~2.5g
 - 탄수화물: 총 칼로리의 40~50%
 - 지방: 총 칼로리의 20~30%
-- 칼로리: 목표에 따라 유지 ±200~500kcal
-- 수분: 최소 2L (운동일 2.5L 이상)
-- memo: 아침/점심/저녁/간식 식단 제안 (간결하게)
-- coaching_note: 한국어 2-3문장, 사용자 요구사항 반영 내용 포함`
+- 칼로리: 린벌크 +200~300kcal, 근비대 +300~400kcal, 컷팅 -400~500kcal, 유지 TDEE
+- 수분: 기본 2.5L (운동 주 4회 이상 3L)
+
+각 식사(breakfast/lunch/dinner/snack)는 구체적인 음식명과 g 단위 분량을 포함해 실용적으로 작성하세요.
+memo는 이 식단을 선택한 근거 (사용자 데이터 기반 1~2문장).
+coaching_note는 사용자에게 전달할 동기부여 메시지 (한국어 1~2문장).`
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,7 +40,7 @@ export async function POST(req: NextRequest) {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
     const conversationContext = body.conversation?.length
-      ? '\n\n[사용자 요구사항 대화]\n' + body.conversation
+      ? '\n\n[추가 요청사항]\n' + body.conversation
           .filter(m => m.content.trim())
           .map(m => `${m.role === 'user' ? '사용자' : '코치'}: ${m.content}`)
           .join('\n')
@@ -43,24 +48,28 @@ export async function POST(req: NextRequest) {
 
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
+      max_tokens: 1500,
       system: `${SYSTEM}\n\n[사용자 데이터]\n${context}${conversationContext}`,
-      messages: [{ role: 'user', content: '위의 사용자 데이터와 대화 내용을 바탕으로 오늘의 식단 목표를 계산해줘.' }],
+      messages: [{ role: 'user', content: '위 데이터를 바탕으로 나에게 맞는 영구 기본 식단 플랜을 설계해줘. 아침/점심/저녁/간식 각각 구체적인 식품명과 양으로 작성해줘.' }],
       tools: [{
         name: 'save_diet_plan',
-        description: '하루 식단 목표 매크로 저장',
+        description: '영구 기본 식단 플랜 저장',
         input_schema: {
           type: 'object' as const,
           properties: {
-            calories: { type: 'number', description: '총 칼로리 (kcal)' },
-            protein_g: { type: 'number', description: '단백질 (g)' },
-            carbs_g: { type: 'number', description: '탄수화물 (g)' },
-            fat_g: { type: 'number', description: '지방 (g)' },
-            water_l: { type: 'number', description: '수분 (L)' },
-            memo: { type: 'string', description: '아침/점심/저녁 식단 제안 (간결하게)' },
-            coaching_note: { type: 'string', description: '코칭 설명 (한국어 2-3문장)' },
+            calories:       { type: 'number', description: '총 칼로리 (kcal)' },
+            protein_g:      { type: 'number', description: '단백질 (g)' },
+            carbs_g:        { type: 'number', description: '탄수화물 (g)' },
+            fat_g:          { type: 'number', description: '지방 (g)' },
+            water_l:        { type: 'number', description: '수분 (L)' },
+            breakfast:      { type: 'string', description: '아침 식단 — 구체적 식품명 + 분량' },
+            lunch:          { type: 'string', description: '점심 식단 — 구체적 식품명 + 분량' },
+            dinner:         { type: 'string', description: '저녁 식단 — 구체적 식품명 + 분량' },
+            snack:          { type: 'string', description: '간식 — 구체적 식품명 + 분량' },
+            memo:           { type: 'string', description: '이 식단을 선택한 데이터 기반 근거 (1~2문장)' },
+            coaching_note:  { type: 'string', description: '동기부여 메시지 (한국어 1~2문장)' },
           },
-          required: ['calories', 'protein_g', 'carbs_g', 'fat_g', 'water_l', 'memo', 'coaching_note'],
+          required: ['calories', 'protein_g', 'carbs_g', 'fat_g', 'water_l', 'breakfast', 'lunch', 'dinner', 'snack', 'memo', 'coaching_note'],
         },
       }],
       tool_choice: { type: 'tool', name: 'save_diet_plan' },
