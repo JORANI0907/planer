@@ -1,18 +1,58 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Loader2, Bot, User, Sparkles } from 'lucide-react'
+import { Send, Loader2, Bot, User, Sparkles, CheckCircle, Save, Dumbbell, Utensils } from 'lucide-react'
+import type { ExerciseMuscleGroup } from '@/lib/fitness-types'
+import {
+  getExercises, createProgram, createSplit, addExerciseToSplit,
+  createExercise, upsertDiet,
+} from '@/lib/fitness-api'
 
-type Message = { role: 'user' | 'assistant'; content: string }
+// ─── Types ───────────────────────────────────────────────────
 
-const QUICK_ACTIONS = [
-  { label: '오늘 운동 분석', prompt: '오늘 내가 한 운동 세션을 분석해주고, 잘한 점과 개선할 점을 알려줘.' },
-  { label: '식단 점검', prompt: '오늘 식단을 근비대 목표 기준으로 분석해줘. 부족한 영양소와 개선 방법도 알려줘.' },
-  { label: '이번 주 컨설팅', prompt: '이번 주 전체 운동과 식단을 종합 분석해서 주간 피드백을 해줘. 다음 주 전략도 제안해줘.' },
-  { label: '운동 프로그램 짜줘', prompt: '내 현재 1RM 데이터와 프로그램을 바탕으로 다음 4주 운동 프로그램을 짜줘. 세트/렙/중량 포함해서.' },
-  { label: '식단 플랜 짜줘', prompt: '근비대 목표에 맞는 하루 식단 플랜을 짜줘. 아침/점심/저녁/간식으로 나눠서 매크로 수치 포함해줘.' },
-  { label: '점진적 과부하 전략', prompt: '내 현재 컴파운드 리프트 1RM을 기반으로 향후 8주 점진적 과부하 전략을 세워줘.' },
-]
+type GeneratedProgram = {
+  name: string
+  description: string
+  splits: Array<{ name: string; exercises: string[] }>
+  coaching_note: string
+}
+
+type GeneratedDiet = {
+  calories: number
+  protein_g: number
+  carbs_g: number
+  fat_g: number
+  water_l: number
+  memo: string
+  coaching_note: string
+}
+
+type MessageAction =
+  | { type: 'program'; data: GeneratedProgram }
+  | { type: 'diet'; data: GeneratedDiet }
+
+type Message = {
+  role: 'user' | 'assistant'
+  content: string
+  action?: MessageAction
+}
+
+// ─── Helpers ─────────────────────────────────────────────────
+
+function inferMuscleGroup(name: string): ExerciseMuscleGroup {
+  if (/벤치|체스트|가슴|플라이|체스트/.test(name)) return '가슴'
+  if (/데드|로우|풀업|랫|등/.test(name)) return '등'
+  if (/오버헤드|숄더|어깨|레터럴|프론트/.test(name)) return '어깨'
+  if (/스쿼트|레그|하체|런지|힙|글루트/.test(name)) return '하체'
+  if (/트라이셉|삼두/.test(name)) return '삼두'
+  if (/바이셉|이두|컬/.test(name)) return '이두'
+  if (/크런치|플랭크|복근/.test(name)) return '복근'
+  return '기타'
+}
+
+const COMPOUND_PATTERN = /벤치프레스|데드리프트|스쿼트|오버헤드프레스|바벨로우|풀업|딥스/
+
+// ─── Sub-components ──────────────────────────────────────────
 
 function MessageBubble({ msg }: { msg: Message }) {
   const isUser = msg.role === 'user'
@@ -32,13 +72,139 @@ function MessageBubble({ msg }: { msg: Message }) {
   )
 }
 
+function ProgramCard({ data, onSave }: { data: GeneratedProgram; onSave: () => Promise<void> }) {
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await onSave()
+      setSaved(true)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="ml-11 mt-2 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <Dumbbell size={15} className="text-blue-600" />
+        <span className="font-bold text-gray-900 text-sm">{data.name}</span>
+      </div>
+      {data.description && <p className="text-xs text-gray-500">{data.description}</p>}
+      <div className="space-y-2">
+        {data.splits.map((split, i) => (
+          <div key={i} className="bg-white rounded-xl p-3 space-y-1.5">
+            <p className="text-xs font-semibold text-gray-700">{split.name}</p>
+            <div className="flex flex-wrap gap-1">
+              {split.exercises.map((ex, j) => (
+                <span key={j} className="text-[11px] px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">{ex}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {saved ? (
+        <div className="flex items-center gap-2 text-green-600 text-sm font-medium py-1">
+          <CheckCircle size={14} />
+          프로그램 탭에 저장되었습니다 ✓
+        </div>
+      ) : (
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold active:bg-blue-700 disabled:opacity-60 flex items-center justify-center gap-2"
+        >
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+          {saving ? '저장 중...' : '프로그램 탭에 저장하기'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function DietCard({ data, onSave }: { data: GeneratedDiet; onSave: () => Promise<void> }) {
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await onSave()
+      setSaved(true)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const macros = [
+    { label: '칼로리', value: data.calories, unit: 'kcal' },
+    { label: '단백질', value: data.protein_g, unit: 'g' },
+    { label: '탄수화물', value: data.carbs_g, unit: 'g' },
+    { label: '지방', value: data.fat_g, unit: 'g' },
+    { label: '수분', value: data.water_l, unit: 'L' },
+  ]
+
+  return (
+    <div className="ml-11 mt-2 bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-100 rounded-2xl p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <Utensils size={15} className="text-purple-600" />
+        <span className="font-bold text-gray-900 text-sm">오늘의 식단 목표</span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {macros.map(item => (
+          <div key={item.label} className="bg-white rounded-xl px-3 py-2">
+            <p className="text-[10px] text-gray-400">{item.label}</p>
+            <p className="font-bold text-gray-900 text-sm">
+              {item.value}
+              <span className="text-[10px] font-normal text-gray-400 ml-0.5">{item.unit}</span>
+            </p>
+          </div>
+        ))}
+      </div>
+      {data.memo && (
+        <div className="bg-white rounded-xl p-3">
+          <p className="text-[11px] text-gray-500 leading-relaxed">{data.memo}</p>
+        </div>
+      )}
+      {saved ? (
+        <div className="flex items-center gap-2 text-green-600 text-sm font-medium py-1">
+          <CheckCircle size={14} />
+          식단 탭에 오늘 목표로 저장되었습니다 ✓
+        </div>
+      ) : (
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="w-full py-2.5 bg-purple-600 text-white rounded-xl text-sm font-bold active:bg-purple-700 disabled:opacity-60 flex items-center justify-center gap-2"
+        >
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+          {saving ? '저장 중...' : '오늘 식단 목표로 설정'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ─── Quick Actions ────────────────────────────────────────────
+
+const QUICK_ACTIONS = [
+  { label: '오늘 운동 분석', prompt: '오늘 내가 한 운동 세션을 분석해주고, 잘한 점과 개선할 점을 알려줘.', kind: 'chat' as const },
+  { label: '식단 점검', prompt: '오늘 식단을 근비대 목표 기준으로 분석해줘. 부족한 영양소와 개선 방법도 알려줘.', kind: 'chat' as const },
+  { label: '이번 주 컨설팅', prompt: '이번 주 전체 운동과 식단을 종합 분석해서 주간 피드백을 해줘.', kind: 'chat' as const },
+  { label: '✨ 운동 프로그램 생성', prompt: '', kind: 'generate-program' as const },
+  { label: '✨ 식단 플랜 생성', prompt: '', kind: 'generate-diet' as const },
+  { label: '점진적 과부하 전략', prompt: '내 현재 컴파운드 1RM을 기반으로 8주 점진적 과부하 전략을 세워줘.', kind: 'chat' as const },
+]
+
+// ─── Main Component ───────────────────────────────────────────
+
 export default function FitnessCoach() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'assistant',
-      content: '안녕하세요! 피트니스 AI 코치입니다 💪\n\n운동 기록과 식단 데이터를 바탕으로 맞춤형 분석과 조언을 드립니다. 아래 빠른 메뉴를 누르거나 자유롭게 질문해 주세요.',
-    },
-  ])
+  const [messages, setMessages] = useState<Message[]>([{
+    role: 'assistant',
+    content: '안녕하세요! 피트니스 AI 코치입니다 💪\n\n운동 기록과 식단 데이터를 바탕으로 맞춤형 분석과 조언을 드립니다.\n✨ "운동 프로그램 생성" / "식단 플랜 생성"으로 실제 저장 가능한 계획도 만들어 드릴게요!',
+  }])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -48,83 +214,186 @@ export default function FitnessCoach() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // ─ Streaming chat ─
+
   const sendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return
-
     const userMsg: Message = { role: 'user', content: text.trim() }
-    const newMessages = [...messages, userMsg]
-    setMessages(newMessages)
+    const history = [...messages, userMsg]
+    setMessages([...history, { role: 'assistant', content: '' }])
     setInput('')
     setIsLoading(true)
-
-    const assistantMsg: Message = { role: 'assistant', content: '' }
-    setMessages(prev => [...prev, assistantMsg])
-
     try {
       const res = await fetch('/api/fitness/coach', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
-        }),
+        body: JSON.stringify({ messages: history.map(m => ({ role: m.role, content: m.content })) }),
       })
-
-      if (!res.ok || !res.body) throw new Error('응답 오류')
-
+      if (!res.ok || !res.body) throw new Error()
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
-      let accumulated = ''
-
+      let acc = ''
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        accumulated += decoder.decode(value, { stream: true })
+        acc += decoder.decode(value, { stream: true })
         setMessages(prev => {
-          const updated = [...prev]
-          updated[updated.length - 1] = { role: 'assistant', content: accumulated }
-          return updated
+          const u = [...prev]
+          u[u.length - 1] = { role: 'assistant', content: acc }
+          return u
         })
       }
     } catch {
       setMessages(prev => {
-        const updated = [...prev]
-        updated[updated.length - 1] = { role: 'assistant', content: '죄송합니다. 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.' }
-        return updated
+        const u = [...prev]
+        u[u.length - 1] = { role: 'assistant', content: '죄송합니다. 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.' }
+        return u
       })
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage(input)
+  // ─ Generate program ─
+
+  const generateProgram = async () => {
+    if (isLoading) return
+    setIsLoading(true)
+    const userMsg: Message = { role: 'user', content: '내 운동 기록과 1RM 데이터를 분석해서 최적화된 운동 프로그램을 짜주고 저장해줘.' }
+    setMessages(prev => [...prev, userMsg, { role: 'assistant', content: '' }])
+    try {
+      const res = await fetch('/api/fitness/coach/generate-program', { method: 'POST' })
+      if (!res.ok) throw new Error()
+      const data: GeneratedProgram = await res.json()
+      setMessages(prev => {
+        const u = [...prev]
+        u[u.length - 1] = { role: 'assistant', content: data.coaching_note, action: { type: 'program', data } }
+        return u
+      })
+    } catch {
+      setMessages(prev => {
+        const u = [...prev]
+        u[u.length - 1] = { role: 'assistant', content: '프로그램 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.' }
+        return u
+      })
+    } finally {
+      setIsLoading(false)
     }
   }
+
+  // ─ Generate diet ─
+
+  const generateDiet = async () => {
+    if (isLoading) return
+    setIsLoading(true)
+    const userMsg: Message = { role: 'user', content: '내 운동 강도와 목표에 맞는 오늘의 식단 목표를 짜주고 저장해줘.' }
+    setMessages(prev => [...prev, userMsg, { role: 'assistant', content: '' }])
+    try {
+      const res = await fetch('/api/fitness/coach/generate-diet', { method: 'POST' })
+      if (!res.ok) throw new Error()
+      const data: GeneratedDiet = await res.json()
+      setMessages(prev => {
+        const u = [...prev]
+        u[u.length - 1] = { role: 'assistant', content: data.coaching_note, action: { type: 'diet', data } }
+        return u
+      })
+    } catch {
+      setMessages(prev => {
+        const u = [...prev]
+        u[u.length - 1] = { role: 'assistant', content: '식단 플랜 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.' }
+        return u
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // ─ Save handlers ─
+
+  const handleSaveProgram = async (data: GeneratedProgram) => {
+    const allExercises = await getExercises()
+    const exMap = new Map(allExercises.map(e => [e.name.toLowerCase(), e]))
+
+    const program = await createProgram({ name: data.name, description: data.description, is_active: false })
+
+    for (let i = 0; i < data.splits.length; i++) {
+      const split = data.splits[i]
+      const newSplit = await createSplit({ program_id: program.id, name: split.name, sort_order: i })
+
+      for (let j = 0; j < split.exercises.length; j++) {
+        const exName = split.exercises[j]
+        let exercise = exMap.get(exName.toLowerCase())
+        if (!exercise) {
+          exercise = await createExercise({
+            name: exName,
+            muscle_group: inferMuscleGroup(exName),
+            is_compound: COMPOUND_PATTERN.test(exName),
+            sort_order: 999,
+          })
+          exMap.set(exName.toLowerCase(), exercise)
+        }
+        await addExerciseToSplit(newSplit.id, exercise.id, j)
+      }
+    }
+  }
+
+  const handleSaveDiet = async (data: GeneratedDiet) => {
+    const today = new Date().toISOString().split('T')[0]
+    await upsertDiet({
+      date: today,
+      calories: data.calories,
+      protein_g: data.protein_g,
+      carbs_g: data.carbs_g,
+      fat_g: data.fat_g,
+      water_l: data.water_l,
+      memo: data.memo,
+    })
+  }
+
+  const handleQuickAction = (qa: typeof QUICK_ACTIONS[0]) => {
+    if (qa.kind === 'generate-program') generateProgram()
+    else if (qa.kind === 'generate-diet') generateDiet()
+    else sendMessage(qa.prompt)
+  }
+
+  // ─ Render ─
 
   return (
     <div className="flex flex-col h-[calc(100vh-220px)] min-h-[500px]">
       {/* 빠른 액션 */}
       <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar mb-3">
-        {QUICK_ACTIONS.map(action => (
+        {QUICK_ACTIONS.map(qa => (
           <button
-            key={action.label}
-            onClick={() => sendMessage(action.prompt)}
+            key={qa.label}
+            onClick={() => handleQuickAction(qa)}
             disabled={isLoading}
-            className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-medium text-gray-700 hover:border-blue-300 hover:text-blue-700 active:bg-blue-50 disabled:opacity-40 transition-colors"
+            className={`shrink-0 flex items-center gap-1.5 px-3 py-2 border rounded-xl text-xs font-medium transition-colors disabled:opacity-40
+              ${qa.kind !== 'chat'
+                ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 text-blue-700 hover:from-blue-100 hover:to-indigo-100'
+                : 'bg-white border-gray-200 text-gray-700 hover:border-blue-300 hover:text-blue-700 active:bg-blue-50'}`}
           >
-            <Sparkles size={11} className="text-purple-500" />
-            {action.label}
+            {qa.kind === 'chat' && <Sparkles size={11} className="text-purple-400 shrink-0" />}
+            {qa.label}
           </button>
         ))}
       </div>
 
       {/* 메시지 목록 */}
       <div className="flex-1 overflow-y-auto space-y-4 pb-3">
-        {messages.map((msg, i) => (
-          <MessageBubble key={i} msg={msg} />
-        ))}
+        {messages.map((msg, i) => {
+          const action = msg.action
+          return (
+            <div key={i}>
+              <MessageBubble msg={msg} />
+              {action?.type === 'program' && (
+                <ProgramCard data={action.data} onSave={() => handleSaveProgram(action.data)} />
+              )}
+              {action?.type === 'diet' && (
+                <DietCard data={action.data} onSave={() => handleSaveDiet(action.data)} />
+              )}
+            </div>
+          )
+        })}
         {isLoading && messages[messages.length - 1]?.content === '' && (
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-purple-500 to-blue-600 shrink-0">
@@ -144,7 +413,9 @@ export default function FitnessCoach() {
           ref={inputRef}
           value={input}
           onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input) }
+          }}
           placeholder="운동이나 식단에 대해 무엇이든 물어보세요..."
           rows={1}
           className="flex-1 resize-none text-sm text-gray-800 placeholder-gray-400 outline-none px-2 py-1.5 max-h-32 leading-relaxed"
