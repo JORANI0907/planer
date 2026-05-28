@@ -60,7 +60,11 @@ export interface FitnessDiet {
   carbs_g: number
   fat_g: number
   water_l: number
-  memo: string
+  memo?: string
+  breakfast?: string
+  lunch?: string
+  dinner?: string
+  snack?: string
   created_at: string
   updated_at: string
 }
