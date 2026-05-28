@@ -74,7 +74,7 @@ export default function FitnessPage() {
           {activeTab === 'progress'  && <ProgressView />}
           {activeTab === 'diet'      && <DietTracker />}
           {activeTab === 'settings'  && <ProgramSettings />}
-          {activeTab === 'coach'     && <FitnessCoach />}
+          {activeTab === 'coach'     && <FitnessCoach onTabChange={tab => handleTabChange(tab as FitnessTab)} />}
           {activeTab === 'profile'   && <ProfileSettings />}
         </div>
       </div>

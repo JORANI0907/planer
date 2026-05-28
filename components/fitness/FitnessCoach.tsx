@@ -27,6 +27,10 @@ type GeneratedDiet = {
   carbs_g: number
   fat_g: number
   water_l: number
+  breakfast: string
+  lunch: string
+  dinner: string
+  snack: string
   memo: string
   coaching_note: string
 }
@@ -154,12 +158,21 @@ function DietCard({ data, onSave }: { data: GeneratedDiet; onSave: () => Promise
     { label: '수분', value: data.water_l, unit: 'L' },
   ]
 
+  const meals = [
+    { emoji: '🌅', label: '아침', text: data.breakfast },
+    { emoji: '☀️', label: '점심', text: data.lunch },
+    { emoji: '🌙', label: '저녁', text: data.dinner },
+    { emoji: '🍎', label: '간식', text: data.snack },
+  ]
+
   return (
     <div className="ml-11 mt-2 bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-100 rounded-2xl p-4 space-y-3">
       <div className="flex items-center gap-2">
         <Utensils size={15} className="text-purple-600" />
-        <span className="font-bold text-gray-900 text-sm">오늘의 식단 목표</span>
+        <span className="font-bold text-gray-900 text-sm">맞춤 식단 플랜</span>
       </div>
+
+      {/* 매크로 */}
       <div className="grid grid-cols-3 gap-2">
         {macros.map(item => (
           <div key={item.label} className="bg-white rounded-xl px-3 py-2">
@@ -170,20 +183,34 @@ function DietCard({ data, onSave }: { data: GeneratedDiet; onSave: () => Promise
           </div>
         ))}
       </div>
+
+      {/* 식사 구성 */}
+      <div className="bg-white rounded-xl p-3 space-y-2">
+        {meals.filter(m => m.text).map(m => (
+          <div key={m.label}>
+            <p className="text-[10px] font-semibold text-gray-400 mb-0.5">{m.emoji} {m.label}</p>
+            <p className="text-xs text-gray-700 leading-relaxed">{m.text}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* AI 메모 */}
       {data.memo && (
-        <div className="bg-white rounded-xl p-3">
-          <p className="text-[11px] text-gray-500 leading-relaxed">{data.memo}</p>
+        <div className="bg-purple-100/60 rounded-xl px-3 py-2">
+          <p className="text-[11px] text-purple-700 leading-relaxed">{data.memo}</p>
         </div>
       )}
+
+      {/* 저장 버튼 */}
       {saved ? (
         <div className="flex items-center gap-2 text-green-600 text-sm font-medium py-1">
-          <CheckCircle size={14} />식단 탭에 오늘 목표로 저장되었습니다 ✓
+          <CheckCircle size={14} />식단 탭에 저장되었습니다 — 식단 탭에서 수정할 수 있어요 ✓
         </div>
       ) : (
         <button onClick={handleSave} disabled={saving}
           className="w-full py-2.5 bg-purple-600 text-white rounded-xl text-sm font-bold active:bg-purple-700 disabled:opacity-60 flex items-center justify-center gap-2">
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-          {saving ? '저장 중...' : '오늘 식단 목표로 설정'}
+          {saving ? '저장 중...' : '식단 플랜으로 저장하기'}
         </button>
       )}
     </div>
@@ -203,7 +230,7 @@ const QUICK_ACTIONS = [
 
 // ─── Main Component ───────────────────────────────────────────
 
-export default function FitnessCoach() {
+export default function FitnessCoach({ onTabChange }: { onTabChange?: (tab: string) => void } = {}) {
   const [sessions, setSessions] = useState<FitnessChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [showSessionList, setShowSessionList] = useState(false)
@@ -380,9 +407,7 @@ export default function FitnessCoach() {
 
   const startDietWizard = () => {
     if (isLoading) return
-    if (wizardMode === 'diet') { confirmGenerateDiet(); return }
-    setWizardMode('diet')
-    sendMessage('식단 플랜을 맞춤으로 짜줘.')
+    confirmGenerateDiet()
   }
 
   const confirmGenerateDiet = async () => {
@@ -450,8 +475,13 @@ export default function FitnessCoach() {
       carbs_g:   data.carbs_g,
       fat_g:     data.fat_g,
       water_l:   data.water_l,
-      memo:      data.memo,
+      breakfast: data.breakfast || undefined,
+      lunch:     data.lunch     || undefined,
+      dinner:    data.dinner    || undefined,
+      snack:     data.snack     || undefined,
+      memo:      data.memo      || undefined,
     }, existing?.id)
+    setTimeout(() => onTabChange?.('diet'), 1500)
   }
 
   const handleQuickAction = (qa: typeof QUICK_ACTIONS[0]) => {
