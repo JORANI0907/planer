@@ -236,6 +236,12 @@ export default function FitnessCoach() {
         const history = await getChatHistory(80)
         if (history.length > 0) {
           setMessages(history.map(m => ({ role: m.role, content: m.content })))
+          // 마지막 메시지가 위저드 질문이면 배너 상태 복원
+          const last = history[history.length - 1]
+          if (last.role === 'assistant') {
+            if (last.content.startsWith('프로그램을 맞춤 설계하기 전에')) setWizardMode('program')
+            else if (last.content.startsWith('식단 플랜을 맞춤 설계하기 전에')) setWizardMode('diet')
+          }
         }
       } catch {}
     }
@@ -300,7 +306,6 @@ export default function FitnessCoach() {
     const userMsg: Message = { role: 'user', content: '운동 프로그램을 만들어줘.' }
     const askMsg: Message = { role: 'assistant', content: PROGRAM_WIZARD_QUESTION }
     setMessages(prev => [...prev, userMsg, askMsg])
-    saveChatMessage('user', userMsg.content).catch(() => {})
     saveChatMessage('assistant', askMsg.content).catch(() => {})
   }
 
@@ -349,7 +354,6 @@ export default function FitnessCoach() {
     const userMsg: Message = { role: 'user', content: '식단 플랜을 만들어줘.' }
     const askMsg: Message = { role: 'assistant', content: DIET_WIZARD_QUESTION }
     setMessages(prev => [...prev, userMsg, askMsg])
-    saveChatMessage('user', userMsg.content).catch(() => {})
     saveChatMessage('assistant', askMsg.content).catch(() => {})
   }
 
