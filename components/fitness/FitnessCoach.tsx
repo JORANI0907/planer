@@ -1,11 +1,15 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Loader2, Bot, User, Sparkles, CheckCircle, Save, Dumbbell, Utensils } from 'lucide-react'
-import type { ExerciseMuscleGroup } from '@/lib/fitness-types'
+import {
+  Send, Loader2, Bot, User, Sparkles, CheckCircle, Save,
+  Dumbbell, Utensils, MessageSquare, Plus, Trash2, ChevronDown, ChevronUp,
+} from 'lucide-react'
+import type { ExerciseMuscleGroup, FitnessChatSession } from '@/lib/fitness-types'
 import {
   getExercises, createProgram, createSplit, addExerciseToSplit,
   createExercise, upsertDiet, getChatHistory, saveChatMessage,
+  getChatSessions, createChatSession, deleteChatSession,
 } from '@/lib/fitness-api'
 
 // ─── Types ───────────────────────────────────────────────────
@@ -40,7 +44,7 @@ type Message = {
 // ─── Helpers ─────────────────────────────────────────────────
 
 function inferMuscleGroup(name: string): ExerciseMuscleGroup {
-  if (/벤치|체스트|가슴|플라이|체스트/.test(name)) return '가슴'
+  if (/벤치|체스트|가슴|플라이/.test(name)) return '가슴'
   if (/데드|로우|풀업|랫|등/.test(name)) return '등'
   if (/오버헤드|숄더|어깨|레터럴|프론트/.test(name)) return '어깨'
   if (/스쿼트|레그|하체|런지|힙|글루트/.test(name)) return '하체'
@@ -51,6 +55,21 @@ function inferMuscleGroup(name: string): ExerciseMuscleGroup {
 }
 
 const COMPOUND_PATTERN = /벤치프레스|데드리프트|스쿼트|오버헤드프레스|바벨로우|풀업|딥스/
+
+function formatSessionDate(dateStr: string): string {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffDays = Math.floor((now.getTime() - date.getTime()) / 86400000)
+  if (diffDays === 0) return '오늘'
+  if (diffDays === 1) return '어제'
+  if (diffDays < 7) return `${diffDays}일 전`
+  return date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })
+}
+
+const INITIAL_MESSAGE: Message = {
+  role: 'assistant',
+  content: '안녕하세요! 피트니스 AI 코치입니다 💪\n\n운동 기록과 식단 데이터를 바탕으로 맞춤형 분석과 조언을 드립니다.\n✨ "운동 프로그램" / "식단 플랜" 버튼으로 원하는 조건을 대화로 알려주시면 맞춤 계획을 만들어 드릴게요!',
+}
 
 // ─── Sub-components ──────────────────────────────────────────
 
@@ -78,12 +97,7 @@ function ProgramCard({ data, onSave }: { data: GeneratedProgram; onSave: () => P
 
   const handleSave = async () => {
     setSaving(true)
-    try {
-      await onSave()
-      setSaved(true)
-    } finally {
-      setSaving(false)
-    }
+    try { await onSave(); setSaved(true) } finally { setSaving(false) }
   }
 
   return (
@@ -110,15 +124,11 @@ function ProgramCard({ data, onSave }: { data: GeneratedProgram; onSave: () => P
       </div>
       {saved ? (
         <div className="flex items-center gap-2 text-green-600 text-sm font-medium py-1">
-          <CheckCircle size={14} />
-          프로그램 탭에 저장되었습니다 ✓
+          <CheckCircle size={14} />프로그램 탭에 저장되었습니다 ✓
         </div>
       ) : (
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold active:bg-blue-700 disabled:opacity-60 flex items-center justify-center gap-2"
-        >
+        <button onClick={handleSave} disabled={saving}
+          className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold active:bg-blue-700 disabled:opacity-60 flex items-center justify-center gap-2">
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
           {saving ? '저장 중...' : '프로그램 탭에 저장하기'}
         </button>
@@ -133,12 +143,7 @@ function DietCard({ data, onSave }: { data: GeneratedDiet; onSave: () => Promise
 
   const handleSave = async () => {
     setSaving(true)
-    try {
-      await onSave()
-      setSaved(true)
-    } finally {
-      setSaving(false)
-    }
+    try { await onSave(); setSaved(true) } finally { setSaving(false) }
   }
 
   const macros = [
@@ -160,8 +165,7 @@ function DietCard({ data, onSave }: { data: GeneratedDiet; onSave: () => Promise
           <div key={item.label} className="bg-white rounded-xl px-3 py-2">
             <p className="text-[10px] text-gray-400">{item.label}</p>
             <p className="font-bold text-gray-900 text-sm">
-              {item.value}
-              <span className="text-[10px] font-normal text-gray-400 ml-0.5">{item.unit}</span>
+              {item.value}<span className="text-[10px] font-normal text-gray-400 ml-0.5">{item.unit}</span>
             </p>
           </div>
         ))}
@@ -173,15 +177,11 @@ function DietCard({ data, onSave }: { data: GeneratedDiet; onSave: () => Promise
       )}
       {saved ? (
         <div className="flex items-center gap-2 text-green-600 text-sm font-medium py-1">
-          <CheckCircle size={14} />
-          식단 탭에 오늘 목표로 저장되었습니다 ✓
+          <CheckCircle size={14} />식단 탭에 오늘 목표로 저장되었습니다 ✓
         </div>
       ) : (
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full py-2.5 bg-purple-600 text-white rounded-xl text-sm font-bold active:bg-purple-700 disabled:opacity-60 flex items-center justify-center gap-2"
-        >
+        <button onClick={handleSave} disabled={saving}
+          className="w-full py-2.5 bg-purple-600 text-white rounded-xl text-sm font-bold active:bg-purple-700 disabled:opacity-60 flex items-center justify-center gap-2">
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
           {saving ? '저장 중...' : '오늘 식단 목표로 설정'}
         </button>
@@ -204,41 +204,103 @@ const QUICK_ACTIONS = [
 // ─── Main Component ───────────────────────────────────────────
 
 export default function FitnessCoach() {
-  const [messages, setMessages] = useState<Message[]>([{
-    role: 'assistant',
-    content: '안녕하세요! 피트니스 AI 코치입니다 💪\n\n운동 기록과 식단 데이터를 바탕으로 맞춤형 분석과 조언을 드립니다.\n✨ "운동 프로그램" / "식단 플랜" 버튼으로 원하는 조건을 대화로 알려주시면 맞춤 계획을 만들어 드릴게요!',
-  }])
+  const [sessions, setSessions] = useState<FitnessChatSession[]>([])
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
+  const [showSessionList, setShowSessionList] = useState(false)
+
+  const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [wizardMode, setWizardMode] = useState<'idle' | 'program' | 'diet'>('idle')
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
+  // 마운트: 세션 목록 로드 후 최신 세션 선택
   useEffect(() => {
-    async function loadHistory() {
+    async function load() {
       try {
-        const history = await getChatHistory(80)
-        if (history.length > 0) {
-          setMessages(history.map(m => ({ role: m.role, content: m.content })))
+        const sessionList = await getChatSessions()
+        setSessions(sessionList)
+        if (sessionList.length > 0) {
+          const latest = sessionList[0]
+          setCurrentSessionId(latest.id)
+          const history = await getChatHistory(latest.id)
+          if (history.length > 0) {
+            setMessages(history.map(m => ({ role: m.role, content: m.content })))
+          }
         }
       } catch {}
     }
-    loadHistory()
+    load()
   }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  const handleNewChat = () => {
+    setCurrentSessionId(null)
+    setMessages([INITIAL_MESSAGE])
+    setWizardMode('idle')
+    setShowSessionList(false)
+    setInput('')
+  }
+
+  const handleSelectSession = async (sessionId: string) => {
+    if (sessionId === currentSessionId) { setShowSessionList(false); return }
+    setCurrentSessionId(sessionId)
+    setShowSessionList(false)
+    setWizardMode('idle')
+    try {
+      const history = await getChatHistory(sessionId)
+      setMessages(history.length > 0 ? history.map(m => ({ role: m.role, content: m.content })) : [INITIAL_MESSAGE])
+    } catch {}
+  }
+
+  const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation()
+    try {
+      await deleteChatSession(sessionId)
+      const updated = sessions.filter(s => s.id !== sessionId)
+      setSessions(updated)
+      if (currentSessionId === sessionId) {
+        setWizardMode('idle')
+        if (updated.length > 0) {
+          const next = updated[0]
+          setCurrentSessionId(next.id)
+          const history = await getChatHistory(next.id)
+          setMessages(history.length > 0 ? history.map(m => ({ role: m.role, content: m.content })) : [INITIAL_MESSAGE])
+        } else {
+          setCurrentSessionId(null)
+          setMessages([INITIAL_MESSAGE])
+        }
+      }
+    } catch {}
+  }
+
   // ─ Streaming chat ─
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return
+
+    let sessionId = currentSessionId
+
+    // 첫 메시지 시 세션 생성 (lazy creation)
+    if (!sessionId) {
+      try {
+        const session = await createChatSession(text.trim())
+        sessionId = session.id
+        setCurrentSessionId(session.id)
+        setSessions(prev => [session, ...prev].slice(0, 5))
+      } catch { /* sessionId null로 진행 */ }
+    }
+
     const userMsg: Message = { role: 'user', content: text.trim() }
     const history = [...messages, userMsg]
     setMessages([...history, { role: 'assistant', content: '' }])
     setInput('')
     setIsLoading(true)
+
     try {
       const res = await fetch('/api/fitness/coach', {
         method: 'POST',
@@ -259,8 +321,10 @@ export default function FitnessCoach() {
           return u
         })
       }
-      saveChatMessage('user', text.trim()).catch(() => {})
-      saveChatMessage('assistant', acc).catch(() => {})
+      if (sessionId) {
+        saveChatMessage(sessionId, 'user', text.trim()).catch(() => {})
+        saveChatMessage(sessionId, 'assistant', acc).catch(() => {})
+      }
     } catch {
       setMessages(prev => {
         const u = [...prev]
@@ -272,19 +336,14 @@ export default function FitnessCoach() {
     }
   }
 
-  // ─ Start program wizard (AI가 데이터 분석 후 자연스럽게 질문) ─
+  // ─ Program wizard ─
 
   const startProgramWizard = () => {
     if (isLoading) return
-    if (wizardMode === 'program') {
-      confirmGenerateProgram()
-      return
-    }
+    if (wizardMode === 'program') { confirmGenerateProgram(); return }
     setWizardMode('program')
     sendMessage('운동 프로그램을 맞춤으로 짜줘.')
   }
-
-  // ─ Confirm and generate program with conversation context ─
 
   const confirmGenerateProgram = async () => {
     if (isLoading) return
@@ -305,7 +364,7 @@ export default function FitnessCoach() {
         u[u.length - 1] = { role: 'assistant', content: data.coaching_note, action: { type: 'program', data } }
         return u
       })
-      saveChatMessage('assistant', data.coaching_note).catch(() => {})
+      if (currentSessionId) saveChatMessage(currentSessionId, 'assistant', data.coaching_note).catch(() => {})
     } catch {
       setMessages(prev => {
         const u = [...prev]
@@ -317,19 +376,14 @@ export default function FitnessCoach() {
     }
   }
 
-  // ─ Start diet wizard (AI가 데이터 분석 후 자연스럽게 질문) ─
+  // ─ Diet wizard ─
 
   const startDietWizard = () => {
     if (isLoading) return
-    if (wizardMode === 'diet') {
-      confirmGenerateDiet()
-      return
-    }
+    if (wizardMode === 'diet') { confirmGenerateDiet(); return }
     setWizardMode('diet')
     sendMessage('식단 플랜을 맞춤으로 짜줘.')
   }
-
-  // ─ Confirm and generate diet with conversation context ─
 
   const confirmGenerateDiet = async () => {
     if (isLoading) return
@@ -350,7 +404,7 @@ export default function FitnessCoach() {
         u[u.length - 1] = { role: 'assistant', content: data.coaching_note, action: { type: 'diet', data } }
         return u
       })
-      saveChatMessage('assistant', data.coaching_note).catch(() => {})
+      if (currentSessionId) saveChatMessage(currentSessionId, 'assistant', data.coaching_note).catch(() => {})
     } catch {
       setMessages(prev => {
         const u = [...prev]
@@ -367,13 +421,10 @@ export default function FitnessCoach() {
   const handleSaveProgram = async (data: GeneratedProgram) => {
     const allExercises = await getExercises()
     const exMap = new Map(allExercises.map(e => [e.name.toLowerCase(), e]))
-
     const program = await createProgram({ name: data.name, description: data.description, is_active: false })
-
     for (let i = 0; i < data.splits.length; i++) {
       const split = data.splits[i]
       const newSplit = await createSplit({ program_id: program.id, name: split.name, sort_order: i })
-
       for (let j = 0; j < split.exercises.length; j++) {
         const exData = split.exercises[j]
         let exercise = exMap.get(exData.name.toLowerCase())
@@ -414,6 +465,60 @@ export default function FitnessCoach() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-220px)] min-h-[500px]">
+
+      {/* 세션 바 */}
+      <div className="flex items-center justify-between mb-3 gap-2">
+        <button
+          onClick={() => setShowSessionList(prev => !prev)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 rounded-xl text-sm text-gray-600 font-medium hover:bg-gray-200 transition-colors"
+        >
+          <MessageSquare size={13} />
+          <span>대화 목록</span>
+          <span className="text-xs text-gray-400 font-normal ml-0.5">{sessions.length}/5</span>
+          {showSessionList ? <ChevronUp size={12} className="ml-0.5" /> : <ChevronDown size={12} className="ml-0.5" />}
+        </button>
+        <button
+          onClick={handleNewChat}
+          className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-sm font-medium hover:bg-blue-100 transition-colors"
+        >
+          <Plus size={13} />
+          새 채팅
+        </button>
+      </div>
+
+      {/* 세션 목록 패널 */}
+      {showSessionList && (
+        <div className="mb-3 bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+          {sessions.length === 0 ? (
+            <p className="px-4 py-4 text-sm text-gray-400 text-center">저장된 대화가 없습니다</p>
+          ) : sessions.map(session => (
+            <div
+              key={session.id}
+              onClick={() => handleSelectSession(session.id)}
+              className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors border-b border-gray-50 last:border-0 ${
+                session.id === currentSessionId ? 'bg-blue-50' : 'hover:bg-gray-50'
+              }`}
+            >
+              <div className="min-w-0 flex-1">
+                <p className={`text-sm truncate ${session.id === currentSessionId ? 'font-semibold text-blue-800' : 'font-medium text-gray-800'}`}>
+                  {session.title}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">{formatSessionDate(session.created_at)}</p>
+              </div>
+              {session.id === currentSessionId && (
+                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full shrink-0" />
+              )}
+              <button
+                onClick={(e) => handleDeleteSession(e, session.id)}
+                className="p-1.5 text-gray-300 hover:text-red-400 rounded-lg hover:bg-red-50 transition-colors shrink-0"
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* 빠른 액션 */}
       <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar mb-3">
         {QUICK_ACTIONS.map(qa => (
