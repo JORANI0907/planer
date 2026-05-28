@@ -8,7 +8,7 @@ import {
 import type { ExerciseMuscleGroup, FitnessChatSession } from '@/lib/fitness-types'
 import {
   getExercises, createProgram, createSplit, addExerciseToSplit,
-  createExercise, upsertDiet, getChatHistory, saveChatMessage,
+  createExercise, getDietPlan, upsertDietPlan, getChatHistory, saveChatMessage,
   getChatSessions, createChatSession, deleteChatSession,
 } from '@/lib/fitness-api'
 
@@ -443,16 +443,15 @@ export default function FitnessCoach() {
   }
 
   const handleSaveDiet = async (data: GeneratedDiet) => {
-    const today = new Date().toISOString().split('T')[0]
-    await upsertDiet({
-      date: today,
-      calories: data.calories,
+    const existing = await getDietPlan()
+    await upsertDietPlan({
+      calories:  data.calories,
       protein_g: data.protein_g,
-      carbs_g: data.carbs_g,
-      fat_g: data.fat_g,
-      water_l: data.water_l,
-      memo: data.memo,
-    })
+      carbs_g:   data.carbs_g,
+      fat_g:     data.fat_g,
+      water_l:   data.water_l,
+      memo:      data.memo,
+    }, existing?.id)
   }
 
   const handleQuickAction = (qa: typeof QUICK_ACTIONS[0]) => {
