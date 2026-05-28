@@ -93,117 +93,123 @@ export default function FitnessDashboard({ onTabChange }: { onTabChange?: (tab: 
   const todayDiet = dietHistory.find(d => d.date === today)
 
   return (
-    <div className="space-y-5">
-      {/* 이번 주 운동 현황 */}
-      {program && (
+    <div className="md:grid md:grid-cols-2 md:gap-5 space-y-5 md:space-y-0">
+      {/* 왼쪽 열: 이번 주 운동 + 최근 세션 */}
+      <div className="space-y-5">
+        {/* 이번 주 운동 현황 */}
+        {program && (
+          <section className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                <Dumbbell size={16} className="text-blue-500" />
+                이번 주 운동
+              </h3>
+              <span className="text-xs text-gray-400">{doneSplitNames.size}/{splits.length} 완료</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {splits.map(split => {
+                const done = doneSplitNames.has(split.name)
+                const sessionForSplit = weekSessions.find(s => s.split_name === split.name && s.is_completed)
+                return (
+                  <div
+                    key={split.id}
+                    className={`rounded-xl px-3 py-2.5 flex items-center justify-between ${done ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-100'}`}
+                  >
+                    <span className={`text-sm font-medium break-keep ${done ? 'text-green-800' : 'text-gray-500'}`}>{split.name}</span>
+                    {done ? (
+                      <span className="text-xs text-green-600">{sessionForSplit ? formatDateShort(sessionForSplit.date) : '✓'}</span>
+                    ) : (
+                      <span className="text-xs text-gray-400">미완료</span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* 최근 세션 */}
+        <section className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
+          <h3 className="font-bold text-gray-900">최근 운동 기록</h3>
+          {recentSessions.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-3">운동 기록이 없습니다.</p>
+          ) : (
+            <div className="space-y-2">
+              {recentSessions.map(s => (
+                <div key={s.id} className="flex items-center justify-between text-sm py-2 border-b border-gray-50 last:border-0">
+                  <div>
+                    <span className="font-medium text-gray-800">{s.split_name || '(분할 없음)'}</span>
+                    {s.duration_min && <span className="text-xs text-gray-400 ml-2">{s.duration_min}분</span>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400">{formatDateShort(s.date)}</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${s.is_completed ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {s.is_completed ? '완료' : '미완료'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* 오른쪽 열: 컴파운드 1RM + 오늘 식단 */}
+      <div className="space-y-5">
+        {/* 주요 컴파운드 1RM */}
+        <section className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
+          <h3 className="font-bold text-gray-900 flex items-center gap-2">
+            <TrendingUp size={16} className="text-orange-500" />
+            주요 컴파운드 추정 1RM
+          </h3>
+          {compounds.filter(c => COMPOUND_HIGHLIGHTS.includes(c.exercise as typeof COMPOUND_HIGHLIGHTS[number])).length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-3">운동 기록이 없습니다. 운동을 시작해보세요!</p>
+          ) : (
+            <div className="space-y-2">
+              {compounds.map(c => (
+                c.one_rm > 0 && (
+                  <div key={c.exercise} className="flex items-center justify-between text-sm py-1.5 border-b border-gray-50 last:border-0">
+                    <span className="font-medium text-gray-700 flex-1">{c.exercise}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">{c.latest_weight}×{c.latest_reps}</span>
+                      <span className="font-bold text-gray-900 w-16 text-right">{c.one_rm}kg</span>
+                      <TrendIcon trend={c.trend} />
+                    </div>
+                  </div>
+                )
+              ))}
+              <p className="text-[10px] text-gray-400">* Epley 공식 추정치 (실제 1RM과 다를 수 있음)</p>
+            </div>
+          )}
+        </section>
+
+        {/* 오늘 식단 */}
         <section className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-gray-900 flex items-center gap-2">
-              <Dumbbell size={16} className="text-blue-500" />
-              이번 주 운동
+              <Utensils size={16} className="text-purple-500" />
+              오늘 식단
             </h3>
-            <span className="text-xs text-gray-400">{doneSplitNames.size}/{splits.length} 완료</span>
+            <button onClick={() => onTabChange?.('diet')} className="text-xs text-blue-500 font-medium">기록하기 →</button>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            {splits.map(split => {
-              const done = doneSplitNames.has(split.name)
-              const sessionForSplit = weekSessions.find(s => s.split_name === split.name && s.is_completed)
-              return (
-                <div
-                  key={split.id}
-                  className={`rounded-xl px-3 py-2.5 flex items-center justify-between ${done ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-100'}`}
-                >
-                  <span className={`text-sm font-medium break-keep ${done ? 'text-green-800' : 'text-gray-500'}`}>{split.name}</span>
-                  {done ? (
-                    <span className="text-xs text-green-600">{sessionForSplit ? formatDateShort(sessionForSplit.date) : '✓'}</span>
-                  ) : (
-                    <span className="text-xs text-gray-400">미완료</span>
-                  )}
+          {!todayDiet ? (
+            <p className="text-xs text-gray-400 text-center py-2">오늘 식단 기록이 없습니다.</p>
+          ) : (
+            <div className="space-y-2.5">
+              {todayDiet.protein_g < DIET_GOALS.protein_g.min && (
+                <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 rounded-xl p-2.5">
+                  <AlertTriangle size={14} />
+                  <span className="font-medium">단백질 부족! 근비대에 단백질 섭취가 가장 중요합니다.</span>
                 </div>
-              )
-            })}
-          </div>
+              )}
+              <MacroBar label="칼로리" value={todayDiet.calories} min={DIET_GOALS.calories.min} max={DIET_GOALS.calories.max} unit="kcal" />
+              <MacroBar label="단백질" value={todayDiet.protein_g} min={DIET_GOALS.protein_g.min} max={DIET_GOALS.protein_g.max} unit="g" warn />
+              <MacroBar label="탄수화물" value={todayDiet.carbs_g} min={DIET_GOALS.carbs_g.min} max={DIET_GOALS.carbs_g.max} unit="g" />
+              <MacroBar label="지방" value={todayDiet.fat_g} min={DIET_GOALS.fat_g.min} max={DIET_GOALS.fat_g.max} unit="g" />
+            </div>
+          )}
         </section>
-      )}
-
-      {/* 주요 컴파운드 1RM */}
-      <section className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
-        <h3 className="font-bold text-gray-900 flex items-center gap-2">
-          <TrendingUp size={16} className="text-orange-500" />
-          주요 컴파운드 추정 1RM
-        </h3>
-        {compounds.filter(c => COMPOUND_HIGHLIGHTS.includes(c.exercise as typeof COMPOUND_HIGHLIGHTS[number])).length === 0 ? (
-          <p className="text-xs text-gray-400 text-center py-3">운동 기록이 없습니다. 운동을 시작해보세요!</p>
-        ) : (
-          <div className="space-y-2">
-            {compounds.map(c => (
-              c.one_rm > 0 && (
-                <div key={c.exercise} className="flex items-center justify-between text-sm py-1.5 border-b border-gray-50 last:border-0">
-                  <span className="font-medium text-gray-700 flex-1">{c.exercise}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">{c.latest_weight}×{c.latest_reps}</span>
-                    <span className="font-bold text-gray-900 w-16 text-right">{c.one_rm}kg</span>
-                    <TrendIcon trend={c.trend} />
-                  </div>
-                </div>
-              )
-            ))}
-            <p className="text-[10px] text-gray-400">* Epley 공식 추정치 (실제 1RM과 다를 수 있음)</p>
-          </div>
-        )}
-      </section>
-
-      {/* 오늘 식단 */}
-      <section className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="font-bold text-gray-900 flex items-center gap-2">
-            <Utensils size={16} className="text-purple-500" />
-            오늘 식단
-          </h3>
-          <button onClick={() => onTabChange?.('diet')} className="text-xs text-blue-500 font-medium">기록하기 →</button>
-        </div>
-        {!todayDiet ? (
-          <p className="text-xs text-gray-400 text-center py-2">오늘 식단 기록이 없습니다.</p>
-        ) : (
-          <div className="space-y-2.5">
-            {todayDiet.protein_g < DIET_GOALS.protein_g.min && (
-              <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 rounded-xl p-2.5">
-                <AlertTriangle size={14} />
-                <span className="font-medium">단백질 부족! 근비대에 단백질 섭취가 가장 중요합니다.</span>
-              </div>
-            )}
-            <MacroBar label="칼로리" value={todayDiet.calories} min={DIET_GOALS.calories.min} max={DIET_GOALS.calories.max} unit="kcal" />
-            <MacroBar label="단백질" value={todayDiet.protein_g} min={DIET_GOALS.protein_g.min} max={DIET_GOALS.protein_g.max} unit="g" warn />
-            <MacroBar label="탄수화물" value={todayDiet.carbs_g} min={DIET_GOALS.carbs_g.min} max={DIET_GOALS.carbs_g.max} unit="g" />
-            <MacroBar label="지방" value={todayDiet.fat_g} min={DIET_GOALS.fat_g.min} max={DIET_GOALS.fat_g.max} unit="g" />
-          </div>
-        )}
-      </section>
-
-      {/* 최근 세션 */}
-      <section className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
-        <h3 className="font-bold text-gray-900">최근 운동 기록</h3>
-        {recentSessions.length === 0 ? (
-          <p className="text-xs text-gray-400 text-center py-3">운동 기록이 없습니다.</p>
-        ) : (
-          <div className="space-y-2">
-            {recentSessions.map(s => (
-              <div key={s.id} className="flex items-center justify-between text-sm py-2 border-b border-gray-50 last:border-0">
-                <div>
-                  <span className="font-medium text-gray-800">{s.split_name || '(분할 없음)'}</span>
-                  {s.duration_min && <span className="text-xs text-gray-400 ml-2">{s.duration_min}분</span>}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400">{formatDateShort(s.date)}</span>
-                  <span className={`text-xs px-1.5 py-0.5 rounded ${s.is_completed ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {s.is_completed ? '완료' : '미완료'}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      </div>
     </div>
   )
 }

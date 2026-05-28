@@ -131,8 +131,8 @@ export default function ProgramSettings() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* 프로그램 관리 */}
+    <div className="md:grid md:grid-cols-2 md:gap-6 space-y-6 md:space-y-0">
+      {/* 왼쪽: 프로그램 관리 */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-gray-900">운동 프로그램</h3>
@@ -226,7 +226,7 @@ export default function ProgramSettings() {
         })}
       </section>
 
-      {/* 종목 마스터 관리 */}
+      {/* 오른쪽: 종목 마스터 관리 */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-gray-900">종목 관리</h3>

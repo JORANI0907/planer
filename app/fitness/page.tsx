@@ -40,7 +40,7 @@ export default function FitnessPage() {
 
   return (
     <LayoutShell>
-      <div className="max-w-lg mx-auto">
+      <div className="max-w-lg md:max-w-5xl mx-auto">
         {/* 페이지 헤더 */}
         <div className="mb-4">
           <h1 className="text-2xl font-bold text-gray-900">운동 비서</h1>

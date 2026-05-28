@@ -67,7 +67,7 @@ export default function ProgressView() {
 
   return (
     <div className="space-y-5">
-      {/* 주요 컴파운드 요약 */}
+      {/* 주요 컴파운드 요약 — 항상 상단 full-width */}
       <section className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2">
         <h3 className="font-bold text-gray-900 text-sm">주요 컴파운드 현황</h3>
         {compounds.filter(c => COMPOUND_HIGHLIGHTS.includes(c.exercise as typeof COMPOUND_HIGHLIGHTS[number]) && c.one_rm > 0).length === 0 ? (
@@ -99,8 +99,9 @@ export default function ProgressView() {
         )}
       </section>
 
-      {/* 종목 선택 + 기록 조회 */}
-      <section className="space-y-3">
+      {/* 종목 선택 + 기록 조회 — PC에서 2열 */}
+      <section className="md:grid md:grid-cols-2 md:gap-5 space-y-3 md:space-y-0">
+        <div className="space-y-3">
         <h3 className="font-bold text-gray-900 text-sm">종목별 진행 기록</h3>
 
         {/* 검색 */}
@@ -154,40 +155,44 @@ export default function ProgressView() {
             </button>
           ))}
         </div>
-      </section>
+        </div>{/* 종목 목록 열 끝 */}
 
-      {/* 선택된 종목 기록 */}
-      {selectedExercise && (
-        <section className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
-          <h3 className="font-bold text-gray-900">{selectedExercise.name} 기록</h3>
-
-          {isLoadingHistory ? (
-            <p className="text-xs text-gray-400 text-center py-3">불러오는 중...</p>
-          ) : history.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-3">아직 기록이 없습니다.</p>
+        {/* 오른쪽: 선택된 종목 기록 */}
+        <section className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3 md:self-start">
+          {selectedExercise ? (
+            <>
+              <h3 className="font-bold text-gray-900">{selectedExercise.name} 기록</h3>
+              {isLoadingHistory ? (
+                <p className="text-xs text-gray-400 text-center py-3">불러오는 중...</p>
+              ) : history.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-3">아직 기록이 없습니다.</p>
+              ) : (
+                <div className="space-y-2">
+                  {history.map((entry, i) => {
+                    const prevEntry = history[i + 1]
+                    const trend = prevEntry ? calcProgressTrend(prevEntry.one_rm, entry.one_rm) : 'same'
+                    return (
+                      <div key={entry.date + i} className="flex items-center justify-between text-sm py-2 border-b border-gray-50 last:border-0">
+                        <span className="text-gray-500 text-xs w-12">{formatDateShort(entry.date)}</span>
+                        <span className="font-medium text-gray-700 flex-1 text-center">
+                          {entry.best_weight}kg × {entry.best_reps}회
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-900">~{entry.one_rm}kg</span>
+                          {i < history.length - 1 && <TrendBadge trend={trend} />}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  <p className="text-[10px] text-gray-400 text-right">세션당 최고 세트 기준 추정 1RM</p>
+                </div>
+              )}
+            </>
           ) : (
-            <div className="space-y-2">
-              {history.map((entry, i) => {
-                const prevEntry = history[i + 1]
-                const trend = prevEntry ? calcProgressTrend(prevEntry.one_rm, entry.one_rm) : 'same'
-                return (
-                  <div key={entry.date + i} className="flex items-center justify-between text-sm py-2 border-b border-gray-50 last:border-0">
-                    <span className="text-gray-500 text-xs w-12">{formatDateShort(entry.date)}</span>
-                    <span className="font-medium text-gray-700 flex-1 text-center">
-                      {entry.best_weight}kg × {entry.best_reps}회
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-gray-900">~{entry.one_rm}kg</span>
-                      {i < history.length - 1 && <TrendBadge trend={trend} />}
-                    </div>
-                  </div>
-                )
-              })}
-              <p className="text-[10px] text-gray-400 text-right">세션당 최고 세트 기준 추정 1RM</p>
-            </div>
+            <p className="text-xs text-gray-400 text-center py-6">왼쪽에서 종목을 선택하세요</p>
           )}
         </section>
-      )}
+      </section>
     </div>
   )
 }

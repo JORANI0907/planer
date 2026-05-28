@@ -147,7 +147,9 @@ export default function DietTracker() {
   const isToday = selectedDate === getTodayKey()
 
   return (
-    <div className="space-y-5">
+    <div className="md:grid md:grid-cols-2 md:gap-5 space-y-5 md:space-y-0">
+      {/* 왼쪽: 날짜 + 목표 달성률 + 입력 폼 */}
+      <div className="space-y-5">
       {/* 날짜 선택 */}
       <div className="flex items-center justify-between bg-white rounded-2xl border border-gray-100 p-3">
         <button onClick={() => shiftDate(-1)} className="p-2 rounded-xl active:bg-gray-100">
@@ -222,9 +224,10 @@ export default function DietTracker() {
           )}
         </div>
       </section>
+      </div>{/* 왼쪽 열 끝 */}
 
-      {/* 최근 7일 기록 */}
-      <section className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2">
+      {/* 오른쪽: 최근 7일 기록 */}
+      <section className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2 md:self-start">
         <h3 className="font-bold text-gray-900 text-sm">최근 기록</h3>
         {history.length === 0 ? (
           <p className="text-xs text-gray-400 text-center py-3">기록이 없습니다.</p>
