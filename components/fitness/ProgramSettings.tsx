@@ -1,35 +1,35 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Trash2, Check, ChevronDown, ChevronUp, Edit2, X } from 'lucide-react'
-import type { FitnessExercise, FitnessProgram, FitnessProgramSplit } from '@/lib/fitness-types'
+import { Plus, Trash2, ChevronDown, ChevronUp, X, Check } from 'lucide-react'
+import type { FitnessExercise, FitnessProgram, FitnessProgramSplit, SplitExercise } from '@/lib/fitness-types'
 import type { ExerciseMuscleGroup } from '@/lib/fitness-types'
 import {
   getPrograms, createProgram, deleteProgram, setActiveProgram,
-  getSplitsByProgram, createSplit, deleteSplit, updateSplit,
+  getSplitsByProgram, createSplit, deleteSplit,
   getExercises, createExercise, deleteExercise,
   getExercisesBySplit, addExerciseToSplit, removeExerciseFromSplit,
 } from '@/lib/fitness-api'
 
 const MUSCLE_GROUPS: ExerciseMuscleGroup[] = ['가슴', '등', '어깨', '하체', '삼두', '이두', '복근', '기타']
 
+type PendingAdd = { splitId: string; exercise: FitnessExercise; targetSets: number; targetReps: string }
+
 export default function ProgramSettings() {
   const [programs, setPrograms] = useState<FitnessProgram[]>([])
   const [exercises, setExercises] = useState<FitnessExercise[]>([])
   const [expandedProgram, setExpandedProgram] = useState<string | null>(null)
   const [splitsByProgram, setSplitsByProgram] = useState<Map<string, FitnessProgramSplit[]>>(new Map())
-  const [splitExercises, setSplitExercises] = useState<Map<string, FitnessExercise[]>>(new Map())
+  const [splitExercises, setSplitExercises] = useState<Map<string, SplitExercise[]>>(new Map())
   const [isLoading, setIsLoading] = useState(true)
+  const [pendingAdd, setPendingAdd] = useState<PendingAdd | null>(null)
 
-  // 신규 프로그램 폼
   const [newProgramName, setNewProgramName] = useState('')
   const [newProgramDesc, setNewProgramDesc] = useState('')
   const [showNewProgram, setShowNewProgram] = useState(false)
 
-  // 신규 분할 폼
   const [newSplitName, setNewSplitName] = useState<Map<string, string>>(new Map())
 
-  // 신규 종목 폼
   const [showNewExercise, setShowNewExercise] = useState(false)
   const [newExName, setNewExName] = useState('')
   const [newExMuscle, setNewExMuscle] = useState<ExerciseMuscleGroup>('가슴')
@@ -47,7 +47,6 @@ export default function ProgramSettings() {
   const loadSplits = useCallback(async (programId: string) => {
     const sp = await getSplitsByProgram(programId)
     setSplitsByProgram(prev => new Map(prev).set(programId, sp))
-    // 각 분할의 종목 로드
     await Promise.all(sp.map(async split => {
       const exs = await getExercisesBySplit(split.id)
       setSplitExercises(prev => new Map(prev).set(split.id, exs))
@@ -101,12 +100,15 @@ export default function ProgramSettings() {
     })
   }, [])
 
-  const handleAddExToSplit = useCallback(async (splitId: string, exercise: FitnessExercise) => {
+  const handleConfirmAdd = useCallback(async () => {
+    if (!pendingAdd) return
+    const { splitId, exercise, targetSets, targetReps } = pendingAdd
     const current = splitExercises.get(splitId) ?? []
-    if (current.some(e => e.id === exercise.id)) return
-    await addExerciseToSplit(splitId, exercise.id, current.length)
-    setSplitExercises(prev => new Map(prev).set(splitId, [...current, exercise]))
-  }, [splitExercises])
+    await addExerciseToSplit(splitId, exercise.id, current.length, targetSets, targetReps)
+    const newEx: SplitExercise = { ...exercise, target_sets: targetSets, target_reps: targetReps }
+    setSplitExercises(prev => new Map(prev).set(splitId, [...current, newEx]))
+    setPendingAdd(null)
+  }, [pendingAdd, splitExercises])
 
   const handleRemoveExFromSplit = useCallback(async (splitId: string, exerciseId: string) => {
     await removeExerciseFromSplit(splitId, exerciseId)
@@ -184,27 +186,72 @@ export default function ProgramSettings() {
                         <span className="text-sm font-semibold text-gray-800">{split.name}</span>
                         <button onClick={() => handleDeleteSplit(prog.id, split.id)} className="p-1 text-gray-300 hover:text-red-400"><Trash2 size={13} /></button>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
+
+                      {/* 종목 칩 (목표 포함) */}
+                      <div className="flex flex-col gap-1">
                         {(splitExercises.get(split.id) ?? []).map(ex => (
-                          <span key={ex.id} className="flex items-center gap-1 text-xs px-2 py-1 bg-white border border-gray-200 rounded-lg">
-                            {ex.name}
-                            <button onClick={() => handleRemoveExFromSplit(split.id, ex.id)} className="text-gray-300 hover:text-red-400 ml-0.5"><X size={10} /></button>
-                          </span>
+                          <div key={ex.id} className="flex items-center justify-between text-xs px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg">
+                            <span className="font-medium text-gray-800">{ex.name}</span>
+                            <div className="flex items-center gap-2 ml-2">
+                              <span className="text-blue-600 font-mono text-[11px]">{ex.target_sets}세트 × {ex.target_reps}회</span>
+                              <button onClick={() => handleRemoveExFromSplit(split.id, ex.id)} className="text-gray-300 hover:text-red-400"><X size={11} /></button>
+                            </div>
+                          </div>
                         ))}
                       </div>
-                      <select
-                        onChange={e => {
-                          const ex = exercises.find(x => x.id === e.target.value)
-                          if (ex) handleAddExToSplit(split.id, ex)
-                          e.target.value = ''
-                        }}
-                        className="w-full text-xs px-2 py-1.5 border border-gray-200 rounded-lg bg-white text-gray-600"
-                        defaultValue=""
-                      >
-                        <option value="" disabled>+ 종목 추가</option>
-                        {exercises.filter(ex => !(splitExercises.get(split.id) ?? []).some(e => e.id === ex.id))
-                          .map(ex => <option key={ex.id} value={ex.id}>{ex.name} ({ex.muscle_group})</option>)}
-                      </select>
+
+                      {/* 대기 중인 종목 추가 폼 */}
+                      {pendingAdd?.splitId === split.id ? (
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-2">
+                          <p className="text-xs font-semibold text-blue-700">{pendingAdd.exercise.name} 목표 설정</p>
+                          <div className="flex gap-2">
+                            <div className="flex-1">
+                              <p className="text-[10px] text-gray-500 mb-1">세트 수</p>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => setPendingAdd(p => p ? { ...p, targetSets: Math.max(1, p.targetSets - 1) } : p)}
+                                  className="w-7 h-7 bg-white border border-gray-200 rounded-lg text-sm font-bold"
+                                >−</button>
+                                <span className="w-8 text-center text-sm font-bold">{pendingAdd.targetSets}</span>
+                                <button
+                                  onClick={() => setPendingAdd(p => p ? { ...p, targetSets: p.targetSets + 1 } : p)}
+                                  className="w-7 h-7 bg-white border border-gray-200 rounded-lg text-sm font-bold"
+                                >+</button>
+                              </div>
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-[10px] text-gray-500 mb-1">반복 범위</p>
+                              <input
+                                type="text"
+                                value={pendingAdd.targetReps}
+                                onChange={e => setPendingAdd(p => p ? { ...p, targetReps: e.target.value } : p)}
+                                placeholder="예: 8-12"
+                                className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center font-mono"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={handleConfirmAdd} className="flex-1 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1">
+                              <Check size={11} /> 추가
+                            </button>
+                            <button onClick={() => setPendingAdd(null)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-500">취소</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <select
+                          onChange={e => {
+                            const ex = exercises.find(x => x.id === e.target.value)
+                            if (ex) setPendingAdd({ splitId: split.id, exercise: ex, targetSets: 3, targetReps: '8-12' })
+                            e.target.value = ''
+                          }}
+                          className="w-full text-xs px-2 py-1.5 border border-gray-200 rounded-lg bg-white text-gray-600"
+                          defaultValue=""
+                        >
+                          <option value="" disabled>+ 종목 추가</option>
+                          {exercises.filter(ex => !(splitExercises.get(split.id) ?? []).some(e => e.id === ex.id))
+                            .map(ex => <option key={ex.id} value={ex.id}>{ex.name} ({ex.muscle_group})</option>)}
+                        </select>
+                      )}
                     </div>
                   ))}
 

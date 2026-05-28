@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { ChevronDown, ChevronUp, Plus, X, Trash2, Dumbbell } from 'lucide-react'
-import type { FitnessExercise, FitnessProgram, FitnessProgramSplit, FitnessSession, FitnessSet } from '@/lib/fitness-types'
+import type { FitnessExercise, FitnessProgram, FitnessProgramSplit, FitnessSession, FitnessSet, SplitExercise } from '@/lib/fitness-types'
 import { calc1RM, getTodayKey } from '@/lib/fitness-types'
 import {
   getActiveProgram, getSplitsByProgram, getExercisesBySplit,
@@ -11,7 +11,7 @@ import {
 } from '@/lib/fitness-api'
 
 interface ExerciseEntry {
-  exercise: FitnessExercise
+  exercise: SplitExercise
   savedSets: FitnessSet[]
   prevSets: FitnessSet[]
   pendingWeight: number
@@ -163,8 +163,9 @@ export default function WorkoutSession() {
     if (already) { setShowAddExercise(false); return }
     const prevMap = await getPrevSessionSetsBulk([exercise.name])
     const prev = prevMap.get(exercise.name) ?? []
+    const splitEx: SplitExercise = { ...exercise, target_sets: 3, target_reps: '8-12' }
     setEntries(p => [...p, {
-      exercise,
+      exercise: splitEx,
       savedSets: [],
       prevSets: prev,
       pendingWeight: prev[0]?.weight_kg ?? 60,
@@ -270,6 +271,19 @@ export default function WorkoutSession() {
 
           {entry.isExpanded && (
             <div className="border-t border-gray-100 p-4 space-y-3">
+              {/* 목표 가이드 */}
+              <div className="flex items-center gap-2 text-xs bg-blue-50 rounded-xl px-3 py-2">
+                <span className="text-blue-500 font-semibold shrink-0">목표</span>
+                <span className="text-blue-700 font-mono font-bold">
+                  {entry.exercise.target_sets}세트 × {entry.exercise.target_reps}회
+                </span>
+                {entry.savedSets.length > 0 && (
+                  <span className="ml-auto text-blue-400">
+                    {entry.savedSets.length}/{entry.exercise.target_sets} 완료
+                  </span>
+                )}
+              </div>
+
               {entry.prevSets.length > 0 && (
                 <div className="text-xs text-gray-400 bg-gray-50 rounded-xl p-2.5 leading-relaxed">
                   <span className="font-medium">지난번:</span>{' '}

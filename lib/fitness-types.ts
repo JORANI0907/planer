@@ -111,3 +111,51 @@ export type DietGoalKey = keyof typeof DIET_GOALS
 
 // 주요 컴파운드 종목 (강조 표시)
 export const COMPOUND_HIGHLIGHTS = ['벤치프레스', '데드리프트', '스쿼트', '오버헤드프레스', '바벨로우'] as const
+
+export interface FitnessProfile {
+  id: string
+  weight_kg: number | null
+  height_cm: number | null
+  age: number | null
+  goal: string
+  weekly_days: number
+  experience_level: string
+  notes: string | null
+  updated_at: string
+}
+
+export interface FitnessCoachMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  created_at: string
+}
+
+export interface SplitExercise extends FitnessExercise {
+  target_sets: number
+  target_reps: string
+}
+
+export const GOAL_OPTIONS = ['근비대', '린벌크', '컷팅', '유지'] as const
+export const EXPERIENCE_OPTIONS = ['초급', '중급', '고급'] as const
+export type FitnessGoal = typeof GOAL_OPTIONS[number]
+export type ExperienceLevel = typeof EXPERIENCE_OPTIONS[number]
+
+/** Mifflin-St Jeor (남성 기준) BMR */
+export function calcBMR(weight: number, height: number, age: number): number {
+  return Math.round(10 * weight + 6.25 * height - 5 * age + 5)
+}
+
+/** TDEE = BMR × 활동계수 */
+export function calcTDEE(bmr: number, weeklyDays: number): number {
+  const factor = weeklyDays >= 6 ? 1.725 : weeklyDays >= 4 ? 1.55 : weeklyDays >= 2 ? 1.375 : 1.2
+  return Math.round(bmr * factor)
+}
+
+/** 목표별 권장 칼로리 */
+export function calcGoalCalories(tdee: number, goal: string): number {
+  if (goal === '린벌크') return tdee + 200
+  if (goal === '근비대') return tdee + 300
+  if (goal === '컷팅') return tdee - 400
+  return tdee
+}

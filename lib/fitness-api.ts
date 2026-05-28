@@ -1,7 +1,8 @@
 import { supabase } from '@/lib/supabase'
 import {
   FitnessExercise, FitnessProgram, FitnessProgramSplit,
-  FitnessSession, FitnessSet, FitnessDiet,
+  FitnessSession, FitnessSet, FitnessDiet, FitnessProfile, FitnessCoachMessage,
+  SplitExercise,
   calc1RM, calcProgressTrend, COMPOUND_HIGHLIGHTS,
   ProgressTrend, getWeekStartDate, getTodayKey,
 } from '@/lib/fitness-types'
@@ -142,20 +143,26 @@ export async function deleteSplit(id: string): Promise<void> {
 
 // ─── 분할-종목 매핑 ────────────────────────────────────────
 
-export async function getExercisesBySplit(splitId: string): Promise<FitnessExercise[]> {
+export async function getExercisesBySplit(splitId: string): Promise<SplitExercise[]> {
   const { data, error } = await supabase
     .from('fitness_split_exercises')
-    .select('sort_order, fitness_exercises(*)')
+    .select('sort_order, target_sets, target_reps, fitness_exercises(*)')
     .eq('split_id', splitId)
     .order('sort_order')
   if (error) throw error
-  return (data ?? []).map((row) => (row as unknown as { fitness_exercises: FitnessExercise }).fitness_exercises)
+  return (data ?? []).map((row) => {
+    const r = row as unknown as { fitness_exercises: FitnessExercise; target_sets: number | null; target_reps: string | null }
+    return { ...r.fitness_exercises, target_sets: r.target_sets ?? 3, target_reps: r.target_reps ?? '8-12' }
+  })
 }
 
-export async function addExerciseToSplit(splitId: string, exerciseId: string, sortOrder: number): Promise<void> {
+export async function addExerciseToSplit(
+  splitId: string, exerciseId: string, sortOrder: number,
+  targetSets = 3, targetReps = '8-12',
+): Promise<void> {
   const { error } = await supabase
     .from('fitness_split_exercises')
-    .insert([{ split_id: splitId, exercise_id: exerciseId, sort_order: sortOrder }])
+    .insert([{ split_id: splitId, exercise_id: exerciseId, sort_order: sortOrder, target_sets: targetSets, target_reps: targetReps }])
   if (error) throw error
 }
 
@@ -395,4 +402,66 @@ export async function getDietHistory(days = 7): Promise<FitnessDiet[]> {
     .order('date', { ascending: false })
   if (error) throw error
   return data ?? []
+}
+
+// ─── 프로필 ───────────────────────────────────────────────────
+
+export async function getProfile(): Promise<FitnessProfile | null> {
+  const { data, error } = await supabase
+    .from('fitness_profile')
+    .select('*')
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+export async function upsertProfile(
+  input: Omit<FitnessProfile, 'id' | 'updated_at'>
+): Promise<FitnessProfile> {
+  const existing = await getProfile()
+  if (existing) {
+    const { data, error } = await supabase
+      .from('fitness_profile')
+      .update({ ...input, updated_at: new Date().toISOString() })
+      .eq('id', existing.id)
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  }
+  const { data, error } = await supabase
+    .from('fitness_profile')
+    .insert([input])
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+// ─── AI 코치 대화 히스토리 ────────────────────────────────────
+
+export async function getChatHistory(limit = 50): Promise<FitnessCoachMessage[]> {
+  const { data, error } = await supabase
+    .from('fitness_coach_messages')
+    .select('*')
+    .order('created_at', { ascending: true })
+    .limit(limit)
+  if (error) throw error
+  return (data ?? []) as FitnessCoachMessage[]
+}
+
+export async function saveChatMessage(role: 'user' | 'assistant', content: string): Promise<void> {
+  const { error } = await supabase
+    .from('fitness_coach_messages')
+    .insert([{ role, content }])
+  if (error) throw error
+}
+
+export async function clearChatHistory(): Promise<void> {
+  const { error } = await supabase
+    .from('fitness_coach_messages')
+    .delete()
+    .neq('id', '00000000-0000-0000-0000-000000000000')
+  if (error) throw error
 }

@@ -9,6 +9,7 @@ type SetRow = { exercise_name: string; weight_kg: number; reps: number; created_
 type SessionRow = { date: string; split_name: string | null; is_completed: boolean; duration_min: number | null }
 type DietRow = { date: string; calories: number; protein_g: number; carbs_g: number; fat_g: number; water_l: number; memo?: string }
 type ProgramRow = { name: string; description?: string }
+type ProfileRow = { weight_kg: number | null; height_cm: number | null; age: number | null; goal: string; weekly_days: number; experience_level: string; notes: string | null }
 
 export async function buildContext(): Promise<string> {
   const today = new Date().toISOString().split('T')[0]
@@ -20,12 +21,14 @@ export async function buildContext(): Promise<string> {
     { data: recentDiet },
     { data: activeProgram },
     { data: recentSets },
+    { data: profile },
   ] = await Promise.all([
     supabase.from('fitness_sessions').select('date,split_name,duration_min,is_completed').gte('date', weekAgo).order('date', { ascending: false }).limit(10),
     supabase.from('fitness_diet').select('*').eq('date', today).maybeSingle(),
     supabase.from('fitness_diet').select('*').order('date', { ascending: false }).limit(7),
     supabase.from('fitness_programs').select('name,description').eq('is_active', true).maybeSingle(),
     supabase.from('fitness_sets').select('exercise_name,weight_kg,reps,created_at').order('created_at', { ascending: false }).limit(100),
+    supabase.from('fitness_profile').select('weight_kg,height_cm,age,goal,weekly_days,experience_level,notes').limit(1).maybeSingle(),
   ])
 
   const compound1RMs: Record<string, number> = {}
@@ -44,9 +47,22 @@ export async function buildContext(): Promise<string> {
     if (!ex || rm > exRM) allExercises[set.exercise_name] = { weight: set.weight_kg, reps: set.reps }
   }
 
+  const p = profile as ProfileRow | null
+  const profileLine = p
+    ? [
+        p.weight_kg != null ? `몸무게: ${p.weight_kg}kg` : null,
+        p.height_cm != null ? `키: ${p.height_cm}cm` : null,
+        p.age != null ? `나이: ${p.age}세` : null,
+        `목표: ${p.goal}`,
+        `운동 경력: ${p.experience_level}`,
+        `주 ${p.weekly_days}회`,
+        p.notes ? `특이사항: ${p.notes}` : null,
+      ].filter(Boolean).join(', ')
+    : '프로필 미입력 (내 정보 탭에서 입력 필요)'
+
   const lines: string[] = [
     '=== 사용자 프로필 ===',
-    '몸무게: 75kg, 키: 178cm, 목표: 근비대 (hypertrophy)',
+    profileLine,
     '',
     '=== 현재 프로그램 ===',
     activeProgram ? `${(activeProgram as ProgramRow).name}${(activeProgram as ProgramRow).description ? ` (${(activeProgram as ProgramRow).description})` : ''}` : '프로그램 없음',

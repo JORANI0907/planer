@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, Dumbbell, TrendingUp, Utensils, Settings2, BotMessageSquare } from 'lucide-react'
+import { LayoutDashboard, Dumbbell, TrendingUp, Utensils, Settings2, BotMessageSquare, UserCircle } from 'lucide-react'
 import { LayoutShell } from '@/components/LayoutShell'
 import FitnessDashboard from '@/components/fitness/FitnessDashboard'
 import WorkoutSession from '@/components/fitness/WorkoutSession'
@@ -9,8 +9,9 @@ import ProgressView from '@/components/fitness/ProgressView'
 import DietTracker from '@/components/fitness/DietTracker'
 import ProgramSettings from '@/components/fitness/ProgramSettings'
 import FitnessCoach from '@/components/fitness/FitnessCoach'
+import ProfileSettings from '@/components/fitness/ProfileSettings'
 
-type FitnessTab = 'dashboard' | 'session' | 'progress' | 'diet' | 'settings' | 'coach'
+type FitnessTab = 'dashboard' | 'session' | 'progress' | 'diet' | 'settings' | 'coach' | 'profile'
 
 const TABS: { key: FitnessTab; label: string; icon: React.ReactNode }[] = [
   { key: 'dashboard', label: '대시보드',   icon: <LayoutDashboard size={18} /> },
@@ -19,6 +20,7 @@ const TABS: { key: FitnessTab; label: string; icon: React.ReactNode }[] = [
   { key: 'diet',      label: '식단',        icon: <Utensils size={18} /> },
   { key: 'settings',  label: '프로그램',    icon: <Settings2 size={18} /> },
   { key: 'coach',     label: 'AI 코치',     icon: <BotMessageSquare size={18} /> },
+  { key: 'profile',   label: '내 정보',     icon: <UserCircle size={18} /> },
 ]
 
 const STORAGE_KEY = 'fitness-active-tab'
@@ -73,6 +75,7 @@ export default function FitnessPage() {
           {activeTab === 'diet'      && <DietTracker />}
           {activeTab === 'settings'  && <ProgramSettings />}
           {activeTab === 'coach'     && <FitnessCoach />}
+          {activeTab === 'profile'   && <ProfileSettings />}
         </div>
       </div>
     </LayoutShell>

@@ -5,7 +5,7 @@ import { Send, Loader2, Bot, User, Sparkles, CheckCircle, Save, Dumbbell, Utensi
 import type { ExerciseMuscleGroup } from '@/lib/fitness-types'
 import {
   getExercises, createProgram, createSplit, addExerciseToSplit,
-  createExercise, upsertDiet,
+  createExercise, upsertDiet, getChatHistory, saveChatMessage,
 } from '@/lib/fitness-api'
 
 // ─── Types ───────────────────────────────────────────────────
@@ -13,7 +13,7 @@ import {
 type GeneratedProgram = {
   name: string
   description: string
-  splits: Array<{ name: string; exercises: string[] }>
+  splits: Array<{ name: string; exercises: Array<{ name: string; target_sets: number; target_reps: string }> }>
   coaching_note: string
 }
 
@@ -97,9 +97,12 @@ function ProgramCard({ data, onSave }: { data: GeneratedProgram; onSave: () => P
         {data.splits.map((split, i) => (
           <div key={i} className="bg-white rounded-xl p-3 space-y-1.5">
             <p className="text-xs font-semibold text-gray-700">{split.name}</p>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-col gap-1">
               {split.exercises.map((ex, j) => (
-                <span key={j} className="text-[11px] px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">{ex}</span>
+                <div key={j} className="flex items-center justify-between text-[11px] px-2 py-1 bg-blue-50 rounded-lg">
+                  <span className="text-blue-800 font-medium">{ex.name}</span>
+                  <span className="text-blue-500 font-mono shrink-0 ml-2">{ex.target_sets}세트 × {ex.target_reps}회</span>
+                </div>
               ))}
             </div>
           </div>
@@ -228,6 +231,18 @@ export default function FitnessCoach() {
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
+    async function loadHistory() {
+      try {
+        const history = await getChatHistory(80)
+        if (history.length > 0) {
+          setMessages(history.map(m => ({ role: m.role, content: m.content })))
+        }
+      } catch {}
+    }
+    loadHistory()
+  }, [])
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
@@ -260,6 +275,8 @@ export default function FitnessCoach() {
           return u
         })
       }
+      saveChatMessage('user', text.trim()).catch(() => {})
+      saveChatMessage('assistant', acc).catch(() => {})
     } catch {
       setMessages(prev => {
         const u = [...prev]
@@ -283,6 +300,8 @@ export default function FitnessCoach() {
     const userMsg: Message = { role: 'user', content: '운동 프로그램을 만들어줘.' }
     const askMsg: Message = { role: 'assistant', content: PROGRAM_WIZARD_QUESTION }
     setMessages(prev => [...prev, userMsg, askMsg])
+    saveChatMessage('user', userMsg.content).catch(() => {})
+    saveChatMessage('assistant', askMsg.content).catch(() => {})
   }
 
   // ─ Confirm and generate program with conversation context ─
@@ -306,6 +325,7 @@ export default function FitnessCoach() {
         u[u.length - 1] = { role: 'assistant', content: data.coaching_note, action: { type: 'program', data } }
         return u
       })
+      saveChatMessage('assistant', data.coaching_note).catch(() => {})
     } catch {
       setMessages(prev => {
         const u = [...prev]
@@ -329,6 +349,8 @@ export default function FitnessCoach() {
     const userMsg: Message = { role: 'user', content: '식단 플랜을 만들어줘.' }
     const askMsg: Message = { role: 'assistant', content: DIET_WIZARD_QUESTION }
     setMessages(prev => [...prev, userMsg, askMsg])
+    saveChatMessage('user', userMsg.content).catch(() => {})
+    saveChatMessage('assistant', askMsg.content).catch(() => {})
   }
 
   // ─ Confirm and generate diet with conversation context ─
@@ -352,6 +374,7 @@ export default function FitnessCoach() {
         u[u.length - 1] = { role: 'assistant', content: data.coaching_note, action: { type: 'diet', data } }
         return u
       })
+      saveChatMessage('assistant', data.coaching_note).catch(() => {})
     } catch {
       setMessages(prev => {
         const u = [...prev]
@@ -376,18 +399,18 @@ export default function FitnessCoach() {
       const newSplit = await createSplit({ program_id: program.id, name: split.name, sort_order: i })
 
       for (let j = 0; j < split.exercises.length; j++) {
-        const exName = split.exercises[j]
-        let exercise = exMap.get(exName.toLowerCase())
+        const exData = split.exercises[j]
+        let exercise = exMap.get(exData.name.toLowerCase())
         if (!exercise) {
           exercise = await createExercise({
-            name: exName,
-            muscle_group: inferMuscleGroup(exName),
-            is_compound: COMPOUND_PATTERN.test(exName),
+            name: exData.name,
+            muscle_group: inferMuscleGroup(exData.name),
+            is_compound: COMPOUND_PATTERN.test(exData.name),
             sort_order: 999,
           })
-          exMap.set(exName.toLowerCase(), exercise)
+          exMap.set(exData.name.toLowerCase(), exercise)
         }
-        await addExerciseToSplit(newSplit.id, exercise.id, j)
+        await addExerciseToSplit(newSplit.id, exercise.id, j, exData.target_sets, exData.target_reps)
       }
     }
   }
