@@ -201,22 +201,6 @@ const QUICK_ACTIONS = [
   { label: '점진적 과부하 전략', prompt: '내 현재 컴파운드 1RM을 기반으로 8주 점진적 과부하 전략을 세워줘.', kind: 'chat' as const },
 ]
 
-const PROGRAM_WIZARD_QUESTION = `프로그램을 맞춤 설계하기 전에 몇 가지 여쭤볼게요 💪
-
-• 주당 몇 일 운동하실 예정인가요? (예: 3일, 4일, 5일, 6일)
-• 집중하고 싶은 부위가 있나요? (가슴, 등, 하체, 어깨, 전신 균형 등)
-• 현재 운동 경력은 어느 정도인가요? (초급 / 중급 / 고급)
-
-자유롭게 말씀해 주세요. 조건을 다 말씀하셨으면 위의 "지금 생성하기" 버튼을 눌러주세요!`
-
-const DIET_WIZARD_QUESTION = `식단 플랜을 맞춤 설계하기 전에 몇 가지 여쭤볼게요 🥗
-
-• 현재 목표는 무엇인가요? (린벌크 / 클린벌크 / 컷팅 / 유지)
-• 특별한 식이 제한이 있나요? (채식, 유제품 제한, 알레르기 등)
-• 하루 몇 끼를 드시나요? (3끼, 4~5끼 소분식 등)
-
-말씀해 주시면 반영할게요. 준비되면 위의 "지금 생성하기" 버튼을 눌러주세요!`
-
 // ─── Main Component ───────────────────────────────────────────
 
 export default function FitnessCoach() {
@@ -236,12 +220,6 @@ export default function FitnessCoach() {
         const history = await getChatHistory(80)
         if (history.length > 0) {
           setMessages(history.map(m => ({ role: m.role, content: m.content })))
-          // 마지막 메시지가 위저드 질문이면 배너 상태 복원
-          const last = history[history.length - 1]
-          if (last.role === 'assistant') {
-            if (last.content.startsWith('프로그램을 맞춤 설계하기 전에')) setWizardMode('program')
-            else if (last.content.startsWith('식단 플랜을 맞춤 설계하기 전에')) setWizardMode('diet')
-          }
         }
       } catch {}
     }
@@ -294,7 +272,7 @@ export default function FitnessCoach() {
     }
   }
 
-  // ─ Start program wizard (ask questions first) ─
+  // ─ Start program wizard (AI가 데이터 분석 후 자연스럽게 질문) ─
 
   const startProgramWizard = () => {
     if (isLoading) return
@@ -303,10 +281,7 @@ export default function FitnessCoach() {
       return
     }
     setWizardMode('program')
-    const userMsg: Message = { role: 'user', content: '운동 프로그램을 만들어줘.' }
-    const askMsg: Message = { role: 'assistant', content: PROGRAM_WIZARD_QUESTION }
-    setMessages(prev => [...prev, userMsg, askMsg])
-    saveChatMessage('assistant', askMsg.content).catch(() => {})
+    sendMessage('운동 프로그램을 맞춤으로 짜줘.')
   }
 
   // ─ Confirm and generate program with conversation context ─
@@ -342,7 +317,7 @@ export default function FitnessCoach() {
     }
   }
 
-  // ─ Start diet wizard ─
+  // ─ Start diet wizard (AI가 데이터 분석 후 자연스럽게 질문) ─
 
   const startDietWizard = () => {
     if (isLoading) return
@@ -351,10 +326,7 @@ export default function FitnessCoach() {
       return
     }
     setWizardMode('diet')
-    const userMsg: Message = { role: 'user', content: '식단 플랜을 만들어줘.' }
-    const askMsg: Message = { role: 'assistant', content: DIET_WIZARD_QUESTION }
-    setMessages(prev => [...prev, userMsg, askMsg])
-    saveChatMessage('assistant', askMsg.content).catch(() => {})
+    sendMessage('식단 플랜을 맞춤으로 짜줘.')
   }
 
   // ─ Confirm and generate diet with conversation context ─
