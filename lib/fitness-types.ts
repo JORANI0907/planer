@@ -128,6 +128,22 @@ export interface FitnessProfile {
   updated_at: string
 }
 
+export interface FitnessDietPlan {
+  id: string
+  calories: number
+  protein_g: number
+  carbs_g: number
+  fat_g: number
+  water_l: number
+  breakfast?: string
+  lunch?: string
+  dinner?: string
+  snack?: string
+  memo?: string
+  created_at: string
+  updated_at: string
+}
+
 export interface FitnessChatSession {
   id: string
   title: string
