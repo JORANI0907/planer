@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase'
 import {
   FitnessExercise, FitnessProgram, FitnessProgramSplit,
   FitnessSession, FitnessSet, FitnessDiet, FitnessProfile, FitnessCoachMessage,
-  SplitExercise,
+  FitnessChatSession, SplitExercise,
   calc1RM, calcProgressTrend, COMPOUND_HIGHLIGHTS,
   ProgressTrend, getWeekStartDate, getTodayKey,
 } from '@/lib/fitness-types'
@@ -439,29 +439,57 @@ export async function upsertProfile(
   return data
 }
 
-// ─── AI 코치 대화 히스토리 ────────────────────────────────────
+// ─── AI 코치 채팅 세션 ────────────────────────────────────────
 
-export async function getChatHistory(limit = 50): Promise<FitnessCoachMessage[]> {
+const MAX_CHAT_SESSIONS = 5
+
+export async function getChatSessions(): Promise<FitnessChatSession[]> {
+  const { data, error } = await supabase
+    .from('fitness_chat_sessions')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(MAX_CHAT_SESSIONS)
+  if (error) throw error
+  return (data ?? []) as FitnessChatSession[]
+}
+
+export async function createChatSession(firstMessage: string): Promise<FitnessChatSession> {
+  const existing = await getChatSessions()
+  if (existing.length >= MAX_CHAT_SESSIONS) {
+    const oldest = existing[existing.length - 1]
+    await deleteChatSession(oldest.id)
+  }
+  const title = firstMessage.length > 28 ? firstMessage.slice(0, 28) + '...' : firstMessage
+  const { data, error } = await supabase
+    .from('fitness_chat_sessions')
+    .insert([{ title }])
+    .select()
+    .single()
+  if (error) throw error
+  return data as FitnessChatSession
+}
+
+export async function deleteChatSession(id: string): Promise<void> {
+  const { error } = await supabase.from('fitness_chat_sessions').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ─── AI 코치 대화 메시지 ──────────────────────────────────────
+
+export async function getChatHistory(sessionId: string, limit = 80): Promise<FitnessCoachMessage[]> {
   const { data, error } = await supabase
     .from('fitness_coach_messages')
     .select('*')
+    .eq('session_id', sessionId)
     .order('created_at', { ascending: true })
     .limit(limit)
   if (error) throw error
   return (data ?? []) as FitnessCoachMessage[]
 }
 
-export async function saveChatMessage(role: 'user' | 'assistant', content: string): Promise<void> {
+export async function saveChatMessage(sessionId: string, role: 'user' | 'assistant', content: string): Promise<void> {
   const { error } = await supabase
     .from('fitness_coach_messages')
-    .insert([{ role, content }])
-  if (error) throw error
-}
-
-export async function clearChatHistory(): Promise<void> {
-  const { error } = await supabase
-    .from('fitness_coach_messages')
-    .delete()
-    .neq('id', '00000000-0000-0000-0000-000000000000')
+    .insert([{ session_id: sessionId, role, content }])
   if (error) throw error
 }
