@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import {
   FitnessExercise, FitnessProgram, FitnessProgramSplit,
-  FitnessSession, FitnessSet, FitnessDiet, FitnessProfile, FitnessCoachMessage,
+  FitnessSession, FitnessSet, FitnessDiet, FitnessDietPlan, FitnessProfile, FitnessCoachMessage,
   FitnessChatSession, SplitExercise,
   calc1RM, calcProgressTrend, COMPOUND_HIGHLIGHTS,
   ProgressTrend, getWeekStartDate, getTodayKey,
@@ -402,6 +402,32 @@ export async function getDietHistory(days = 7): Promise<FitnessDiet[]> {
     .order('date', { ascending: false })
   if (error) throw error
   return data ?? []
+}
+
+// ─── 식단 플랜 (영구 보관) ─────────────────────────────────────
+
+export async function getDietPlan(): Promise<FitnessDietPlan | null> {
+  const { data, error } = await supabase
+    .from('fitness_diet_plan')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+export async function upsertDietPlan(
+  input: Omit<FitnessDietPlan, 'id' | 'created_at' | 'updated_at'>,
+  id?: string
+): Promise<FitnessDietPlan> {
+  const payload = { ...input, updated_at: new Date().toISOString() }
+  let q = supabase.from('fitness_diet_plan')
+  const { data, error } = id
+    ? await q.update(payload).eq('id', id).select().single()
+    : await q.insert([payload]).select().single()
+  if (error) throw error
+  return data
 }
 
 // ─── 프로필 ───────────────────────────────────────────────────
