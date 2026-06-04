@@ -38,13 +38,20 @@ function calcRecommendedWeight(oneRM: number, targetReps: string, goal: string):
   return Math.round(theoreticalMax * factor / 2.5) * 2.5
 }
 
-function calcRecommendedRest(targetReps: string, isCompound: boolean, goal: string): number {
+function calcSetRest(targetReps: string, isCompound: boolean, goal: string): number {
   const reps = parseTargetRepsMid(targetReps)
   let secs = reps <= 5 ? 180 : reps <= 8 ? 150 : reps <= 12 ? 90 : 60
   if (isCompound) secs += 30
   if (goal === '컷팅') secs = Math.round(secs * 0.7)
   else if (goal === '린벌크') secs = Math.round(secs * 1.1)
   return Math.round(Math.min(300, Math.max(30, secs)) / 15) * 15
+}
+
+function calcExerciseRest(setRest: number, isCompound: boolean, goal: string): number {
+  let extra = isCompound ? 60 : 45
+  if (goal === '컷팅') extra = Math.round(extra * 0.7)
+  else if (goal === '린벌크') extra = Math.round(extra * 1.1)
+  return Math.round(Math.min(360, setRest + extra) / 15) * 15
 }
 
 function formatRestSecs(secs: number): string {
@@ -533,21 +540,39 @@ export default function WorkoutSession() {
 
                 {/* 추천 휴식 — 항상 표시 */}
                 {(() => {
-                  const recRest = calcRecommendedRest(entry.exercise.target_reps, entry.exercise.is_compound, userGoal)
+                  const setRest = calcSetRest(entry.exercise.target_reps, entry.exercise.is_compound, userGoal)
+                  const exRest  = calcExerciseRest(setRest, entry.exercise.is_compound, userGoal)
                   return (
-                    <div className="flex items-center gap-2 text-xs bg-sky-50 border border-sky-100 rounded-xl px-3 py-2">
-                      <span className="text-sky-500 shrink-0">⏱</span>
-                      <span className="text-sky-700 font-semibold shrink-0">추천 휴식</span>
-                      <span className="font-black text-sky-900 font-mono text-sm">{formatRestSecs(recRest)}</span>
-                      <span className="text-sky-400 text-[10px] min-w-0 truncate">
-                        {entry.exercise.is_compound ? '컴파운드' : '단관절'} · {userGoal}
-                      </span>
-                      <button
-                        onClick={() => setTimerSecs(recRest)}
-                        className="ml-auto shrink-0 text-[10px] px-2 py-1 bg-sky-500 text-white rounded-lg font-bold active:bg-sky-600"
-                      >
-                        타이머 설정
-                      </button>
+                    <div className="bg-sky-50 border border-sky-100 rounded-xl px-3 py-2 space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sky-500 text-xs shrink-0">⏱</span>
+                        <span className="text-sky-700 text-xs font-semibold">추천 휴식</span>
+                        <span className="text-sky-400 text-[10px] ml-1">
+                          {entry.exercise.is_compound ? '컴파운드' : '단관절'} · {userGoal}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 flex items-center justify-between bg-white rounded-lg px-2.5 py-1.5">
+                          <span className="text-[10px] text-sky-500 font-medium">세트간</span>
+                          <span className="font-black text-sky-900 font-mono text-sm ml-1">{formatRestSecs(setRest)}</span>
+                          <button
+                            onClick={() => setTimerSecs(setRest)}
+                            className="ml-2 text-[10px] px-1.5 py-0.5 bg-sky-500 text-white rounded-md font-bold active:bg-sky-600"
+                          >
+                            설정
+                          </button>
+                        </div>
+                        <div className="flex-1 flex items-center justify-between bg-white rounded-lg px-2.5 py-1.5">
+                          <span className="text-[10px] text-indigo-500 font-medium">종목간</span>
+                          <span className="font-black text-indigo-900 font-mono text-sm ml-1">{formatRestSecs(exRest)}</span>
+                          <button
+                            onClick={() => setTimerSecs(exRest)}
+                            className="ml-2 text-[10px] px-1.5 py-0.5 bg-indigo-500 text-white rounded-md font-bold active:bg-indigo-600"
+                          >
+                            설정
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )
                 })()}
