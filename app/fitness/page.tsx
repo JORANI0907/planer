@@ -15,7 +15,7 @@ type FitnessTab = 'dashboard' | 'session' | 'progress' | 'diet' | 'settings' | '
 
 const TABS: { key: FitnessTab; label: string; icon: React.ReactNode }[] = [
   { key: 'dashboard', label: '대시보드',   icon: <LayoutDashboard size={18} /> },
-  { key: 'session',   label: '운동 기록',   icon: <Dumbbell size={18} /> },
+  { key: 'session',   label: '운동시작',    icon: <Dumbbell size={18} /> },
   { key: 'progress',  label: '진행 추적',   icon: <TrendingUp size={18} /> },
   { key: 'diet',      label: '식단',        icon: <Utensils size={18} /> },
   { key: 'settings',  label: '프로그램',    icon: <Settings2 size={18} /> },
