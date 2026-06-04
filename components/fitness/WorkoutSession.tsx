@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { ChevronDown, ChevronUp, Plus, X, Trash2, Dumbbell, Play, Square } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, X, Trash2, Dumbbell, Play, Square, ArrowLeftRight } from 'lucide-react'
 import type { FitnessExercise, FitnessProgram, FitnessProgramSplit, FitnessSession, FitnessSet, SplitExercise } from '@/lib/fitness-types'
 import { calc1RM, getTodayKey } from '@/lib/fitness-types'
 import {
@@ -233,6 +233,7 @@ export default function WorkoutSession() {
   const [isSaving, setIsSaving] = useState(false)
   const [showAddExercise, setShowAddExercise] = useState(false)
   const [exerciseSearch, setExerciseSearch] = useState('')
+  const [swapTargetIdx, setSwapTargetIdx] = useState<number | null>(null)
   const startTimeRef = useRef<Date | null>(null)
   const [userGoal, setUserGoal] = useState<string>('근비대')
 
@@ -396,23 +397,45 @@ export default function WorkoutSession() {
     }))
   }, [])
 
-  const handleAddExercise = useCallback(async (exercise: FitnessExercise) => {
-    const already = entries.some(e => e.exercise.id === exercise.id)
-    if (already) { setShowAddExercise(false); return }
+  const closePicker = useCallback(() => {
+    setShowAddExercise(false)
+    setSwapTargetIdx(null)
+    setExerciseSearch('')
+  }, [])
+
+  const handlePickExercise = useCallback(async (exercise: FitnessExercise) => {
     const prevMap = await getPrevSessionSetsBulk([exercise.name])
     const prev = prevMap.get(exercise.name) ?? []
     const splitEx: SplitExercise = { ...exercise, target_sets: 3, target_reps: '8-12' }
-    setEntries(p => [...p, {
-      exercise: splitEx,
-      savedSets: [],
-      prevSets: prev,
-      pendingWeight: prev[0]?.weight_kg ?? 60,
-      pendingReps: prev[0]?.reps ?? 10,
-      isExpanded: true,
-    }])
-    setShowAddExercise(false)
-    setExerciseSearch('')
-  }, [entries])
+
+    if (swapTargetIdx !== null) {
+      // 교체 모드: 해당 슬롯을 새 종목으로 대체, UI 세트 초기화 (DB 기록은 유지)
+      setEntries(p => p.map((e, i) =>
+        i !== swapTargetIdx ? e : {
+          exercise: splitEx,
+          savedSets: [],
+          prevSets: prev,
+          pendingWeight: prev[0]?.weight_kg ?? 60,
+          pendingReps: prev[0]?.reps ?? 10,
+          isExpanded: true,
+        }
+      ))
+    } else {
+      // 추가 모드
+      const already = entries.some(e => e.exercise.id === exercise.id)
+      if (!already) {
+        setEntries(p => [...p, {
+          exercise: splitEx,
+          savedSets: [],
+          prevSets: prev,
+          pendingWeight: prev[0]?.weight_kg ?? 60,
+          pendingReps: prev[0]?.reps ?? 10,
+          isExpanded: true,
+        }])
+      }
+    }
+    closePicker()
+  }, [entries, swapTargetIdx, closePicker])
 
   const handleComplete = useCallback(async () => {
     if (!session) return
@@ -471,7 +494,8 @@ export default function WorkoutSession() {
   }
 
   const filteredEx = allExercises.filter(ex =>
-    ex.name.includes(exerciseSearch) && !entries.some(e => e.exercise.id === ex.id)
+    ex.name.includes(exerciseSearch) &&
+    !entries.some((e, i) => e.exercise.id === ex.id && i !== swapTargetIdx)
   )
 
   return (
@@ -505,11 +529,12 @@ export default function WorkoutSession() {
         {/* 운동 카드 목록 */}
         {entries.map((entry, idx) => (
           <div key={entry.exercise.id} className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-            <button
-              className="w-full flex items-center justify-between p-4 text-left"
-              onClick={() => setEntries(prev => prev.map((e, i) => i === idx ? { ...e, isExpanded: !e.isExpanded } : e))}
-            >
-              <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1 mr-2">
+            <div className="w-full flex items-center p-4 gap-1">
+              {/* 종목명 + 뱃지 영역 — 탭하면 펼치기/접기 */}
+              <button
+                className="flex items-center gap-2 flex-wrap min-w-0 flex-1 text-left"
+                onClick={() => setEntries(prev => prev.map((e, i) => i === idx ? { ...e, isExpanded: !e.isExpanded } : e))}
+              >
                 <span className="font-semibold text-gray-900 break-keep">{entry.exercise.name}</span>
                 {entry.exercise.is_compound && (
                   <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded font-medium shrink-0">컴파운드</span>
@@ -517,11 +542,25 @@ export default function WorkoutSession() {
                 {entry.savedSets.length > 0 && (
                   <span className="text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded font-medium shrink-0">{entry.savedSets.length}세트 완료</span>
                 )}
-              </div>
-              {entry.isExpanded
-                ? <ChevronUp size={18} className="text-gray-400 shrink-0" />
-                : <ChevronDown size={18} className="text-gray-400 shrink-0" />}
-            </button>
+              </button>
+              {/* 종목 교체 버튼 */}
+              <button
+                onClick={() => { setSwapTargetIdx(idx); setShowAddExercise(true); setExerciseSearch('') }}
+                className="p-2 rounded-lg text-gray-300 hover:text-blue-500 hover:bg-blue-50 active:bg-blue-100 shrink-0"
+                title="종목 교체"
+              >
+                <ArrowLeftRight size={15} />
+              </button>
+              {/* 펼치기/접기 화살표 */}
+              <button
+                onClick={() => setEntries(prev => prev.map((e, i) => i === idx ? { ...e, isExpanded: !e.isExpanded } : e))}
+                className="p-1 shrink-0"
+              >
+                {entry.isExpanded
+                  ? <ChevronUp size={18} className="text-gray-400" />
+                  : <ChevronDown size={18} className="text-gray-400" />}
+              </button>
+            </div>
 
             {entry.isExpanded && (
               <div className="border-t border-gray-100 p-4 space-y-3">
@@ -667,19 +706,35 @@ export default function WorkoutSession() {
           <Plus size={16} /> 운동 추가
         </button>
 
-        {/* 운동 추가 오버레이 */}
+        {/* 종목 추가/교체 오버레이 */}
         {showAddExercise && (
-          <div className="fixed inset-0 z-50 bg-black/30" onClick={() => setShowAddExercise(false)}>
+          <div className="fixed inset-0 z-50 bg-black/30" onClick={closePicker}>
             <div
               className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl max-h-[70vh] flex flex-col"
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                <span className="font-bold text-gray-900">운동 추가</span>
-                <button onClick={() => setShowAddExercise(false)}>
+                <div className="min-w-0">
+                  <span className="font-bold text-gray-900">
+                    {swapTargetIdx !== null ? '종목 교체' : '운동 추가'}
+                  </span>
+                  {swapTargetIdx !== null && (
+                    <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+                      {entries[swapTargetIdx]?.exercise.name} → 새 종목 선택
+                    </p>
+                  )}
+                </div>
+                <button onClick={closePicker}>
                   <X size={20} className="text-gray-500" />
                 </button>
               </div>
+              {swapTargetIdx !== null && entries[swapTargetIdx]?.savedSets.length > 0 && (
+                <div className="px-4 py-2 bg-amber-50 border-b border-amber-100">
+                  <p className="text-[11px] text-amber-700">
+                    이미 기록한 {entries[swapTargetIdx].savedSets.length}세트는 기존 종목으로 DB에 보존됩니다
+                  </p>
+                </div>
+              )}
               <div className="px-4 py-2">
                 <input
                   type="text"
@@ -691,14 +746,19 @@ export default function WorkoutSession() {
                 />
               </div>
               <div className="overflow-y-auto flex-1 px-2 pb-6">
+                {filteredEx.length === 0 && (
+                  <p className="text-center text-sm text-gray-400 py-8">검색 결과가 없습니다</p>
+                )}
                 {filteredEx.map(ex => (
                   <button
                     key={ex.id}
-                    onClick={() => handleAddExercise(ex)}
+                    onClick={() => handlePickExercise(ex)}
                     className="w-full flex items-center justify-between px-3 py-3.5 rounded-xl hover:bg-gray-50 active:bg-gray-100"
                   >
-                    <span className="text-sm font-medium text-gray-800">{ex.name}</span>
-                    <div className="flex items-center gap-1.5">
+                    <div className="text-left min-w-0">
+                      <span className="text-sm font-medium text-gray-800">{ex.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
                       {ex.is_compound && (
                         <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded">컴파운드</span>
                       )}
