@@ -7,11 +7,36 @@ import { calc1RM, getTodayKey } from '@/lib/fitness-types'
 import {
   getActiveProgram, getSplitsByProgram, getExercisesBySplit,
   getPrevSessionSetsBulk, createSession, updateSession,
-  deleteSession, createSet, deleteSet, getExercises,
+  deleteSession, createSet, deleteSet, getExercises, getProfile,
 } from '@/lib/fitness-api'
 
 const DRAFT_KEY = 'fitness-session-draft'
 const TIMER_DEFAULT = 60
+
+// ─── 적정 무게 추천 ───────────────────────────────────────────
+
+const GOAL_INTENSITY: Record<string, number> = {
+  '근비대': 0.85,
+  '린벌크': 0.88,
+  '컷팅':  0.78,
+  '유지':  0.82,
+}
+
+function parseTargetRepsMid(targetReps: string): number {
+  const m = targetReps.match(/^(\d+)(?:-(\d+))?$/)
+  if (!m) return 10
+  const lo = parseInt(m[1], 10)
+  const hi = m[2] ? parseInt(m[2], 10) : lo
+  return Math.round((lo + hi) / 2)
+}
+
+function calcRecommendedWeight(oneRM: number, targetReps: string, goal: string): number | null {
+  if (oneRM <= 0) return null
+  const reps = parseTargetRepsMid(targetReps)
+  const theoreticalMax = oneRM / (1 + reps / 30)
+  const factor = GOAL_INTENSITY[goal] ?? 0.85
+  return Math.round(theoreticalMax * factor / 2.5) * 2.5
+}
 
 interface ExerciseEntry {
   exercise: SplitExercise
@@ -186,6 +211,7 @@ export default function WorkoutSession() {
   const [showAddExercise, setShowAddExercise] = useState(false)
   const [exerciseSearch, setExerciseSearch] = useState('')
   const startTimeRef = useRef<Date | null>(null)
+  const [userGoal, setUserGoal] = useState<string>('근비대')
 
   // 타이머 상태
   const [timerSecs, setTimerSecs] = useState(TIMER_DEFAULT)
@@ -198,8 +224,9 @@ export default function WorkoutSession() {
     async function load() {
       setIsLoading(true)
       try {
-        const [prog, allEx] = await Promise.all([getActiveProgram(), getExercises()])
+        const [prog, allEx, profile] = await Promise.all([getActiveProgram(), getExercises(), getProfile()])
         setAllExercises(allEx)
+        if (profile?.goal) setUserGoal(profile.goal)
         if (prog) {
           const sp = await getSplitsByProgram(prog.id)
           setProgram(prog)
@@ -329,6 +356,10 @@ export default function WorkoutSession() {
           .map((s, j) => ({ ...s, set_number: j + 1 })),
       }
     ))
+  }, [])
+
+  const applyRecommended = useCallback((idx: number, weight: number) => {
+    setEntries(prev => prev.map((e, i) => i !== idx ? e : { ...e, pendingWeight: weight }))
   }, [])
 
   const updatePending = useCallback((idx: number, field: 'weight' | 'reps', delta: number) => {
@@ -484,13 +515,37 @@ export default function WorkoutSession() {
                   )}
                 </div>
 
-                {entry.prevSets.length > 0 && (
-                  <div className="text-xs text-gray-400 bg-gray-50 rounded-xl p-2.5 leading-relaxed">
-                    <span className="font-medium">지난번:</span>{' '}
-                    {entry.prevSets.map(s => `${s.weight_kg}×${s.reps}`).join(', ')}
-                    {' '}·{' '}추정 1RM {Math.max(...entry.prevSets.map(s => calc1RM(s.weight_kg, s.reps)))}kg
-                  </div>
-                )}
+                {entry.prevSets.length > 0 && (() => {
+                  const oneRM = Math.max(...entry.prevSets.map(s => calc1RM(s.weight_kg, s.reps)))
+                  const rec = calcRecommendedWeight(oneRM, entry.exercise.target_reps, userGoal)
+                  return (
+                    <>
+                      {/* 추천 무게 */}
+                      {rec !== null && (
+                        <div className="flex items-center gap-2 text-xs bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                          <span className="text-amber-500 shrink-0">💡</span>
+                          <span className="text-amber-700 font-semibold shrink-0">추천 무게</span>
+                          <span className="font-black text-amber-900 font-mono text-sm">{rec}kg</span>
+                          <span className="text-amber-400 text-[10px] min-w-0 truncate">
+                            1RM {oneRM}kg · {userGoal} 기준
+                          </span>
+                          <button
+                            onClick={() => applyRecommended(idx, rec)}
+                            className="ml-auto shrink-0 text-[10px] px-2 py-1 bg-amber-500 text-white rounded-lg font-bold active:bg-amber-600"
+                          >
+                            적용
+                          </button>
+                        </div>
+                      )}
+                      {/* 지난 세션 */}
+                      <div className="text-xs text-gray-400 bg-gray-50 rounded-xl p-2.5 leading-relaxed">
+                        <span className="font-medium">지난번:</span>{' '}
+                        {entry.prevSets.map(s => `${s.weight_kg}×${s.reps}`).join(', ')}
+                        {' '}·{' '}추정 1RM {oneRM}kg
+                      </div>
+                    </>
+                  )
+                })()}
 
                 {entry.savedSets.length > 0 && (
                   <div className="space-y-1.5">
