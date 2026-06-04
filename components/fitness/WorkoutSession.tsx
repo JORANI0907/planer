@@ -38,6 +38,22 @@ function calcRecommendedWeight(oneRM: number, targetReps: string, goal: string):
   return Math.round(theoreticalMax * factor / 2.5) * 2.5
 }
 
+function calcRecommendedRest(targetReps: string, isCompound: boolean, goal: string): number {
+  const reps = parseTargetRepsMid(targetReps)
+  let secs = reps <= 5 ? 180 : reps <= 8 ? 150 : reps <= 12 ? 90 : 60
+  if (isCompound) secs += 30
+  if (goal === '컷팅') secs = Math.round(secs * 0.7)
+  else if (goal === '린벌크') secs = Math.round(secs * 1.1)
+  return Math.round(Math.min(300, Math.max(30, secs)) / 15) * 15
+}
+
+function formatRestSecs(secs: number): string {
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  if (m === 0) return `${s}초`
+  return s === 0 ? `${m}분` : `${m}분 ${s}초`
+}
+
 interface ExerciseEntry {
   exercise: SplitExercise
   savedSets: FitnessSet[]
@@ -514,6 +530,27 @@ export default function WorkoutSession() {
                     </span>
                   )}
                 </div>
+
+                {/* 추천 휴식 — 항상 표시 */}
+                {(() => {
+                  const recRest = calcRecommendedRest(entry.exercise.target_reps, entry.exercise.is_compound, userGoal)
+                  return (
+                    <div className="flex items-center gap-2 text-xs bg-sky-50 border border-sky-100 rounded-xl px-3 py-2">
+                      <span className="text-sky-500 shrink-0">⏱</span>
+                      <span className="text-sky-700 font-semibold shrink-0">추천 휴식</span>
+                      <span className="font-black text-sky-900 font-mono text-sm">{formatRestSecs(recRest)}</span>
+                      <span className="text-sky-400 text-[10px] min-w-0 truncate">
+                        {entry.exercise.is_compound ? '컴파운드' : '단관절'} · {userGoal}
+                      </span>
+                      <button
+                        onClick={() => setTimerSecs(recRest)}
+                        className="ml-auto shrink-0 text-[10px] px-2 py-1 bg-sky-500 text-white rounded-lg font-bold active:bg-sky-600"
+                      >
+                        타이머 설정
+                      </button>
+                    </div>
+                  )
+                })()}
 
                 {entry.prevSets.length > 0 && (() => {
                   const oneRM = Math.max(...entry.prevSets.map(s => calc1RM(s.weight_kg, s.reps)))
