@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 
 const COOKIE = 'planner_auth'
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   if (
