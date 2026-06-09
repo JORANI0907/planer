@@ -9,7 +9,6 @@ function strip(s: string) {
 export async function POST(req: NextRequest) {
   const { password } = await req.json()
 
-  const validUser = strip(process.env.AUTH_USER ?? 'admin')
   const validPass = strip(process.env.AUTH_PASS ?? '')
 
   if (!validPass) {

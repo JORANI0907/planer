@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 
 const COOKIE = 'planner_auth'
 
-export function proxy(req: NextRequest) {
+export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
   if (
@@ -31,6 +31,6 @@ export function proxy(req: NextRequest) {
   return NextResponse.redirect(loginUrl)
 }
 
-export const proxyConfig = {
+export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }
