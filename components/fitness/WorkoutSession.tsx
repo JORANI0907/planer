@@ -142,7 +142,7 @@ function RestTimerBar({
   return (
     <div className="fixed bottom-14 md:bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
       <div className="max-w-lg mx-auto flex items-center px-4 py-3 gap-3">
-        <span className="text-[11px] font-semibold text-gray-400 shrink-0 hidden xs:block">휴식 타이머</span>
+        <span className="text-[11px] font-semibold text-gray-400 shrink-0">휴식 타이머</span>
         <div className="flex items-center gap-2 flex-1 justify-center">
           <button
             onClick={() => adjust(-20)}
@@ -529,29 +529,28 @@ export default function WorkoutSession() {
         {/* 운동 카드 목록 */}
         {entries.map((entry, idx) => (
           <div key={entry.exercise.id} className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-            <div className="w-full flex items-center p-4 gap-1">
-              {/* 종목명 + 뱃지 영역 — 탭하면 펼치기/접기 */}
+            <div className="flex items-center px-4 py-3 gap-1.5">
               <button
-                className="flex items-center gap-2 flex-wrap min-w-0 flex-1 text-left"
+                className="flex-1 min-w-0 text-left"
                 onClick={() => setEntries(prev => prev.map((e, i) => i === idx ? { ...e, isExpanded: !e.isExpanded } : e))}
               >
-                <span className="font-semibold text-gray-900 break-keep">{entry.exercise.name}</span>
-                {entry.exercise.is_compound && (
-                  <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded font-medium shrink-0">컴파운드</span>
-                )}
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-semibold text-gray-900 break-keep text-sm truncate">{entry.exercise.name}</span>
+                  {entry.exercise.is_compound && (
+                    <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded font-medium shrink-0">컴파운드</span>
+                  )}
+                </div>
                 {entry.savedSets.length > 0 && (
-                  <span className="text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded font-medium shrink-0">{entry.savedSets.length}세트 완료</span>
+                  <p className="text-[10px] text-green-600 font-medium mt-0.5">{entry.savedSets.length}세트 완료</p>
                 )}
               </button>
-              {/* 종목 교체 버튼 */}
               <button
                 onClick={() => { setSwapTargetIdx(idx); setShowAddExercise(true); setExerciseSearch('') }}
-                className="p-2 rounded-lg text-gray-300 hover:text-blue-500 hover:bg-blue-50 active:bg-blue-100 shrink-0"
+                className="p-2 rounded-lg text-gray-300 active:bg-blue-100 shrink-0"
                 title="종목 교체"
               >
                 <ArrowLeftRight size={15} />
               </button>
-              {/* 펼치기/접기 화살표 */}
               <button
                 onClick={() => setEntries(prev => prev.map((e, i) => i === idx ? { ...e, isExpanded: !e.isExpanded } : e))}
                 className="p-1 shrink-0"
@@ -590,23 +589,27 @@ export default function WorkoutSession() {
                           {entry.exercise.is_compound ? '컴파운드' : '단관절'} · {userGoal}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 flex items-center justify-between bg-white rounded-lg px-2.5 py-1.5">
-                          <span className="text-[10px] text-sky-500 font-medium">세트간</span>
-                          <span className="font-black text-sky-900 font-mono text-sm ml-1">{formatRestSecs(setRest)}</span>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div className="flex items-center justify-between bg-white rounded-lg px-2.5 py-2">
+                          <div>
+                            <p className="text-[10px] text-sky-500 font-medium leading-none">세트 간</p>
+                            <p className="font-black text-sky-900 font-mono text-sm tabular-nums mt-0.5">{formatRestSecs(setRest)}</p>
+                          </div>
                           <button
                             onClick={() => setTimerSecs(setRest)}
-                            className="ml-2 text-[10px] px-1.5 py-0.5 bg-sky-500 text-white rounded-md font-bold active:bg-sky-600"
+                            className="shrink-0 ml-2 text-[10px] px-1.5 py-0.5 bg-sky-500 text-white rounded-md font-bold active:bg-sky-600"
                           >
                             설정
                           </button>
                         </div>
-                        <div className="flex-1 flex items-center justify-between bg-white rounded-lg px-2.5 py-1.5">
-                          <span className="text-[10px] text-indigo-500 font-medium">종목간</span>
-                          <span className="font-black text-indigo-900 font-mono text-sm ml-1">{formatRestSecs(exRest)}</span>
+                        <div className="flex items-center justify-between bg-white rounded-lg px-2.5 py-2">
+                          <div>
+                            <p className="text-[10px] text-indigo-500 font-medium leading-none">종목 간</p>
+                            <p className="font-black text-indigo-900 font-mono text-sm tabular-nums mt-0.5">{formatRestSecs(exRest)}</p>
+                          </div>
                           <button
                             onClick={() => setTimerSecs(exRest)}
-                            className="ml-2 text-[10px] px-1.5 py-0.5 bg-indigo-500 text-white rounded-md font-bold active:bg-indigo-600"
+                            className="shrink-0 ml-2 text-[10px] px-1.5 py-0.5 bg-indigo-500 text-white rounded-md font-bold active:bg-indigo-600"
                           >
                             설정
                           </button>
@@ -623,26 +626,34 @@ export default function WorkoutSession() {
                     <>
                       {/* 추천 무게 */}
                       {rec !== null && (
-                        <div className="flex items-center gap-2 text-xs bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
-                          <span className="text-amber-500 shrink-0">💡</span>
-                          <span className="text-amber-700 font-semibold shrink-0">추천 무게</span>
-                          <span className="font-black text-amber-900 font-mono text-sm">{rec}kg</span>
-                          <span className="text-amber-400 text-[10px] min-w-0 truncate">
-                            1RM {oneRM}kg · {userGoal} 기준
-                          </span>
+                        <div className="flex items-center gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                          <span className="text-amber-500 shrink-0 text-sm">💡</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-amber-700 font-semibold">추천 {rec}kg</p>
+                            <p className="text-[10px] text-amber-400 truncate">1RM {oneRM}kg · {userGoal} 기준</p>
+                          </div>
                           <button
                             onClick={() => applyRecommended(idx, rec)}
-                            className="ml-auto shrink-0 text-[10px] px-2 py-1 bg-amber-500 text-white rounded-lg font-bold active:bg-amber-600"
+                            className="shrink-0 text-[10px] px-2 py-1 bg-amber-500 text-white rounded-lg font-bold active:bg-amber-600"
                           >
                             적용
                           </button>
                         </div>
                       )}
                       {/* 지난 세션 */}
-                      <div className="text-xs text-gray-400 bg-gray-50 rounded-xl p-2.5 leading-relaxed">
-                        <span className="font-medium">지난번:</span>{' '}
-                        {entry.prevSets.map(s => `${s.weight_kg}×${s.reps}`).join(', ')}
-                        {' '}·{' '}추정 1RM {oneRM}kg
+                      <div className="bg-gray-50 rounded-xl p-2.5">
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span className="text-xs font-medium text-gray-500 shrink-0">지난번</span>
+                          {entry.prevSets.slice(0, 4).map((s, i) => (
+                            <span key={i} className="text-[10px] bg-white border border-gray-200 rounded px-1.5 py-0.5 text-gray-600 font-mono">
+                              {s.weight_kg}×{s.reps}
+                            </span>
+                          ))}
+                          {entry.prevSets.length > 4 && (
+                            <span className="text-[10px] text-gray-400">+{entry.prevSets.length - 4}</span>
+                          )}
+                          <span className="text-[10px] text-gray-400 ml-auto shrink-0">1RM {oneRM}kg</span>
+                        </div>
                       </div>
                     </>
                   )
