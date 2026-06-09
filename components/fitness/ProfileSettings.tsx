@@ -1,21 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle, TrendingUp } from 'lucide-react'
+import { CheckCircle } from 'lucide-react'
 import type { FitnessProfile } from '@/lib/fitness-types'
 import {
   GOAL_OPTIONS, EXPERIENCE_OPTIONS,
   calcBMR, calcTDEE, calcGoalCalories,
 } from '@/lib/fitness-types'
-import { getProfile, upsertProfile, getCompoundHighlights } from '@/lib/fitness-api'
-
-type CompoundStat = {
-  exercise: string
-  latest_weight: number
-  latest_reps: number
-  one_rm: number
-  trend: 'up' | 'same' | 'down'
-}
+import { getProfile, upsertProfile } from '@/lib/fitness-api'
 
 type ProfileForm = {
   weight_kg: string
@@ -118,14 +110,12 @@ export default function ProfileSettings() {
     goal: '근비대', weekly_days: 4,
     experience_level: '중급', notes: '',
   })
-  const [compounds, setCompounds] = useState<CompoundStat[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<Date | null>(null)
 
   const load = useCallback(async () => {
-    const [profile, comps] = await Promise.all([getProfile(), getCompoundHighlights()])
-    setCompounds(comps.filter(c => c.one_rm > 0))
+    const profile = await getProfile()
     if (profile) {
       setForm({
         weight_kg: profile.weight_kg?.toString() ?? '',
@@ -270,29 +260,6 @@ export default function ProfileSettings() {
           )}
         </div>
 
-        {/* 현재 1RM */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2">
-          <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-            <TrendingUp size={14} className="text-orange-500" />
-            현재 추정 1RM
-          </h3>
-          {compounds.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-3">운동 기록 탭에서 세트를 기록하면<br />자동으로 추정됩니다.</p>
-          ) : (
-            <div className="space-y-1">
-              {compounds.map(c => (
-                <div key={c.exercise} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
-                  <span className="text-sm text-gray-700">{c.exercise}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400">{c.latest_weight}×{c.latest_reps}</span>
-                    <span className="font-bold text-gray-900 text-sm w-14 text-right">~{c.one_rm}kg</span>
-                  </div>
-                </div>
-              ))}
-              <p className="text-[10px] text-gray-400 pt-1">* Epley 공식 추정치 (최근 기록 기준)</p>
-            </div>
-          )}
-        </div>
       </section>
     </div>
   )
