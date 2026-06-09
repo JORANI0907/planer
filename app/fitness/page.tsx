@@ -1,32 +1,28 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, Dumbbell, TrendingUp, Utensils, Settings2, BotMessageSquare, UserCircle } from 'lucide-react'
+import { LayoutDashboard, Dumbbell, Utensils, BotMessageSquare, Settings2 } from 'lucide-react'
 import { LayoutShell } from '@/components/LayoutShell'
-import FitnessDashboard from '@/components/fitness/FitnessDashboard'
+import FitnessHome from '@/components/fitness/FitnessHome'
 import WorkoutSession from '@/components/fitness/WorkoutSession'
-import ProgressView from '@/components/fitness/ProgressView'
 import DietTracker from '@/components/fitness/DietTracker'
-import ProgramSettings from '@/components/fitness/ProgramSettings'
 import FitnessCoach from '@/components/fitness/FitnessCoach'
-import ProfileSettings from '@/components/fitness/ProfileSettings'
+import FitnessSettings from '@/components/fitness/FitnessSettings'
 
-type FitnessTab = 'dashboard' | 'session' | 'progress' | 'diet' | 'settings' | 'coach' | 'profile'
+type FitnessTab = 'home' | 'session' | 'diet' | 'coach' | 'settings'
 
 const TABS: { key: FitnessTab; label: string; icon: React.ReactNode }[] = [
-  { key: 'dashboard', label: '대시보드',   icon: <LayoutDashboard size={18} /> },
-  { key: 'session',   label: '운동시작',    icon: <Dumbbell size={18} /> },
-  { key: 'progress',  label: '진행 추적',   icon: <TrendingUp size={18} /> },
-  { key: 'diet',      label: '식단',        icon: <Utensils size={18} /> },
-  { key: 'settings',  label: '프로그램',    icon: <Settings2 size={18} /> },
-  { key: 'coach',     label: 'AI 코치',     icon: <BotMessageSquare size={18} /> },
-  { key: 'profile',   label: '내 정보',     icon: <UserCircle size={18} /> },
+  { key: 'home',     label: '홈',       icon: <LayoutDashboard size={18} /> },
+  { key: 'session',  label: '운동시작',  icon: <Dumbbell size={18} /> },
+  { key: 'diet',     label: '식단',      icon: <Utensils size={18} /> },
+  { key: 'coach',    label: 'AI 코치',   icon: <BotMessageSquare size={18} /> },
+  { key: 'settings', label: '설정',      icon: <Settings2 size={18} /> },
 ]
 
-const STORAGE_KEY = 'fitness-active-tab'
+const STORAGE_KEY = 'fitness-active-tab-v2'
 
 export default function FitnessPage() {
-  const [activeTab, setActiveTab] = useState<FitnessTab>('dashboard')
+  const [activeTab, setActiveTab] = useState<FitnessTab>('home')
 
   useEffect(() => {
     try {
@@ -35,21 +31,20 @@ export default function FitnessPage() {
     } catch {}
   }, [])
 
-  const handleTabChange = (tab: FitnessTab) => {
-    setActiveTab(tab)
-    try { localStorage.setItem(STORAGE_KEY, tab) } catch {}
+  const handleTabChange = (tab: string) => {
+    const validTab = TABS.find(t => t.key === tab)?.key ?? 'home'
+    setActiveTab(validTab)
+    try { localStorage.setItem(STORAGE_KEY, validTab) } catch {}
   }
 
   return (
     <LayoutShell>
       <div className="max-w-lg md:max-w-5xl mx-auto">
-        {/* 페이지 헤더 */}
         <div className="mb-4">
           <h1 className="text-2xl font-bold text-gray-900">운동 비서</h1>
           <p className="text-sm text-gray-400 mt-0.5">나만의 운동 & 식단 관리</p>
         </div>
 
-        {/* 탭 네비게이션 */}
         <div className="flex gap-1 mb-5 bg-gray-100 rounded-2xl p-1 overflow-x-auto no-scrollbar">
           {TABS.map(tab => (
             <button
@@ -67,15 +62,12 @@ export default function FitnessPage() {
           ))}
         </div>
 
-        {/* 탭 콘텐츠 */}
         <div>
-          {activeTab === 'dashboard' && <FitnessDashboard onTabChange={t => handleTabChange(t as FitnessTab)} />}
-          {activeTab === 'session'   && <WorkoutSession />}
-          {activeTab === 'progress'  && <ProgressView />}
-          {activeTab === 'diet'      && <DietTracker />}
-          {activeTab === 'settings'  && <ProgramSettings />}
-          {activeTab === 'coach'     && <FitnessCoach onTabChange={tab => handleTabChange(tab as FitnessTab)} />}
-          {activeTab === 'profile'   && <ProfileSettings />}
+          {activeTab === 'home'     && <FitnessHome onTabChange={handleTabChange} />}
+          {activeTab === 'session'  && <WorkoutSession />}
+          {activeTab === 'diet'     && <DietTracker />}
+          {activeTab === 'coach'    && <FitnessCoach onTabChange={handleTabChange} />}
+          {activeTab === 'settings' && <FitnessSettings />}
         </div>
       </div>
     </LayoutShell>
