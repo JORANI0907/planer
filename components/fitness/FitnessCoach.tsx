@@ -38,6 +38,8 @@ type GeneratedDiet = {
 type MessageAction =
   | { type: 'program'; data: GeneratedProgram }
   | { type: 'diet'; data: GeneratedDiet }
+  | { type: 'ready-program' }
+  | { type: 'ready-diet' }
 
 type Message = {
   role: 'user' | 'assistant'
@@ -72,8 +74,18 @@ function formatSessionDate(dateStr: string): string {
 
 const INITIAL_MESSAGE: Message = {
   role: 'assistant',
-  content: '안녕하세요! 피트니스 AI 코치입니다 💪\n\n운동 기록과 식단 데이터를 바탕으로 맞춤형 분석과 조언을 드립니다.\n✨ "운동 프로그램" / "식단 플랜" 버튼으로 원하는 조건을 대화로 알려주시면 맞춤 계획을 만들어 드릴게요!',
+  content: '안녕하세요! 피트니스 AI 코치입니다 💪\n\n운동 기록·1RM·식단 데이터를 실시간으로 분석해 맞춤 조언을 드립니다.\n아래 빠른 버튼을 눌러보거나, 자유롭게 질문해주세요!',
 }
+
+// ─── Quick Actions ────────────────────────────────────────────
+
+const QUICK_ACTIONS = [
+  { label: '오늘 운동 피드백', prompt: '오늘 내가 한 운동을 분석해주고, 잘한 점과 개선할 점을 수치 기반으로 알려줘.' },
+  { label: '이번 주 총평', prompt: '이번 주 운동과 식단을 종합 분석해서 데이터 기반 주간 피드백을 해줘.' },
+  { label: '프로그램 추천', prompt: '내 운동 기록과 목표를 바탕으로 맞춤 운동 프로그램을 추천해줘.' },
+  { label: '식단 설계', prompt: '내 프로필과 운동량을 보고 나에게 맞는 식단을 설계해줘.' },
+  { label: '과부하 전략', prompt: '내 현재 1RM과 최근 기록을 보고 앞으로 8주 점진적 과부하 전략을 구체적으로 짜줘.' },
+]
 
 // ─── Sub-components ──────────────────────────────────────────
 
@@ -171,8 +183,6 @@ function DietCard({ data, onSave }: { data: GeneratedDiet; onSave: () => Promise
         <Utensils size={15} className="text-purple-600" />
         <span className="font-bold text-gray-900 text-sm">맞춤 식단 플랜</span>
       </div>
-
-      {/* 매크로 */}
       <div className="grid grid-cols-3 gap-2">
         {macros.map(item => (
           <div key={item.label} className="bg-white rounded-xl px-3 py-2">
@@ -183,8 +193,6 @@ function DietCard({ data, onSave }: { data: GeneratedDiet; onSave: () => Promise
           </div>
         ))}
       </div>
-
-      {/* 식사 구성 */}
       <div className="bg-white rounded-xl p-3 space-y-2">
         {meals.filter(m => m.text).map(m => (
           <div key={m.label}>
@@ -193,18 +201,14 @@ function DietCard({ data, onSave }: { data: GeneratedDiet; onSave: () => Promise
           </div>
         ))}
       </div>
-
-      {/* AI 메모 */}
       {data.memo && (
         <div className="bg-purple-100/60 rounded-xl px-3 py-2">
           <p className="text-[11px] text-purple-700 leading-relaxed">{data.memo}</p>
         </div>
       )}
-
-      {/* 저장 버튼 */}
       {saved ? (
         <div className="flex items-center gap-2 text-green-600 text-sm font-medium py-1">
-          <CheckCircle size={14} />식단 탭에 저장되었습니다 — 식단 탭에서 수정할 수 있어요 ✓
+          <CheckCircle size={14} />식단 탭에 저장되었습니다 ✓
         </div>
       ) : (
         <button onClick={handleSave} disabled={saving}
@@ -217,17 +221,6 @@ function DietCard({ data, onSave }: { data: GeneratedDiet; onSave: () => Promise
   )
 }
 
-// ─── Quick Actions ────────────────────────────────────────────
-
-const QUICK_ACTIONS = [
-  { label: '오늘 운동 분석', prompt: '오늘 내가 한 운동 세션을 분석해주고, 잘한 점과 개선할 점을 알려줘.', kind: 'chat' as const },
-  { label: '식단 점검', prompt: '오늘 식단을 근비대 목표 기준으로 분석해줘. 부족한 영양소와 개선 방법도 알려줘.', kind: 'chat' as const },
-  { label: '이번 주 컨설팅', prompt: '이번 주 전체 운동과 식단을 종합 분석해서 주간 피드백을 해줘.', kind: 'chat' as const },
-  { label: '✨ 운동 프로그램', prompt: '', kind: 'generate-program' as const },
-  { label: '✨ 식단 플랜', prompt: '', kind: 'generate-diet' as const },
-  { label: '점진적 과부하 전략', prompt: '내 현재 컴파운드 1RM을 기반으로 8주 점진적 과부하 전략을 세워줘.', kind: 'chat' as const },
-]
-
 // ─── Main Component ───────────────────────────────────────────
 
 export default function FitnessCoach({ onTabChange }: { onTabChange?: (tab: string) => void } = {}) {
@@ -238,11 +231,9 @@ export default function FitnessCoach({ onTabChange }: { onTabChange?: (tab: stri
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [wizardMode, setWizardMode] = useState<'idle' | 'program' | 'diet'>('idle')
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
-  // 마운트: 세션 목록 로드 후 최신 세션 선택
   useEffect(() => {
     async function load() {
       try {
@@ -268,7 +259,6 @@ export default function FitnessCoach({ onTabChange }: { onTabChange?: (tab: stri
   const handleNewChat = () => {
     setCurrentSessionId(null)
     setMessages([INITIAL_MESSAGE])
-    setWizardMode('idle')
     setShowSessionList(false)
     setInput('')
   }
@@ -277,7 +267,6 @@ export default function FitnessCoach({ onTabChange }: { onTabChange?: (tab: stri
     if (sessionId === currentSessionId) { setShowSessionList(false); return }
     setCurrentSessionId(sessionId)
     setShowSessionList(false)
-    setWizardMode('idle')
     try {
       const history = await getChatHistory(sessionId)
       setMessages(history.length > 0 ? history.map(m => ({ role: m.role, content: m.content })) : [INITIAL_MESSAGE])
@@ -291,7 +280,6 @@ export default function FitnessCoach({ onTabChange }: { onTabChange?: (tab: stri
       const updated = sessions.filter(s => s.id !== sessionId)
       setSessions(updated)
       if (currentSessionId === sessionId) {
-        setWizardMode('idle')
         if (updated.length > 0) {
           const next = updated[0]
           setCurrentSessionId(next.id)
@@ -312,14 +300,13 @@ export default function FitnessCoach({ onTabChange }: { onTabChange?: (tab: stri
 
     let sessionId = currentSessionId
 
-    // 첫 메시지 시 세션 생성 (lazy creation)
     if (!sessionId) {
       try {
         const session = await createChatSession(text.trim())
         sessionId = session.id
         setCurrentSessionId(session.id)
         setSessions(prev => [session, ...prev].slice(0, 5))
-      } catch { /* sessionId null로 진행 */ }
+      } catch {}
     }
 
     const userMsg: Message = { role: 'user', content: text.trim() }
@@ -348,9 +335,28 @@ export default function FitnessCoach({ onTabChange }: { onTabChange?: (tab: stri
           return u
         })
       }
+
+      // 마커 감지: 스트림 완료 후 [[READY:xxx]] 처리
+      let displayText = acc
+      let readyAction: MessageAction | undefined
+      if (acc.includes('[[READY:program]]')) {
+        displayText = acc.replace(/\[\[READY:program\]\]/g, '').trim()
+        readyAction = { type: 'ready-program' }
+      } else if (acc.includes('[[READY:diet]]')) {
+        displayText = acc.replace(/\[\[READY:diet\]\]/g, '').trim()
+        readyAction = { type: 'ready-diet' }
+      }
+      if (readyAction) {
+        setMessages(prev => {
+          const u = [...prev]
+          u[u.length - 1] = { role: 'assistant', content: displayText, action: readyAction }
+          return u
+        })
+      }
+
       if (sessionId) {
         saveChatMessage(sessionId, 'user', text.trim()).catch(() => {})
-        saveChatMessage(sessionId, 'assistant', acc).catch(() => {})
+        saveChatMessage(sessionId, 'assistant', displayText).catch(() => {})
       }
     } catch {
       setMessages(prev => {
@@ -363,18 +369,10 @@ export default function FitnessCoach({ onTabChange }: { onTabChange?: (tab: stri
     }
   }
 
-  // ─ Program wizard ─
-
-  const startProgramWizard = () => {
-    if (isLoading) return
-    if (wizardMode === 'program') { confirmGenerateProgram(); return }
-    setWizardMode('program')
-    sendMessage('운동 프로그램을 맞춤으로 짜줘.')
-  }
+  // ─ Generate handlers ─
 
   const confirmGenerateProgram = async () => {
     if (isLoading) return
-    setWizardMode('idle')
     setIsLoading(true)
     const conversation = messages.filter(m => m.content.trim()).map(m => ({ role: m.role, content: m.content }))
     setMessages(prev => [...prev, { role: 'assistant', content: '' }])
@@ -403,16 +401,8 @@ export default function FitnessCoach({ onTabChange }: { onTabChange?: (tab: stri
     }
   }
 
-  // ─ Diet wizard ─
-
-  const startDietWizard = () => {
-    if (isLoading) return
-    confirmGenerateDiet()
-  }
-
   const confirmGenerateDiet = async () => {
     if (isLoading) return
-    setWizardMode('idle')
     setIsLoading(true)
     const conversation = messages.filter(m => m.content.trim()).map(m => ({ role: m.role, content: m.content }))
     setMessages(prev => [...prev, { role: 'assistant', content: '' }])
@@ -484,12 +474,6 @@ export default function FitnessCoach({ onTabChange }: { onTabChange?: (tab: stri
     setTimeout(() => onTabChange?.('diet'), 1500)
   }
 
-  const handleQuickAction = (qa: typeof QUICK_ACTIONS[0]) => {
-    if (qa.kind === 'generate-program') startProgramWizard()
-    else if (qa.kind === 'generate-diet') startDietWizard()
-    else sendMessage(qa.prompt)
-  }
-
   // ─ Render ─
 
   return (
@@ -553,45 +537,15 @@ export default function FitnessCoach({ onTabChange }: { onTabChange?: (tab: stri
         {QUICK_ACTIONS.map(qa => (
           <button
             key={qa.label}
-            onClick={() => handleQuickAction(qa)}
+            onClick={() => sendMessage(qa.prompt)}
             disabled={isLoading}
-            className={`shrink-0 flex items-center gap-1.5 px-3 py-2 border rounded-xl text-xs font-medium transition-colors disabled:opacity-40
-              ${qa.kind !== 'chat'
-                ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 text-blue-700 hover:from-blue-100 hover:to-indigo-100'
-                : 'bg-white border-gray-200 text-gray-700 hover:border-blue-300 hover:text-blue-700 active:bg-blue-50'}`}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 text-gray-700 hover:border-blue-300 hover:text-blue-700 active:bg-blue-50 rounded-xl text-xs font-medium transition-colors disabled:opacity-40"
           >
-            {qa.kind === 'chat' && <Sparkles size={11} className="text-purple-400 shrink-0" />}
+            <Sparkles size={11} className="text-purple-400 shrink-0" />
             {qa.label}
           </button>
         ))}
       </div>
-
-      {/* Wizard 배너 */}
-      {wizardMode !== 'idle' && (
-        <div className="mb-3 flex items-center justify-between gap-3 px-4 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl">
-          <div className="flex items-center gap-2 text-sm text-blue-700 min-w-0">
-            <Sparkles size={14} className="shrink-0" />
-            <span className="truncate">
-              {wizardMode === 'program' ? '조건을 알려주신 후 생성해드릴게요' : '식단 조건을 알려주신 후 생성해드릴게요'}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => setWizardMode('idle')}
-              className="text-xs text-gray-400 hover:text-gray-600 px-2"
-            >
-              취소
-            </button>
-            <button
-              onClick={() => wizardMode === 'program' ? confirmGenerateProgram() : confirmGenerateDiet()}
-              disabled={isLoading}
-              className="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg active:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
-            >
-              지금 생성하기 →
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* 메시지 목록 */}
       <div className="flex-1 overflow-y-auto space-y-4 pb-3">
@@ -600,11 +554,38 @@ export default function FitnessCoach({ onTabChange }: { onTabChange?: (tab: stri
           return (
             <div key={i}>
               <MessageBubble msg={msg} />
+
               {action?.type === 'program' && (
                 <ProgramCard data={action.data} onSave={() => handleSaveProgram(action.data)} />
               )}
               {action?.type === 'diet' && (
                 <DietCard data={action.data} onSave={() => handleSaveDiet(action.data)} />
+              )}
+
+              {/* 인라인 생성 버튼: AI가 [[READY:xxx]] 마커를 보낼 때 표시 */}
+              {action?.type === 'ready-program' && (
+                <div className="ml-11 mt-2">
+                  <button
+                    onClick={confirmGenerateProgram}
+                    disabled={isLoading}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-bold disabled:opacity-50 active:scale-95 transition-all shadow-sm"
+                  >
+                    <Dumbbell size={14} />
+                    프로그램 생성하기
+                  </button>
+                </div>
+              )}
+              {action?.type === 'ready-diet' && (
+                <div className="ml-11 mt-2">
+                  <button
+                    onClick={confirmGenerateDiet}
+                    disabled={isLoading}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl text-sm font-bold disabled:opacity-50 active:scale-95 transition-all shadow-sm"
+                  >
+                    <Utensils size={14} />
+                    식단 생성하기
+                  </button>
+                </div>
               )}
             </div>
           )
