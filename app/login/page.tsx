@@ -1,11 +1,10 @@
 'use client'
 
 import { useState, useRef, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { Loader2, Lock } from 'lucide-react'
 
 function LoginForm() {
-  const router = useRouter()
   const params = useSearchParams()
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -30,7 +29,8 @@ function LoginForm() {
       const data = await res.json()
       if (data.ok) {
         const from = params.get('from') ?? '/'
-        router.replace(from)
+        // 하드 네비게이션으로 미들웨어 재실행 + 쿠키 확실히 포함
+        window.location.replace(from)
       } else {
         setError(data.error ?? '비밀번호가 올바르지 않습니다.')
         setPassword('')
