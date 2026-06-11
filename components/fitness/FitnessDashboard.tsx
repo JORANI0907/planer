@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { TrendingUp, TrendingDown, Minus, Dumbbell, Utensils, AlertTriangle } from 'lucide-react'
 import type { FitnessProgram, FitnessProgramSplit, FitnessSession, FitnessDiet } from '@/lib/fitness-types'
-import { DIET_GOALS, COMPOUND_HIGHLIGHTS, formatDateShort, calc1RM } from '@/lib/fitness-types'
+import { DIET_GOALS, COMPOUND_HIGHLIGHTS, formatDateShort, calc1RM, getTodayKey } from '@/lib/fitness-types'
 import {
   getActiveProgram, getSplitsByProgram, getThisWeekSessions,
   getCompoundHighlights, getDietHistory, getSessions,
@@ -89,7 +89,7 @@ export default function FitnessDashboard({ onTabChange }: { onTabChange?: (tab: 
   const doneSplitNames = new Set(weekSessions.filter(s => s.is_completed).map(s => s.split_name))
 
   // 오늘 식단
-  const today = new Date().toISOString().split('T')[0]
+  const today = getTodayKey()
   const todayDiet = dietHistory.find(d => d.date === today)
 
   return (

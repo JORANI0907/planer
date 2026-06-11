@@ -84,9 +84,14 @@ export function calcProgressTrend(prev: number, curr: number): ProgressTrend {
   return 'same'
 }
 
+// KST(UTC+9) 기준 날짜 문자열 반환 — 서버(UTC)·클라이언트 모두 동일 결과
+export function toKSTDateString(d: Date = new Date()): string {
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+  return kst.toISOString().split('T')[0]
+}
+
 export function getTodayKey(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return toKSTDateString()
 }
 
 export function formatDateShort(dateStr: string): string {
@@ -95,11 +100,11 @@ export function formatDateShort(dateStr: string): string {
 }
 
 export function getWeekStartDate(): string {
-  const d = new Date()
-  const day = d.getDay()
+  const kst = new Date(new Date().getTime() + 9 * 60 * 60 * 1000)
+  const day = kst.getUTCDay()
   const diff = day === 0 ? -6 : 1 - day
-  d.setDate(d.getDate() + diff)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  kst.setUTCDate(kst.getUTCDate() + diff)
+  return kst.toISOString().split('T')[0]
 }
 
 // 목표 매크로 (근비대 기준)
@@ -154,6 +159,17 @@ export interface FitnessCoachMessage {
   id: string
   session_id: string | null
   role: 'user' | 'assistant'
+  content: string
+  created_at: string
+}
+
+export type FeedbackType = 'today' | 'week' | 'trend'
+export type FeedbackFocus = 'overall' | 'volume' | 'strength' | 'fatigue'
+
+export interface FitnessFeedback {
+  id: string
+  type: FeedbackType
+  focus: FeedbackFocus
   content: string
   created_at: string
 }

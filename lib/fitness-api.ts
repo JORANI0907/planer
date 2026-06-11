@@ -2,9 +2,9 @@ import { supabase } from '@/lib/supabase'
 import {
   FitnessExercise, FitnessProgram, FitnessProgramSplit,
   FitnessSession, FitnessSet, FitnessDiet, FitnessDietPlan, FitnessProfile, FitnessCoachMessage,
-  FitnessChatSession, SplitExercise,
+  FitnessChatSession, SplitExercise, FitnessFeedback, FeedbackType, FeedbackFocus,
   calc1RM, calcProgressTrend, COMPOUND_HIGHLIGHTS,
-  ProgressTrend, getWeekStartDate, getTodayKey,
+  ProgressTrend, getWeekStartDate, getTodayKey, toKSTDateString,
 } from '@/lib/fitness-types'
 
 // ─── 운동 종목 ────────────────────────────────────────────
@@ -309,7 +309,7 @@ export async function getExerciseHistory(
       sessionBest.set(row.session_id, {
         weight: row.weight_kg,
         reps: row.reps,
-        date: row.created_at.split('T')[0],
+        date: toKSTDateString(new Date(row.created_at)),
       })
     }
   }
@@ -391,9 +391,8 @@ export async function upsertDiet(
 }
 
 export async function getDietHistory(days = 7): Promise<FitnessDiet[]> {
-  const from = new Date()
-  from.setDate(from.getDate() - days + 1)
-  const fromStr = from.toISOString().split('T')[0]
+  const from = new Date(Date.now() - (days - 1) * 86400000)
+  const fromStr = toKSTDateString(from)
 
   const { data, error } = await supabase
     .from('fitness_diet')
@@ -517,5 +516,34 @@ export async function saveChatMessage(sessionId: string, role: 'user' | 'assista
   const { error } = await supabase
     .from('fitness_coach_messages')
     .insert([{ session_id: sessionId, role, content }])
+  if (error) throw error
+}
+
+// ─── AI 피드백 ────────────────────────────────────────────────
+
+export async function saveFeedback(
+  type: FeedbackType, focus: FeedbackFocus, content: string
+): Promise<FitnessFeedback> {
+  const { data, error } = await supabase
+    .from('fitness_feedback')
+    .insert([{ type, focus, content }])
+    .select()
+    .single()
+  if (error) throw error
+  return data as FitnessFeedback
+}
+
+export async function getFeedbacks(limit = 10): Promise<FitnessFeedback[]> {
+  const { data, error } = await supabase
+    .from('fitness_feedback')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return (data ?? []) as FitnessFeedback[]
+}
+
+export async function deleteFeedback(id: string): Promise<void> {
+  const { error } = await supabase.from('fitness_feedback').delete().eq('id', id)
   if (error) throw error
 }

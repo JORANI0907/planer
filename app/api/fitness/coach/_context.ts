@@ -25,16 +25,21 @@ function inferMuscleGroup(name: string): string {
   return '기타'
 }
 
-export async function buildContext(): Promise<string> {
-  const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString().split('T')[0]
-  const threeDaysAgo = new Date(Date.now() - 3 * 86400000).toISOString().split('T')[0]
-  const today = new Date().toISOString().split('T')[0]
+// KST(UTC+9) 기준 날짜 문자열 반환
+function kstDate(offsetDays = 0): string {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000 + offsetDays * 86400000)
+  return kst.toISOString().split('T')[0]
+}
 
-  // 이번 주 월요일
-  const weekStart = new Date()
-  const dayOfWeek = weekStart.getDay()
-  weekStart.setDate(weekStart.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
-  const weekStartStr = weekStart.toISOString().split('T')[0]
+export async function buildContext(): Promise<string> {
+  const twoWeeksAgo = kstDate(-14)
+  const threeDaysAgo = kstDate(-3)
+  const today = kstDate()
+
+  // 이번 주 월요일 (KST 기준)
+  const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  const dayOfWeek = kstNow.getUTCDay()
+  const weekStartStr = kstDate(-(dayOfWeek === 0 ? 6 : dayOfWeek - 1))
 
   const [
     { data: sessions },
