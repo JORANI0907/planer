@@ -1,53 +1,74 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import {
-  Send, Loader2, Bot, User, Sparkles, CheckCircle, Save,
-  Dumbbell, Utensils, MessageSquare, Plus, Trash2, ChevronDown, ChevronUp,
+  Dumbbell, Loader2, Save, CheckCircle, Sparkles,
+  ThumbsUp, AlertCircle, Zap, ChevronDown, ChevronUp, Trash2,
 } from 'lucide-react'
-import type { ExerciseMuscleGroup, FitnessChatSession } from '@/lib/fitness-types'
+import type { ExerciseMuscleGroup, FitnessFeedback, FeedbackType, FeedbackFocus } from '@/lib/fitness-types'
 import {
-  getExercises, createProgram, createSplit, addExerciseToSplit,
-  createExercise, getDietPlan, upsertDietPlan, getChatHistory, saveChatMessage,
-  getChatSessions, createChatSession, deleteChatSession,
+  getExercises, createProgram, createSplit, addExerciseToSplit, createExercise,
+  saveFeedback, getFeedbacks, deleteFeedback,
 } from '@/lib/fitness-api'
+import type { GeneratedProgram } from '@/app/api/fitness/coach/generate-program/route'
+import type { GeneratedFeedback } from '@/app/api/fitness/coach/generate-feedback/route'
 
-// ─── Types ───────────────────────────────────────────────────
+// ─── 타입 ─────────────────────────────────────────────────────
 
-type GeneratedProgram = {
-  name: string
-  description: string
-  splits: Array<{ name: string; exercises: Array<{ name: string; target_sets: number; target_reps: string }> }>
-  coaching_note: string
+type Tab = 'program' | 'feedback'
+
+type ProgramForm = {
+  goal: string
+  weekly_days: number
+  split_type: string
+  focus_muscle: string
+  duration_weeks: number
+  extra_note: string
 }
 
-type GeneratedDiet = {
-  calories: number
-  protein_g: number
-  carbs_g: number
-  fat_g: number
-  water_l: number
-  breakfast: string
-  lunch: string
-  dinner: string
-  snack: string
-  memo: string
-  coaching_note: string
+type FeedbackForm = {
+  type: FeedbackType
+  focus: FeedbackFocus
+  extra_note: string
 }
 
-type MessageAction =
-  | { type: 'program'; data: GeneratedProgram }
-  | { type: 'diet'; data: GeneratedDiet }
-  | { type: 'ready-program' }
-  | { type: 'ready-diet' }
+// ─── 상수 ─────────────────────────────────────────────────────
 
-type Message = {
-  role: 'user' | 'assistant'
-  content: string
-  action?: MessageAction
+const GOAL_OPTIONS = ['근비대', '린벌크', '컷팅', '체력향상']
+const WEEKLY_DAYS = [3, 4, 5, 6]
+const SPLIT_OPTIONS = ['자동추천', '상하체', 'PPL', '3분할', '4분할']
+const FOCUS_OPTIONS = ['전체', '가슴', '등', '하체', '어깨']
+const DURATION_OPTIONS = [4, 8, 12]
+
+const FEEDBACK_TYPE_LABELS: Record<FeedbackType, string> = {
+  today: '오늘 운동',
+  week: '이번 주 총평',
+  trend: '전체 트렌드',
 }
 
-// ─── Helpers ─────────────────────────────────────────────────
+const FEEDBACK_FOCUS_LABELS: Record<FeedbackFocus, string> = {
+  overall: '전반적',
+  volume: '볼륨 분석',
+  strength: '근력 추세',
+  fatigue: '피로 관리',
+}
+
+const DEFAULT_PROGRAM_FORM: ProgramForm = {
+  goal: '근비대',
+  weekly_days: 5,
+  split_type: '자동추천',
+  focus_muscle: '전체',
+  duration_weeks: 8,
+  extra_note: '',
+}
+
+const DEFAULT_FEEDBACK_FORM: FeedbackForm = {
+  type: 'week',
+  focus: 'overall',
+  extra_note: '',
+}
+
+// ─── 헬퍼 ─────────────────────────────────────────────────────
 
 function inferMuscleGroup(name: string): ExerciseMuscleGroup {
   if (/벤치|체스트|가슴|플라이/.test(name)) return '가슴'
@@ -62,52 +83,36 @@ function inferMuscleGroup(name: string): ExerciseMuscleGroup {
 
 const COMPOUND_PATTERN = /벤치프레스|데드리프트|스쿼트|오버헤드프레스|바벨로우|풀업|딥스/
 
-function formatSessionDate(dateStr: string): string {
-  const date = new Date(dateStr)
-  const now = new Date()
-  const diffDays = Math.floor((now.getTime() - date.getTime()) / 86400000)
-  if (diffDays === 0) return '오늘'
-  if (diffDays === 1) return '어제'
-  if (diffDays < 7) return `${diffDays}일 전`
-  return date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })
+function formatDate(dateStr: string) {
+  const d = new Date(dateStr)
+  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
 }
 
-const INITIAL_MESSAGE: Message = {
-  role: 'assistant',
-  content: '안녕하세요! 피트니스 AI 코치입니다 💪\n\n운동 기록·1RM·식단 데이터를 실시간으로 분석해 맞춤 조언을 드립니다.\n아래 빠른 버튼을 눌러보거나, 자유롭게 질문해주세요!',
-}
+// ─── 선택 버튼 ────────────────────────────────────────────────
 
-// ─── Quick Actions ────────────────────────────────────────────
-
-const QUICK_ACTIONS = [
-  { label: '오늘 운동 피드백', prompt: '오늘 내가 한 운동을 분석해주고, 잘한 점과 개선할 점을 수치 기반으로 알려줘.' },
-  { label: '이번 주 총평', prompt: '이번 주 운동과 식단을 종합 분석해서 데이터 기반 주간 피드백을 해줘.' },
-  { label: '프로그램 추천', prompt: '내 운동 기록과 목표를 바탕으로 맞춤 운동 프로그램을 추천해줘.' },
-  { label: '식단 설계', prompt: '내 프로필과 운동량을 보고 나에게 맞는 식단을 설계해줘.' },
-  { label: '과부하 전략', prompt: '내 현재 1RM과 최근 기록을 보고 앞으로 8주 점진적 과부하 전략을 구체적으로 짜줘.' },
-]
-
-// ─── Sub-components ──────────────────────────────────────────
-
-function MessageBubble({ msg }: { msg: Message }) {
-  const isUser = msg.role === 'user'
+function OptionChip({
+  label, selected, onClick,
+}: { label: string; selected: boolean; onClick: () => void }) {
   return (
-    <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isUser ? 'bg-blue-600' : 'bg-gradient-to-br from-purple-500 to-blue-600'}`}>
-        {isUser ? <User size={14} className="text-white" /> : <Bot size={14} className="text-white" />}
-      </div>
-      <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
-        isUser
-          ? 'bg-blue-600 text-white rounded-tr-sm'
-          : 'bg-white border border-gray-100 text-gray-800 rounded-tl-sm shadow-sm'
-      }`}>
-        {msg.content}
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all border ${
+        selected
+          ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+          : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+      }`}
+    >
+      {label}
+    </button>
   )
 }
 
-function ProgramCard({ data, onSave }: { data: GeneratedProgram; onSave: () => Promise<void> }) {
+// ─── 프로그램 결과 카드 ───────────────────────────────────────
+
+function ProgramResultCard({
+  data, onSave,
+}: { data: GeneratedProgram; onSave: () => Promise<void> }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -117,12 +122,17 @@ function ProgramCard({ data, onSave }: { data: GeneratedProgram; onSave: () => P
   }
 
   return (
-    <div className="ml-11 mt-2 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-4 space-y-3">
+    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-4 space-y-3">
       <div className="flex items-center gap-2">
         <Dumbbell size={15} className="text-blue-600" />
         <span className="font-bold text-gray-900 text-sm">{data.name}</span>
       </div>
       {data.description && <p className="text-xs text-gray-500">{data.description}</p>}
+      {data.coaching_note && (
+        <div className="bg-blue-100/60 rounded-xl px-3 py-2">
+          <p className="text-xs text-blue-800 leading-relaxed">{data.coaching_note}</p>
+        </div>
+      )}
       <div className="space-y-2">
         {data.splits.map((split, i) => (
           <div key={i} className="bg-white rounded-xl p-3 space-y-1.5">
@@ -131,7 +141,9 @@ function ProgramCard({ data, onSave }: { data: GeneratedProgram; onSave: () => P
               {split.exercises.map((ex, j) => (
                 <div key={j} className="flex items-center justify-between text-[11px] px-2 py-1 bg-blue-50 rounded-lg">
                   <span className="text-blue-800 font-medium">{ex.name}</span>
-                  <span className="text-blue-500 font-mono shrink-0 ml-2">{ex.target_sets}세트 × {ex.target_reps}회</span>
+                  <span className="text-blue-500 font-mono shrink-0 ml-2">
+                    {ex.target_sets}세트 × {ex.target_reps}회
+                  </span>
                 </div>
               ))}
             </div>
@@ -140,11 +152,14 @@ function ProgramCard({ data, onSave }: { data: GeneratedProgram; onSave: () => P
       </div>
       {saved ? (
         <div className="flex items-center gap-2 text-green-600 text-sm font-medium py-1">
-          <CheckCircle size={14} />프로그램 탭에 저장되었습니다 ✓
+          <CheckCircle size={14} /> 프로그램 탭에 저장되었습니다 ✓
         </div>
       ) : (
-        <button onClick={handleSave} disabled={saving}
-          className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold active:bg-blue-700 disabled:opacity-60 flex items-center justify-center gap-2">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold active:bg-blue-700 disabled:opacity-60 flex items-center justify-center gap-2"
+        >
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
           {saving ? '저장 중...' : '프로그램 탭에 저장하기'}
         </button>
@@ -153,7 +168,11 @@ function ProgramCard({ data, onSave }: { data: GeneratedProgram; onSave: () => P
   )
 }
 
-function DietCard({ data, onSave }: { data: GeneratedDiet; onSave: () => Promise<void> }) {
+// ─── 피드백 결과 카드 ─────────────────────────────────────────
+
+function FeedbackResultCard({
+  data, onSave,
+}: { data: GeneratedFeedback; onSave: () => Promise<void> }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -162,283 +181,158 @@ function DietCard({ data, onSave }: { data: GeneratedDiet; onSave: () => Promise
     try { await onSave(); setSaved(true) } finally { setSaving(false) }
   }
 
-  const macros = [
-    { label: '칼로리', value: data.calories, unit: 'kcal' },
-    { label: '단백질', value: data.protein_g, unit: 'g' },
-    { label: '탄수화물', value: data.carbs_g, unit: 'g' },
-    { label: '지방', value: data.fat_g, unit: 'g' },
-    { label: '수분', value: data.water_l, unit: 'L' },
-  ]
-
-  const meals = [
-    { emoji: '🌅', label: '아침', text: data.breakfast },
-    { emoji: '☀️', label: '점심', text: data.lunch },
-    { emoji: '🌙', label: '저녁', text: data.dinner },
-    { emoji: '🍎', label: '간식', text: data.snack },
-  ]
-
   return (
-    <div className="ml-11 mt-2 bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-100 rounded-2xl p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <Utensils size={15} className="text-purple-600" />
-        <span className="font-bold text-gray-900 text-sm">맞춤 식단 플랜</span>
+    <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100 rounded-2xl p-4 space-y-3">
+      <div className="bg-white rounded-xl px-3 py-2.5">
+        <p className="text-sm text-gray-800 leading-relaxed font-medium">{data.summary}</p>
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        {macros.map(item => (
-          <div key={item.label} className="bg-white rounded-xl px-3 py-2">
-            <p className="text-[10px] text-gray-400">{item.label}</p>
-            <p className="font-bold text-gray-900 text-sm">
-              {item.value}<span className="text-[10px] font-normal text-gray-400 ml-0.5">{item.unit}</span>
-            </p>
-          </div>
-        ))}
-      </div>
-      <div className="bg-white rounded-xl p-3 space-y-2">
-        {meals.filter(m => m.text).map(m => (
-          <div key={m.label}>
-            <p className="text-[10px] font-semibold text-gray-400 mb-0.5">{m.emoji} {m.label}</p>
-            <p className="text-xs text-gray-700 leading-relaxed">{m.text}</p>
-          </div>
-        ))}
-      </div>
-      {data.memo && (
-        <div className="bg-purple-100/60 rounded-xl px-3 py-2">
-          <p className="text-[11px] text-purple-700 leading-relaxed">{data.memo}</p>
+      {data.good_points.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold text-green-700 flex items-center gap-1">
+            <ThumbsUp size={11} /> 잘한 점
+          </p>
+          {data.good_points.map((p, i) => (
+            <div key={i} className="flex gap-2 bg-green-50 rounded-xl px-3 py-2">
+              <span className="text-green-500 text-xs shrink-0 mt-0.5">✓</span>
+              <p className="text-xs text-green-800 leading-relaxed">{p}</p>
+            </div>
+          ))}
         </div>
       )}
+      {data.improve_points.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold text-orange-700 flex items-center gap-1">
+            <AlertCircle size={11} /> 개선할 점
+          </p>
+          {data.improve_points.map((p, i) => (
+            <div key={i} className="flex gap-2 bg-orange-50 rounded-xl px-3 py-2">
+              <span className="text-orange-400 text-xs shrink-0 mt-0.5">!</span>
+              <p className="text-xs text-orange-800 leading-relaxed">{p}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2 bg-indigo-50 rounded-xl px-3 py-2.5 items-start">
+        <Zap size={13} className="text-indigo-500 shrink-0 mt-0.5" />
+        <p className="text-xs text-indigo-800 leading-relaxed font-medium">{data.next_action}</p>
+      </div>
       {saved ? (
         <div className="flex items-center gap-2 text-green-600 text-sm font-medium py-1">
-          <CheckCircle size={14} />식단 탭에 저장되었습니다 ✓
+          <CheckCircle size={14} /> 피드백이 저장되었습니다 ✓
         </div>
       ) : (
-        <button onClick={handleSave} disabled={saving}
-          className="w-full py-2.5 bg-purple-600 text-white rounded-xl text-sm font-bold active:bg-purple-700 disabled:opacity-60 flex items-center justify-center gap-2">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="w-full py-2.5 bg-purple-600 text-white rounded-xl text-sm font-bold active:bg-purple-700 disabled:opacity-60 flex items-center justify-center gap-2"
+        >
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-          {saving ? '저장 중...' : '식단 플랜으로 저장하기'}
+          {saving ? '저장 중...' : '피드백 저장하기'}
         </button>
       )}
     </div>
   )
 }
 
-// ─── Main Component ───────────────────────────────────────────
+// ─── 저장된 피드백 목록 ──────────────────────────────────────
+
+function FeedbackHistory({
+  feedbacks, onDelete,
+}: { feedbacks: FitnessFeedback[]; onDelete: (id: string) => void }) {
+  const [open, setOpen] = useState(false)
+  if (feedbacks.length === 0) return null
+
+  return (
+    <div className="mt-4">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-1.5 text-xs text-gray-500 font-medium hover:text-gray-700"
+      >
+        {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+        저장된 피드백 {feedbacks.length}개
+      </button>
+      {open && (
+        <div className="mt-2 space-y-2">
+          {feedbacks.map(fb => (
+            <div key={fb.id} className="bg-white border border-gray-100 rounded-xl p-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex gap-1.5">
+                  <span className="text-[10px] px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full font-medium">
+                    {FEEDBACK_TYPE_LABELS[fb.type]}
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full font-medium">
+                    {FEEDBACK_FOCUS_LABELS[fb.focus]}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-gray-400">{formatDate(fb.created_at)}</span>
+                  <button
+                    onClick={() => onDelete(fb.id)}
+                    className="p-1 text-gray-300 hover:text-red-400 rounded-lg transition-colors"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+              </div>
+              <p className="text-xs text-gray-700 leading-relaxed line-clamp-2">{fb.content}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── 메인 컴포넌트 ────────────────────────────────────────────
 
 export default function FitnessCoach({ onTabChange }: { onTabChange?: (tab: string) => void } = {}) {
-  const [sessions, setSessions] = useState<FitnessChatSession[]>([])
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
-  const [showSessionList, setShowSessionList] = useState(false)
+  const [activeTab, setActiveTab] = useState<Tab>('program')
 
-  const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE])
-  const [input, setInput] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const bottomRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  // 프로그램 생성 상태
+  const [programForm, setProgramForm] = useState<ProgramForm>(DEFAULT_PROGRAM_FORM)
+  const [programResult, setProgramResult] = useState<GeneratedProgram | null>(null)
+  const [programLoading, setProgramLoading] = useState(false)
+  const [programError, setProgramError] = useState('')
+
+  // 피드백 상태
+  const [feedbackForm, setFeedbackForm] = useState<FeedbackForm>(DEFAULT_FEEDBACK_FORM)
+  const [feedbackResult, setFeedbackResult] = useState<GeneratedFeedback | null>(null)
+  const [feedbackLoading, setFeedbackLoading] = useState(false)
+  const [feedbackError, setFeedbackError] = useState('')
+  const [feedbackHistory, setFeedbackHistory] = useState<FitnessFeedback[]>([])
 
   useEffect(() => {
-    async function load() {
-      try {
-        const sessionList = await getChatSessions()
-        setSessions(sessionList)
-        if (sessionList.length > 0) {
-          const latest = sessionList[0]
-          setCurrentSessionId(latest.id)
-          const history = await getChatHistory(latest.id)
-          if (history.length > 0) {
-            setMessages(history.map(m => ({ role: m.role, content: m.content })))
-          }
-        }
-      } catch {}
-    }
-    load()
+    getFeedbacks().then(setFeedbackHistory).catch(() => {})
   }, [])
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
-  const handleNewChat = () => {
-    setCurrentSessionId(null)
-    setMessages([INITIAL_MESSAGE])
-    setShowSessionList(false)
-    setInput('')
-  }
-
-  const handleSelectSession = async (sessionId: string) => {
-    if (sessionId === currentSessionId) { setShowSessionList(false); return }
-    setCurrentSessionId(sessionId)
-    setShowSessionList(false)
-    try {
-      const history = await getChatHistory(sessionId)
-      setMessages(history.length > 0 ? history.map(m => ({ role: m.role, content: m.content })) : [INITIAL_MESSAGE])
-    } catch {}
-  }
-
-  const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
-    e.stopPropagation()
-    try {
-      await deleteChatSession(sessionId)
-      const updated = sessions.filter(s => s.id !== sessionId)
-      setSessions(updated)
-      if (currentSessionId === sessionId) {
-        if (updated.length > 0) {
-          const next = updated[0]
-          setCurrentSessionId(next.id)
-          const history = await getChatHistory(next.id)
-          setMessages(history.length > 0 ? history.map(m => ({ role: m.role, content: m.content })) : [INITIAL_MESSAGE])
-        } else {
-          setCurrentSessionId(null)
-          setMessages([INITIAL_MESSAGE])
-        }
-      }
-    } catch {}
-  }
-
-  // ─ Streaming chat ─
-
-  const sendMessage = async (text: string) => {
-    if (!text.trim() || isLoading) return
-
-    let sessionId = currentSessionId
-
-    if (!sessionId) {
-      try {
-        const session = await createChatSession(text.trim())
-        sessionId = session.id
-        setCurrentSessionId(session.id)
-        setSessions(prev => [session, ...prev].slice(0, 5))
-      } catch {}
-    }
-
-    const userMsg: Message = { role: 'user', content: text.trim() }
-    const history = [...messages, userMsg]
-    setMessages([...history, { role: 'assistant', content: '' }])
-    setInput('')
-    setIsLoading(true)
-
-    try {
-      const res = await fetch('/api/fitness/coach', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history.map(m => ({ role: m.role, content: m.content })) }),
-      })
-      if (!res.ok || !res.body) throw new Error()
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let acc = ''
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        acc += decoder.decode(value, { stream: true })
-        setMessages(prev => {
-          const u = [...prev]
-          u[u.length - 1] = { role: 'assistant', content: acc }
-          return u
-        })
-      }
-
-      // 마커 감지: 스트림 완료 후 [[READY:xxx]] 처리
-      let displayText = acc
-      let readyAction: MessageAction | undefined
-      if (acc.includes('[[READY:program]]')) {
-        displayText = acc.replace(/\[\[READY:program\]\]/g, '').trim()
-        readyAction = { type: 'ready-program' }
-      } else if (acc.includes('[[READY:diet]]')) {
-        displayText = acc.replace(/\[\[READY:diet\]\]/g, '').trim()
-        readyAction = { type: 'ready-diet' }
-      }
-      if (readyAction) {
-        setMessages(prev => {
-          const u = [...prev]
-          u[u.length - 1] = { role: 'assistant', content: displayText, action: readyAction }
-          return u
-        })
-      }
-
-      if (sessionId) {
-        saveChatMessage(sessionId, 'user', text.trim()).catch(() => {})
-        saveChatMessage(sessionId, 'assistant', displayText).catch(() => {})
-      }
-    } catch {
-      setMessages(prev => {
-        const u = [...prev]
-        u[u.length - 1] = { role: 'assistant', content: '죄송합니다. 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.' }
-        return u
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // ─ Generate handlers ─
-
-  const confirmGenerateProgram = async () => {
-    if (isLoading) return
-    setIsLoading(true)
-    const conversation = messages.filter(m => m.content.trim()).map(m => ({ role: m.role, content: m.content }))
-    setMessages(prev => [...prev, { role: 'assistant', content: '' }])
+  // ─ 프로그램 생성 ─
+  const handleGenerateProgram = async () => {
+    setProgramLoading(true)
+    setProgramError('')
+    setProgramResult(null)
     try {
       const res = await fetch('/api/fitness/coach/generate-program', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversation }),
+        body: JSON.stringify(programForm),
       })
       if (!res.ok) throw new Error()
       const data: GeneratedProgram = await res.json()
-      setMessages(prev => {
-        const u = [...prev]
-        u[u.length - 1] = { role: 'assistant', content: data.coaching_note, action: { type: 'program', data } }
-        return u
-      })
-      if (currentSessionId) saveChatMessage(currentSessionId, 'assistant', data.coaching_note).catch(() => {})
+      setProgramResult(data)
     } catch {
-      setMessages(prev => {
-        const u = [...prev]
-        u[u.length - 1] = { role: 'assistant', content: '프로그램 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.' }
-        return u
-      })
+      setProgramError('프로그램 생성에 실패했습니다. 잠시 후 다시 시도해주세요.')
     } finally {
-      setIsLoading(false)
+      setProgramLoading(false)
     }
   }
 
-  const confirmGenerateDiet = async () => {
-    if (isLoading) return
-    setIsLoading(true)
-    const conversation = messages.filter(m => m.content.trim()).map(m => ({ role: m.role, content: m.content }))
-    setMessages(prev => [...prev, { role: 'assistant', content: '' }])
-    try {
-      const res = await fetch('/api/fitness/coach/generate-diet', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversation }),
-      })
-      if (!res.ok) throw new Error()
-      const data: GeneratedDiet = await res.json()
-      setMessages(prev => {
-        const u = [...prev]
-        u[u.length - 1] = { role: 'assistant', content: data.coaching_note, action: { type: 'diet', data } }
-        return u
-      })
-      if (currentSessionId) saveChatMessage(currentSessionId, 'assistant', data.coaching_note).catch(() => {})
-    } catch {
-      setMessages(prev => {
-        const u = [...prev]
-        u[u.length - 1] = { role: 'assistant', content: '식단 플랜 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.' }
-        return u
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // ─ Save handlers ─
-
-  const handleSaveProgram = async (data: GeneratedProgram) => {
+  const handleSaveProgram = async () => {
+    if (!programResult) return
     const allExercises = await getExercises()
     const exMap = new Map(allExercises.map(e => [e.name.toLowerCase(), e]))
-    const program = await createProgram({ name: data.name, description: data.description, is_active: false })
-    for (let i = 0; i < data.splits.length; i++) {
-      const split = data.splits[i]
+    const program = await createProgram({ name: programResult.name, description: programResult.description, is_active: false })
+    for (let i = 0; i < programResult.splits.length; i++) {
+      const split = programResult.splits[i]
       const newSplit = await createSplit({ program_id: program.id, name: split.name, sort_order: i })
       for (let j = 0; j < split.exercises.length; j++) {
         const exData = split.exercises[j]
@@ -455,182 +349,244 @@ export default function FitnessCoach({ onTabChange }: { onTabChange?: (tab: stri
         await addExerciseToSplit(newSplit.id, exercise.id, j, exData.target_sets, exData.target_reps)
       }
     }
+    setTimeout(() => onTabChange?.('program'), 1500)
   }
 
-  const handleSaveDiet = async (data: GeneratedDiet) => {
-    const existing = await getDietPlan()
-    await upsertDietPlan({
-      calories:  data.calories,
-      protein_g: data.protein_g,
-      carbs_g:   data.carbs_g,
-      fat_g:     data.fat_g,
-      water_l:   data.water_l,
-      breakfast: data.breakfast || undefined,
-      lunch:     data.lunch     || undefined,
-      dinner:    data.dinner    || undefined,
-      snack:     data.snack     || undefined,
-      memo:      data.memo      || undefined,
-    }, existing?.id)
-    setTimeout(() => onTabChange?.('diet'), 1500)
+  // ─ 피드백 생성 ─
+  const handleGenerateFeedback = async () => {
+    setFeedbackLoading(true)
+    setFeedbackError('')
+    setFeedbackResult(null)
+    try {
+      const res = await fetch('/api/fitness/coach/generate-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(feedbackForm),
+      })
+      if (!res.ok) throw new Error()
+      const data: GeneratedFeedback = await res.json()
+      setFeedbackResult(data)
+    } catch {
+      setFeedbackError('피드백 생성에 실패했습니다. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setFeedbackLoading(false)
+    }
   }
 
-  // ─ Render ─
+  const handleSaveFeedback = async () => {
+    if (!feedbackResult) return
+    const content = [
+      feedbackResult.summary,
+      ...feedbackResult.good_points,
+      ...feedbackResult.improve_points,
+      feedbackResult.next_action,
+    ].join('\n')
+    const saved = await saveFeedback(feedbackForm.type, feedbackForm.focus, content)
+    setFeedbackHistory(prev => [saved, ...prev])
+  }
 
+  const handleDeleteFeedback = async (id: string) => {
+    await deleteFeedback(id).catch(() => {})
+    setFeedbackHistory(prev => prev.filter(f => f.id !== id))
+  }
+
+  // ─ 렌더링 ─
   return (
-    <div className="flex flex-col h-[calc(100vh-220px)] min-h-[500px]">
+    <div className="space-y-4">
 
-      {/* 세션 바 */}
-      <div className="flex items-center justify-between mb-3 gap-2">
+      {/* 탭 */}
+      <div className="flex gap-2 bg-gray-100 p-1 rounded-2xl">
         <button
-          onClick={() => setShowSessionList(prev => !prev)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 rounded-xl text-sm text-gray-600 font-medium hover:bg-gray-200 transition-colors"
+          onClick={() => setActiveTab('program')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-semibold transition-all ${
+            activeTab === 'program'
+              ? 'bg-white text-blue-600 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
         >
-          <MessageSquare size={13} />
-          <span>대화 목록</span>
-          <span className="text-xs text-gray-400 font-normal ml-0.5">{sessions.length}/5</span>
-          {showSessionList ? <ChevronUp size={12} className="ml-0.5" /> : <ChevronDown size={12} className="ml-0.5" />}
+          <Dumbbell size={14} />
+          프로그램 생성
         </button>
         <button
-          onClick={handleNewChat}
-          className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-sm font-medium hover:bg-blue-100 transition-colors"
+          onClick={() => setActiveTab('feedback')}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-semibold transition-all ${
+            activeTab === 'feedback'
+              ? 'bg-white text-purple-600 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
         >
-          <Plus size={13} />
-          새 채팅
+          <Sparkles size={14} />
+          운동 피드백
         </button>
       </div>
 
-      {/* 세션 목록 패널 */}
-      {showSessionList && (
-        <div className="mb-3 bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-          {sessions.length === 0 ? (
-            <p className="px-4 py-4 text-sm text-gray-400 text-center">저장된 대화가 없습니다</p>
-          ) : sessions.map(session => (
-            <div
-              key={session.id}
-              onClick={() => handleSelectSession(session.id)}
-              className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors border-b border-gray-50 last:border-0 ${
-                session.id === currentSessionId ? 'bg-blue-50' : 'hover:bg-gray-50'
-              }`}
-            >
-              <div className="min-w-0 flex-1">
-                <p className={`text-sm truncate ${session.id === currentSessionId ? 'font-semibold text-blue-800' : 'font-medium text-gray-800'}`}>
-                  {session.title}
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">{formatSessionDate(session.created_at)}</p>
-              </div>
-              {session.id === currentSessionId && (
-                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full shrink-0" />
-              )}
-              <button
-                onClick={(e) => handleDeleteSession(e, session.id)}
-                className="p-1.5 text-gray-300 hover:text-red-400 rounded-lg hover:bg-red-50 transition-colors shrink-0"
-              >
-                <Trash2 size={13} />
-              </button>
+      {/* 프로그램 생성 탭 */}
+      {activeTab === 'program' && (
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-100 rounded-2xl px-3 py-2">
+            <p className="text-xs text-blue-700">내 정보(체중·경력·1RM)가 자동으로 반영됩니다</p>
+          </div>
+
+          <FormSection label="목표">
+            <div className="flex flex-wrap gap-2">
+              {GOAL_OPTIONS.map(opt => (
+                <OptionChip key={opt} label={opt} selected={programForm.goal === opt}
+                  onClick={() => setProgramForm(f => ({ ...f, goal: opt }))} />
+              ))}
             </div>
-          ))}
+          </FormSection>
+
+          <FormSection label="주 운동 일수">
+            <div className="flex gap-2">
+              {WEEKLY_DAYS.map(d => (
+                <OptionChip key={d} label={`${d}일`} selected={programForm.weekly_days === d}
+                  onClick={() => setProgramForm(f => ({ ...f, weekly_days: d }))} />
+              ))}
+            </div>
+          </FormSection>
+
+          <FormSection label="분할 방식">
+            <div className="flex flex-wrap gap-2">
+              {SPLIT_OPTIONS.map(opt => (
+                <OptionChip key={opt} label={opt} selected={programForm.split_type === opt}
+                  onClick={() => setProgramForm(f => ({ ...f, split_type: opt }))} />
+              ))}
+            </div>
+          </FormSection>
+
+          <FormSection label="집중 부위">
+            <div className="flex flex-wrap gap-2">
+              {FOCUS_OPTIONS.map(opt => (
+                <OptionChip key={opt} label={opt} selected={programForm.focus_muscle === opt}
+                  onClick={() => setProgramForm(f => ({ ...f, focus_muscle: opt }))} />
+              ))}
+            </div>
+          </FormSection>
+
+          <FormSection label="기간">
+            <div className="flex gap-2">
+              {DURATION_OPTIONS.map(d => (
+                <OptionChip key={d} label={`${d}주`} selected={programForm.duration_weeks === d}
+                  onClick={() => setProgramForm(f => ({ ...f, duration_weeks: d }))} />
+              ))}
+            </div>
+          </FormSection>
+
+          <FormSection label="추가 요청 (선택)">
+            <textarea
+              value={programForm.extra_note}
+              onChange={e => setProgramForm(f => ({ ...f, extra_note: e.target.value }))}
+              placeholder="예: 홈짐이라 바벨만 있음, 어깨 부상 있음 등"
+              rows={2}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-200 resize-none text-gray-800 placeholder-gray-400"
+            />
+          </FormSection>
+
+          <button
+            onClick={handleGenerateProgram}
+            disabled={programLoading}
+            className="w-full py-3 bg-blue-600 text-white rounded-2xl text-sm font-bold disabled:opacity-60 flex items-center justify-center gap-2 active:bg-blue-700 transition-colors"
+          >
+            {programLoading
+              ? <><Loader2 size={16} className="animate-spin" /> AI 분석 중...</>
+              : <><Sparkles size={16} /> 프로그램 생성하기</>
+            }
+          </button>
+
+          {programError && (
+            <p className="text-xs text-red-500 text-center">{programError}</p>
+          )}
+
+          {programLoading && (
+            <div className="space-y-2 animate-pulse">
+              <div className="h-4 bg-gray-200 rounded-xl w-3/4" />
+              <div className="h-24 bg-gray-100 rounded-2xl" />
+              <div className="h-24 bg-gray-100 rounded-2xl" />
+            </div>
+          )}
+
+          {programResult && !programLoading && (
+            <ProgramResultCard data={programResult} onSave={handleSaveProgram} />
+          )}
         </div>
       )}
 
-      {/* 빠른 액션 */}
-      <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar mb-3">
-        {QUICK_ACTIONS.map(qa => (
-          <button
-            key={qa.label}
-            onClick={() => sendMessage(qa.prompt)}
-            disabled={isLoading}
-            className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 text-gray-700 hover:border-blue-300 hover:text-blue-700 active:bg-blue-50 rounded-xl text-xs font-medium transition-colors disabled:opacity-40"
-          >
-            <Sparkles size={11} className="text-purple-400 shrink-0" />
-            {qa.label}
-          </button>
-        ))}
-      </div>
-
-      {/* 메시지 목록 */}
-      <div className="flex-1 overflow-y-auto space-y-4 pb-3">
-        {messages.map((msg, i) => {
-          const action = msg.action
-          return (
-            <div key={i}>
-              <MessageBubble msg={msg} />
-
-              {action?.type === 'program' && (
-                <ProgramCard data={action.data} onSave={() => handleSaveProgram(action.data)} />
-              )}
-              {action?.type === 'diet' && (
-                <DietCard data={action.data} onSave={() => handleSaveDiet(action.data)} />
-              )}
-
-              {/* 인라인 생성 버튼: AI가 [[READY:xxx]] 마커를 보낼 때 표시 */}
-              {action?.type === 'ready-program' && (
-                <div className="ml-11 mt-2">
-                  <button
-                    onClick={confirmGenerateProgram}
-                    disabled={isLoading}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-bold disabled:opacity-50 active:scale-95 transition-all shadow-sm"
-                  >
-                    <Dumbbell size={14} />
-                    프로그램 생성하기
-                  </button>
-                </div>
-              )}
-              {action?.type === 'ready-diet' && (
-                <div className="ml-11 mt-2">
-                  <button
-                    onClick={confirmGenerateDiet}
-                    disabled={isLoading}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl text-sm font-bold disabled:opacity-50 active:scale-95 transition-all shadow-sm"
-                  >
-                    <Utensils size={14} />
-                    식단 생성하기
-                  </button>
-                </div>
-              )}
-            </div>
-          )
-        })}
-        {isLoading && messages[messages.length - 1]?.content === '' && (
-          <div className="flex gap-3">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-purple-500 to-blue-600 shrink-0">
-              <Bot size={14} className="text-white" />
-            </div>
-            <div className="px-4 py-3 bg-white border border-gray-100 rounded-2xl rounded-tl-sm shadow-sm">
-              <Loader2 size={16} className="animate-spin text-gray-400" />
-            </div>
+      {/* 운동 피드백 탭 */}
+      {activeTab === 'feedback' && (
+        <div className="space-y-4">
+          <div className="bg-purple-50 border border-purple-100 rounded-2xl px-3 py-2">
+            <p className="text-xs text-purple-700">운동 기록 데이터를 자동으로 분석합니다</p>
           </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
 
-      {/* 입력창 */}
-      <div className="mt-2 flex gap-2 items-end bg-white border border-gray-200 rounded-2xl p-2 shadow-sm">
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input) }
-          }}
-          placeholder="운동이나 식단에 대해 무엇이든 물어보세요..."
-          rows={1}
-          className="flex-1 resize-none text-sm text-gray-800 placeholder-gray-400 outline-none px-2 py-1.5 max-h-32 leading-relaxed"
-          style={{ height: 'auto', minHeight: '36px' }}
-          onInput={e => {
-            const t = e.target as HTMLTextAreaElement
-            t.style.height = 'auto'
-            t.style.height = `${t.scrollHeight}px`
-          }}
-          disabled={isLoading}
-        />
-        <button
-          onClick={() => sendMessage(input)}
-          disabled={!input.trim() || isLoading}
-          className="w-9 h-9 flex items-center justify-center bg-blue-600 text-white rounded-xl shrink-0 disabled:opacity-40 active:bg-blue-700 transition-colors"
-        >
-          {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-        </button>
-      </div>
+          <FormSection label="분석 범위">
+            <div className="flex flex-wrap gap-2">
+              {(Object.entries(FEEDBACK_TYPE_LABELS) as [FeedbackType, string][]).map(([key, label]) => (
+                <OptionChip key={key} label={label} selected={feedbackForm.type === key}
+                  onClick={() => setFeedbackForm(f => ({ ...f, type: key }))} />
+              ))}
+            </div>
+          </FormSection>
+
+          <FormSection label="포커스">
+            <div className="flex flex-wrap gap-2">
+              {(Object.entries(FEEDBACK_FOCUS_LABELS) as [FeedbackFocus, string][]).map(([key, label]) => (
+                <OptionChip key={key} label={label} selected={feedbackForm.focus === key}
+                  onClick={() => setFeedbackForm(f => ({ ...f, focus: key }))} />
+              ))}
+            </div>
+          </FormSection>
+
+          <FormSection label="추가 메모 (선택)">
+            <textarea
+              value={feedbackForm.extra_note}
+              onChange={e => setFeedbackForm(f => ({ ...f, extra_note: e.target.value }))}
+              placeholder="예: 최근 피로감이 심함, 특정 부위가 안 느껴짐 등"
+              rows={2}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-200 resize-none text-gray-800 placeholder-gray-400"
+            />
+          </FormSection>
+
+          <button
+            onClick={handleGenerateFeedback}
+            disabled={feedbackLoading}
+            className="w-full py-3 bg-purple-600 text-white rounded-2xl text-sm font-bold disabled:opacity-60 flex items-center justify-center gap-2 active:bg-purple-700 transition-colors"
+          >
+            {feedbackLoading
+              ? <><Loader2 size={16} className="animate-spin" /> 분석 중...</>
+              : <><Sparkles size={16} /> 피드백 받기</>
+            }
+          </button>
+
+          {feedbackError && (
+            <p className="text-xs text-red-500 text-center">{feedbackError}</p>
+          )}
+
+          {feedbackLoading && (
+            <div className="space-y-2 animate-pulse">
+              <div className="h-12 bg-gray-100 rounded-2xl" />
+              <div className="h-16 bg-green-50 rounded-2xl" />
+              <div className="h-16 bg-orange-50 rounded-2xl" />
+            </div>
+          )}
+
+          {feedbackResult && !feedbackLoading && (
+            <FeedbackResultCard data={feedbackResult} onSave={handleSaveFeedback} />
+          )}
+
+          <FeedbackHistory feedbacks={feedbackHistory} onDelete={handleDeleteFeedback} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── 폼 섹션 래퍼 ─────────────────────────────────────────────
+
+function FormSection({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</p>
+      {children}
     </div>
   )
 }
