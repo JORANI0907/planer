@@ -6,22 +6,24 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 )
 
-function getKSTDateKey(): string {
+function getKSTDateKey(offsetDays = 0): string {
   const now = new Date()
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000 + offsetDays * 86400000)
   const y = kst.getUTCFullYear()
   const m = String(kst.getUTCMonth() + 1).padStart(2, '0')
   const d = String(kst.getUTCDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
 }
 
-function formatKSTLabel(): string {
-  const now = new Date()
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+function formatDateLabel(dateKey: string): string {
+  const [y, m, d] = dateKey.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
   const days = ['일', '월', '화', '수', '목', '금', '토']
-  const dow = days[kst.getUTCDay()]
-  return `${kst.getUTCFullYear()}년 ${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일 (${dow})`
+  const dow = days[date.getDay()]
+  return `${m}월 ${d}일 (${dow})`
 }
+
+const priorityEmoji = (p: string) => p === 'high' ? '🔴' : p === 'medium' ? '🟡' : '⚪'
 
 export async function GET(req: Request) {
   const auth = req.headers.get('authorization')
@@ -34,61 +36,81 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'SLACK_WEBHOOK_URL not set' }, { status: 500 })
   }
 
-  const dayKey = getKSTDateKey()
-  const label = formatKSTLabel()
+  const dateKeys = [0, 1, 2].map(offset => getKSTDateKey(offset))
 
   const { data: items, error } = await supabase
     .from('plan_items')
-    .select('title, status, scheduled_time, priority')
+    .select('title, status, scheduled_time, priority, period_key')
     .eq('level', 'daily')
-    .eq('period_key', dayKey)
+    .in('period_key', dateKeys)
+    .order('period_key')
     .order('sort_order')
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  const list = items ?? []
-  const total = list.length
-  const done = list.filter(i => i.status === 'completed').length
-  const remaining = list.filter(i => i.status !== 'completed')
+  const allItems = items ?? []
 
-  // 시간 있는 항목 먼저, 그 다음 시간 없는 항목
-  const timed = remaining
-    .filter(i => i.scheduled_time)
-    .sort((a, b) => (a.scheduled_time ?? '').localeCompare(b.scheduled_time ?? ''))
-  const untimed = remaining.filter(i => !i.scheduled_time)
+  // 오늘 날짜 기준 헤더
+  const [todayKey] = dateKeys
+  const now = new Date()
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+  const weekDays = ['일', '월', '화', '수', '목', '금', '토']
+  const todayFull = `${kst.getUTCFullYear()}년 ${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일 (${weekDays[kst.getUTCDay()]})`
 
-  const priorityEmoji = (p: string) => p === 'high' ? '🔴' : p === 'medium' ? '🟡' : '⚪'
+  let text = `☀️ *JORANI 아침 브리핑*\n📅 ${todayFull}\n\n`
 
-  let text = `☀️ *JORANI 아침 브리핑*\n📅 ${label}\n\n`
+  const totalByDay: Record<string, number> = {}
+  const remainingByDay: Record<string, number> = {}
 
-  if (total === 0) {
-    text += `오늘 등록된 일정이 없습니다.\n플래너에서 일정을 추가해보세요! 📝`
-  } else {
-    text += `📋 *오늘 일정 (${total}개 · 완료 ${done}개)*\n\n`
+  for (const dateKey of dateKeys) {
+    const dayItems = allItems.filter(i => i.period_key === dateKey)
+    const total = dayItems.length
+    const done = dayItems.filter(i => i.status === 'completed').length
+    const remaining = dayItems.filter(i => i.status !== 'completed')
+
+    totalByDay[dateKey] = total
+    remainingByDay[dateKey] = remaining.length
+
+    const label = formatDateLabel(dateKey)
+    const isToday = dateKey === todayKey
+
+    text += isToday
+      ? `📋 *오늘 ${label} — ${total}개 · 완료 ${done}개*\n`
+      : `📅 *${label} — ${total}개*\n`
+
+    if (total === 0) {
+      text += `  등록된 일정 없음\n\n`
+      continue
+    }
+
+    const timed = remaining
+      .filter(i => i.scheduled_time)
+      .sort((a, b) => (a.scheduled_time ?? '').localeCompare(b.scheduled_time ?? ''))
+    const untimed = remaining.filter(i => !i.scheduled_time)
 
     if (timed.length > 0) {
-      text += `⏰ *시간 지정 일정*\n`
       timed.forEach(item => {
-        text += `${priorityEmoji(item.priority)} \`${item.scheduled_time}\` ${item.title}\n`
+        text += `  ${priorityEmoji(item.priority)} \`${item.scheduled_time}\` ${item.title}\n`
       })
-      text += '\n'
     }
-
     if (untimed.length > 0) {
-      text += `📌 *시간 미지정 일정*\n`
       untimed.forEach(item => {
-        text += `${priorityEmoji(item.priority)} ${item.title}\n`
+        text += `  ${priorityEmoji(item.priority)} ${item.title}\n`
       })
     }
-
     if (remaining.length === 0) {
-      text += `✅ 모든 일정이 완료되었습니다! 대단해요! 🎉`
-    } else {
-      text += `\n💪 오늘도 화이팅! (남은 일정 ${remaining.length}개)`
+      text += `  ✅ 모든 일정 완료!\n`
     }
+
+    text += '\n'
   }
+
+  const todayRemaining = remainingByDay[todayKey] ?? 0
+  text += todayRemaining === 0
+    ? `🎉 오늘 일정이 모두 완료되었습니다! 대단해요!`
+    : `💪 오늘도 화이팅! (오늘 남은 일정 ${todayRemaining}개)`
 
   try {
     const res = await fetch(slackUrl, {
@@ -101,5 +123,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, dayKey, total, remaining: remaining.length })
+  return NextResponse.json({
+    ok: true,
+    dates: dateKeys,
+    total: Object.values(totalByDay).reduce((a, b) => a + b, 0),
+    todayRemaining,
+  })
 }
