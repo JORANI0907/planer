@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2, Clock } from 'lucide-react'
 import { CategoryBadge } from '@/components/category-badge'
 import { StatusBadge, PriorityDot, StatusSelect } from '@/components/status-badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -14,10 +14,11 @@ interface PlanItemCardProps {
   onUpdate: (updated: PlanItem) => void
   onDelete: (id: string) => void
   mapButton?: React.ReactNode
-  parentLabel?: string // 상위 계획에서 매핑된 경우
+  parentLabel?: string
+  showTime?: boolean
 }
 
-export function PlanItemCard({ item, onUpdate, onDelete, mapButton, parentLabel }: PlanItemCardProps) {
+export function PlanItemCard({ item, onUpdate, onDelete, mapButton, parentLabel, showTime = false }: PlanItemCardProps) {
   const [editOpen, setEditOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
 
@@ -32,8 +33,12 @@ export function PlanItemCard({ item, onUpdate, onDelete, mapButton, parentLabel 
     categories: string[]
     status: PlanStatus
     priority: 'high' | 'medium' | 'low'
+    scheduled_time: string
   }) => {
-    const updated = await updatePlanItem(item.id, data)
+    const updated = await updatePlanItem(item.id, {
+      ...data,
+      scheduled_time: data.scheduled_time || null,
+    })
     onUpdate(updated)
     setEditOpen(false)
   }
@@ -71,7 +76,7 @@ export function PlanItemCard({ item, onUpdate, onDelete, mapButton, parentLabel 
           </div>
 
           {/* 제목 */}
-          <p className={`text-sm font-medium leading-snug mb-2 ${
+          <p className={`text-sm font-medium leading-snug mb-1 ${
             isCompleted ? 'line-through text-gray-400' : 'text-gray-900'
           }`}>
             {parentLabel && (
@@ -81,6 +86,12 @@ export function PlanItemCard({ item, onUpdate, onDelete, mapButton, parentLabel 
             )}
             {item.title}
           </p>
+          {showTime && item.scheduled_time && (
+            <span className="inline-flex items-center gap-1 text-xs text-blue-500 mb-2">
+              <Clock size={11} />
+              {item.scheduled_time}
+            </span>
+          )}
 
           {/* 카테고리 */}
           {item.categories.length > 0 && (
@@ -125,10 +136,12 @@ export function PlanItemCard({ item, onUpdate, onDelete, mapButton, parentLabel 
               categories: item.categories,
               status: item.status,
               priority: item.priority,
+              scheduled_time: item.scheduled_time ?? '',
             }}
             onSubmit={handleEdit}
             onCancel={() => setEditOpen(false)}
             submitLabel="수정 저장"
+            showTime={showTime}
           />
         </DialogContent>
       </Dialog>

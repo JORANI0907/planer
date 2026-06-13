@@ -12,6 +12,7 @@ interface PlanItemFormData {
   categories: string[]
   status: PlanStatus
   priority: PlanPriority
+  scheduled_time: string
 }
 
 interface PlanItemFormProps {
@@ -19,6 +20,7 @@ interface PlanItemFormProps {
   onSubmit: (data: PlanItemFormData) => Promise<void>
   onCancel: () => void
   submitLabel?: string
+  showTime?: boolean
 }
 
 const defaultData: PlanItemFormData = {
@@ -27,9 +29,10 @@ const defaultData: PlanItemFormData = {
   categories: [],
   status: 'pending',
   priority: 'medium',
+  scheduled_time: '',
 }
 
-export function PlanItemForm({ initialData, onSubmit, onCancel, submitLabel = '저장' }: PlanItemFormProps) {
+export function PlanItemForm({ initialData, onSubmit, onCancel, submitLabel = '저장', showTime = false }: PlanItemFormProps) {
   const [form, setForm] = useState<PlanItemFormData>({
     ...defaultData,
     ...initialData,
@@ -81,6 +84,19 @@ export function PlanItemForm({ initialData, onSubmit, onCancel, submitLabel = '�
         <label className="block text-sm font-medium text-gray-700 mb-2">카테고리 (다중선택)</label>
         <CategoryFilter selected={form.categories} onChange={cats => update('categories', cats)} />
       </div>
+
+      {showTime && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">시간 (선택)</label>
+          <input
+            type="time"
+            value={form.scheduled_time}
+            onChange={e => update('scheduled_time', e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+          <p className="text-xs text-gray-400 mt-1">설정 시 아침 Slack 알림에 시간과 함께 표시됩니다</p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div>

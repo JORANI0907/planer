@@ -76,6 +76,7 @@ export interface PlanItem {
   parent_plan_item_id: string | null
   section_id: string | null
   routine_task_id?: string | null
+  scheduled_time?: string | null  // 'HH:MM' 형식, daily 항목에만 사용
   created_at: string
   updated_at: string
 }

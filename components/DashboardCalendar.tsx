@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { ChevronLeft, ChevronRight, X, Trash2, Plus, Loader2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Trash2, Plus, Loader2, Pencil, CalendarDays, Clock } from 'lucide-react'
 import { getDailyItemsForMonth, createPlanItem, deletePlanItem, updatePlanItem } from '@/lib/api'
 import type { PlanItem, PlanStatus } from '@/lib/types'
 
@@ -41,6 +41,17 @@ export function DashboardCalendar() {
   // 삭제/상태변경
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
+
+  // 수정
+  const [editingItem, setEditingItem] = useState<PlanItem | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editTime, setEditTime] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
+
+  // 이동
+  const [movingItem, setMovingItem] = useState<PlanItem | null>(null)
+  const [moveDate, setMoveDate] = useState('')
+  const [savingMove, setSavingMove] = useState(false)
 
   useEffect(() => {
     setLoading(true)
@@ -82,6 +93,48 @@ export function DashboardCalendar() {
     setYear(today.getFullYear())
     setMonth(today.getMonth() + 1)
     setSelectedDay(today.getDate())
+  }
+
+  // ─── 수정 열기/저장 ──────────────────────────────────
+  const openEdit = (item: PlanItem) => {
+    setEditingItem(item)
+    setEditTitle(item.title)
+    setEditTime(item.scheduled_time ?? '')
+    setMovingItem(null)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingItem || !editTitle.trim() || savingEdit) return
+    setSavingEdit(true)
+    try {
+      const updated = await updatePlanItem(editingItem.id, {
+        title: editTitle.trim(),
+        scheduled_time: editTime || null,
+      })
+      setItems(prev => prev.map(i => i.id === updated.id ? updated : i))
+      setEditingItem(null)
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  // ─── 이동 열기/저장 ──────────────────────────────────
+  const openMove = (item: PlanItem) => {
+    setMovingItem(item)
+    setMoveDate(item.period_key)
+    setEditingItem(null)
+  }
+
+  const handleSaveMove = async () => {
+    if (!movingItem || !moveDate || savingMove) return
+    setSavingMove(true)
+    try {
+      const updated = await updatePlanItem(movingItem.id, { period_key: moveDate })
+      setItems(prev => prev.map(i => i.id === updated.id ? updated : i))
+      setMovingItem(null)
+    } finally {
+      setSavingMove(false)
+    }
   }
 
   // ─── 일정 추가 ───────────────────────────────────────
@@ -262,54 +315,132 @@ export function DashboardCalendar() {
 
           {/* 일정 목록 */}
           {selectedItems.length > 0 && (
-            <div className="px-3 pb-2 space-y-1.5 max-h-52 overflow-y-auto">
+            <div className="px-3 pb-2 space-y-1.5 max-h-64 overflow-y-auto">
               {selectedItems.map(item => (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-2.5 bg-white rounded-xl px-3 py-2.5 shadow-sm group"
-                >
-                  {/* 상태 토글 버튼 */}
-                  <button
-                    onClick={() => handleToggleStatus(item)}
-                    disabled={togglingId === item.id}
-                    title={`상태: ${STATUS_LABEL[item.status]} (클릭하여 변경)`}
-                    className="w-3 h-3 rounded-full flex-shrink-0 transition-transform hover:scale-125 disabled:opacity-50"
-                    style={{ backgroundColor: STATUS_COLOR[item.status] ?? '#d1d5db' }}
-                  >
-                    {togglingId === item.id && (
-                      <span className="block w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                    )}
-                  </button>
+                <div key={item.id}>
+                  {/* 수정 인라인 폼 */}
+                  {editingItem?.id === item.id ? (
+                    <div className="bg-blue-50 rounded-xl px-3 py-2.5 border border-blue-200 space-y-2">
+                      <input
+                        autoFocus
+                        value={editTitle}
+                        onChange={e => setEditTitle(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') setEditingItem(null) }}
+                        className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        placeholder="제목"
+                      />
+                      <div className="flex items-center gap-2">
+                        <Clock size={13} className="text-gray-400 flex-shrink-0" />
+                        <input
+                          type="time"
+                          value={editTime}
+                          onChange={e => setEditTime(e.target.value)}
+                          className="text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400 flex-1"
+                        />
+                        <button
+                          onClick={() => setEditTime('')}
+                          className="text-xs text-gray-400 hover:text-gray-600"
+                        >지우기</button>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={handleSaveEdit}
+                          disabled={savingEdit || !editTitle.trim()}
+                          className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 flex items-center justify-center gap-1"
+                        >
+                          {savingEdit ? <Loader2 size={12} className="animate-spin" /> : '저장'}
+                        </button>
+                        <button
+                          onClick={() => setEditingItem(null)}
+                          className="flex-1 text-xs py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100"
+                        >취소</button>
+                      </div>
+                    </div>
+                  ) : movingItem?.id === item.id ? (
+                    /* 이동 인라인 폼 */
+                    <div className="bg-orange-50 rounded-xl px-3 py-2.5 border border-orange-200 space-y-2">
+                      <p className="text-xs text-orange-700 font-medium">📅 이동할 날짜 선택</p>
+                      <input
+                        type="date"
+                        value={moveDate}
+                        onChange={e => setMoveDate(e.target.value)}
+                        className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-400"
+                      />
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={handleSaveMove}
+                          disabled={savingMove || !moveDate}
+                          className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-40 flex items-center justify-center gap-1"
+                        >
+                          {savingMove ? <Loader2 size={12} className="animate-spin" /> : '이동'}
+                        </button>
+                        <button
+                          onClick={() => setMovingItem(null)}
+                          className="flex-1 text-xs py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100"
+                        >취소</button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* 기본 아이템 행 */
+                    <div className="flex items-center gap-2.5 bg-white rounded-xl px-3 py-2.5 shadow-sm group">
+                      {/* 상태 토글 버튼 */}
+                      <button
+                        onClick={() => handleToggleStatus(item)}
+                        disabled={togglingId === item.id}
+                        title={`상태: ${STATUS_LABEL[item.status]} (클릭하여 변경)`}
+                        className="w-3 h-3 rounded-full flex-shrink-0 transition-transform hover:scale-125 disabled:opacity-50"
+                        style={{ backgroundColor: STATUS_COLOR[item.status] ?? '#d1d5db' }}
+                      >
+                        {togglingId === item.id && (
+                          <span className="block w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                        )}
+                      </button>
 
-                  {/* 제목 */}
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium leading-snug ${
-                      item.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-900'
-                    }`}>
-                      {item.title}
-                    </p>
-                    {item.description && (
-                      <p className="text-xs text-gray-400 mt-0.5 truncate">{item.description}</p>
-                    )}
-                  </div>
+                      {/* 제목 + 시간 */}
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium leading-snug ${
+                          item.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-900'
+                        }`}>
+                          {item.title}
+                        </p>
+                        {item.scheduled_time && (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] text-blue-500 mt-0.5">
+                            <Clock size={9} />
+                            {item.scheduled_time}
+                          </span>
+                        )}
+                      </div>
 
-                  {/* 상태 텍스트 */}
-                  <span className="text-xs text-gray-400 flex-shrink-0 hidden group-hover:block">
-                    {STATUS_LABEL[item.status]}
-                  </span>
-
-                  {/* 삭제 버튼 */}
-                  <button
-                    onClick={() => handleDelete(item.id)}
-                    disabled={deletingId === item.id}
-                    title="삭제"
-                    className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all disabled:opacity-40 flex-shrink-0"
-                  >
-                    {deletingId === item.id
-                      ? <Loader2 size={14} className="animate-spin" />
-                      : <Trash2 size={14} />
-                    }
-                  </button>
+                      {/* 수정/이동/삭제 버튼 (hover 시 표시) */}
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                        <button
+                          onClick={() => openEdit(item)}
+                          title="수정"
+                          className="text-gray-300 hover:text-blue-500 transition-colors"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={() => openMove(item)}
+                          title="다른 날짜로 이동"
+                          className="text-gray-300 hover:text-orange-500 transition-colors"
+                        >
+                          <CalendarDays size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          disabled={deletingId === item.id}
+                          title="삭제"
+                          className="text-gray-300 hover:text-red-400 transition-colors disabled:opacity-40"
+                        >
+                          {deletingId === item.id
+                            ? <Loader2 size={13} className="animate-spin" />
+                            : <Trash2 size={13} />
+                          }
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -339,7 +470,7 @@ export function DashboardCalendar() {
               </button>
             </div>
             <p className="text-[10px] text-gray-400 mt-1.5 px-1">
-              Enter 또는 추가 버튼 · 상태 점을 클릭하면 미시작→진행중→완료→보류 순으로 변경
+              Enter 또는 추가 버튼 · ✏️ 수정 · 📅 날짜 이동 · 상태 점 클릭으로 변경
             </p>
           </div>
         </div>
