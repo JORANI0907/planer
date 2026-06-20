@@ -108,12 +108,12 @@ function Stepper({
       <div className="flex items-center gap-1 justify-center">
         <button
           onClick={onDecrement}
-          className="w-11 h-11 flex items-center justify-center bg-gray-100 rounded-xl text-xl font-bold active:bg-gray-200 select-none"
+          className="w-10 h-10 flex items-center justify-center bg-gray-100 rounded-xl text-lg font-bold active:bg-gray-200 select-none"
         >−</button>
-        <span className="w-14 text-center font-mono text-sm font-bold tabular-nums">{format(value)}</span>
+        <span className="w-12 text-center font-mono text-sm font-bold tabular-nums">{format(value)}</span>
         <button
           onClick={onIncrement}
-          className="w-11 h-11 flex items-center justify-center bg-gray-100 rounded-xl text-xl font-bold active:bg-gray-200 select-none"
+          className="w-10 h-10 flex items-center justify-center bg-gray-100 rounded-xl text-lg font-bold active:bg-gray-200 select-none"
         >+</button>
       </div>
     </div>
@@ -141,37 +141,37 @@ function RestTimerBar({
 
   return (
     <div className="fixed bottom-14 md:bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
-      <div className="max-w-lg mx-auto flex items-center px-4 py-3 gap-3">
-        <span className="text-[11px] font-semibold text-gray-400 shrink-0">휴식 타이머</span>
-        <div className="flex items-center gap-2 flex-1 justify-center">
+      <div className="max-w-lg mx-auto flex items-center px-3 py-2.5 gap-2">
+        <span className="text-[10px] font-semibold text-gray-400 shrink-0 leading-tight">휴식<br/>타이머</span>
+        <div className="flex items-center gap-1.5 flex-1 justify-center">
           <button
             onClick={() => adjust(-20)}
             disabled={running}
-            className="w-9 h-9 flex items-center justify-center bg-gray-100 rounded-xl text-base font-bold active:bg-gray-200 disabled:opacity-40 select-none"
+            className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg text-base font-bold active:bg-gray-200 disabled:opacity-40 select-none"
           >−</button>
-          <span className={`font-mono font-black text-2xl w-20 text-center tabular-nums transition-colors ${running ? 'text-blue-600' : 'text-gray-900'}`}>
+          <span className={`font-mono font-black text-xl w-16 text-center tabular-nums transition-colors ${running ? 'text-blue-600' : 'text-gray-900'}`}>
             {mm}:{ss}
           </span>
           <button
             onClick={() => adjust(20)}
             disabled={running}
-            className="w-9 h-9 flex items-center justify-center bg-gray-100 rounded-xl text-base font-bold active:bg-gray-200 disabled:opacity-40 select-none"
+            className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg text-base font-bold active:bg-gray-200 disabled:opacity-40 select-none"
           >+</button>
         </div>
         {running ? (
           <button
             onClick={onStop}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-red-500 text-white rounded-xl text-sm font-bold active:bg-red-600 shrink-0"
+            className="flex items-center gap-1 px-3 py-2 bg-red-500 text-white rounded-xl text-xs font-bold active:bg-red-600 shrink-0"
           >
-            <Square size={12} fill="currentColor" />
+            <Square size={11} fill="currentColor" />
             종료
           </button>
         ) : (
           <button
             onClick={onStart}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold active:bg-blue-700 shrink-0"
+            className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold active:bg-blue-700 shrink-0"
           >
-            <Play size={12} fill="currentColor" />
+            <Play size={11} fill="currentColor" />
             시작
           </button>
         )}
@@ -505,21 +505,21 @@ export default function WorkoutSession() {
       {/* 타이머 바 공간 + 하단 네비 공간 확보 */}
       <div className="space-y-3 pb-36">
         {/* 헤더 */}
-        <div className="flex items-center justify-between bg-white py-2">
-          <div className="min-w-0 flex-1 mr-3">
-            <p className="text-xs text-gray-400">{session?.date}</p>
-            <h2 className="text-base font-bold text-gray-900 truncate">{session?.split_name}</h2>
+        <div className="flex items-center justify-between bg-white py-1.5">
+          <div className="min-w-0 flex-1 mr-2">
+            <p className="text-[10px] text-gray-400 leading-none">{session?.date}</p>
+            <h2 className="text-sm font-bold text-gray-900 truncate mt-0.5">{session?.split_name}</h2>
           </div>
-          <div className="flex gap-2 shrink-0">
+          <div className="flex gap-1.5 shrink-0">
             <button
               onClick={handleCancel}
-              className="px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-500 active:bg-gray-50"
+              className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-500 active:bg-gray-50"
             >
               취소
             </button>
             <button
               onClick={handleComplete}
-              className="px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-bold active:bg-green-700"
+              className="px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-bold active:bg-green-700"
             >
               완료 ✓
             </button>
@@ -529,7 +529,7 @@ export default function WorkoutSession() {
         {/* 운동 카드 목록 */}
         {entries.map((entry, idx) => (
           <div key={entry.exercise.id} className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-            <div className="flex items-center px-4 py-3 gap-1.5">
+            <div className="flex items-center px-3 py-2.5 gap-1">
               <button
                 className="flex-1 min-w-0 text-left"
                 onClick={() => setEntries(prev => prev.map((e, i) => i === idx ? { ...e, isExpanded: !e.isExpanded } : e))}
@@ -537,7 +537,7 @@ export default function WorkoutSession() {
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="font-semibold text-gray-900 break-keep text-sm truncate">{entry.exercise.name}</span>
                   {entry.exercise.is_compound && (
-                    <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded font-medium shrink-0">컴파운드</span>
+                    <span className="text-[10px] px-1 py-0.5 bg-orange-100 text-orange-700 rounded font-medium shrink-0">복합</span>
                   )}
                 </div>
                 {entry.savedSets.length > 0 && (
@@ -546,18 +546,18 @@ export default function WorkoutSession() {
               </button>
               <button
                 onClick={() => { setSwapTargetIdx(idx); setShowAddExercise(true); setExerciseSearch('') }}
-                className="p-2 rounded-lg text-gray-300 active:bg-blue-100 shrink-0"
+                className="p-1.5 rounded-lg text-gray-300 active:bg-blue-100 shrink-0"
                 title="종목 교체"
               >
-                <ArrowLeftRight size={15} />
+                <ArrowLeftRight size={14} />
               </button>
               <button
                 onClick={() => setEntries(prev => prev.map((e, i) => i === idx ? { ...e, isExpanded: !e.isExpanded } : e))}
                 className="p-1 shrink-0"
               >
                 {entry.isExpanded
-                  ? <ChevronUp size={18} className="text-gray-400" />
-                  : <ChevronDown size={18} className="text-gray-400" />}
+                  ? <ChevronUp size={16} className="text-gray-400" />
+                  : <ChevronDown size={16} className="text-gray-400" />}
               </button>
             </div>
 
@@ -660,25 +660,25 @@ export default function WorkoutSession() {
                 })()}
 
                 {entry.savedSets.length > 0 && (
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     {entry.savedSets.map(s => (
-                      <div key={s.id} className="flex items-center text-sm px-3 py-2 bg-green-50 rounded-xl gap-2">
-                        <span className="text-gray-500 text-xs w-10 shrink-0">{s.set_number}세트</span>
-                        <span className="font-bold text-gray-800 flex-1 text-center">{s.weight_kg}kg × {s.reps}회</span>
-                        <span className="text-xs text-gray-400 shrink-0">~{calc1RM(s.weight_kg, s.reps)}kg</span>
+                      <div key={s.id} className="flex items-center px-2.5 py-1.5 bg-green-50 rounded-xl gap-1.5">
+                        <span className="text-gray-400 text-[10px] w-9 shrink-0 font-medium">{s.set_number}세트</span>
+                        <span className="font-bold text-gray-800 flex-1 text-center text-xs font-mono">{s.weight_kg}kg × {s.reps}회</span>
+                        <span className="text-[10px] text-gray-400 shrink-0">1RM {calc1RM(s.weight_kg, s.reps)}kg</span>
                         <button
                           onClick={() => handleDeleteSet(idx, s.id)}
                           className="p-1 text-gray-300 hover:text-red-400 active:text-red-500 shrink-0"
                         >
-                          <Trash2 size={13} />
+                          <Trash2 size={12} />
                         </button>
                       </div>
                     ))}
                   </div>
                 )}
 
-                <div className="space-y-3 pt-1">
-                  <p className="text-xs text-gray-500 font-medium">{entry.savedSets.length + 1}번째 세트 입력</p>
+                <div className="space-y-2 pt-1">
+                  <p className="text-[10px] text-gray-400 font-medium">{entry.savedSets.length + 1}번째 세트 입력</p>
                   <div className="flex items-end gap-2">
                     <Stepper
                       label="무게 (kg)"
@@ -700,7 +700,7 @@ export default function WorkoutSession() {
                   <button
                     onClick={() => handleAddSet(idx)}
                     disabled={isSaving}
-                    className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold text-sm active:bg-blue-700 disabled:opacity-50"
+                    className="w-full py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm active:bg-blue-700 disabled:opacity-50"
                   >
                     세트 저장 +
                   </button>
