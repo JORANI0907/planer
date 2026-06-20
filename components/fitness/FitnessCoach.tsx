@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   Dumbbell, Loader2, Save, CheckCircle, Sparkles,
-  ThumbsUp, AlertCircle, Zap, ChevronDown, ChevronUp, Trash2,
+  ThumbsUp, AlertCircle, Zap, ChevronDown, ChevronUp, Trash2, PlusCircle,
 } from 'lucide-react'
 import type { ExerciseMuscleGroup, FitnessFeedback, FeedbackType, FeedbackFocus } from '@/lib/fitness-types'
 import {
@@ -12,10 +12,11 @@ import {
 } from '@/lib/fitness-api'
 import type { GeneratedProgram } from '@/app/api/fitness/coach/generate-program/route'
 import type { GeneratedFeedback } from '@/app/api/fitness/coach/generate-feedback/route'
+import ExerciseSuggester from './ExerciseSuggester'
 
 // ─── 타입 ─────────────────────────────────────────────────────
 
-type Tab = 'program' | 'feedback'
+type Tab = 'program' | 'feedback' | 'suggest'
 
 type ProgramForm = {
   goal: string
@@ -395,28 +396,39 @@ export default function FitnessCoach({ onTabChange }: { onTabChange?: (tab: stri
     <div className="space-y-4">
 
       {/* 탭 */}
-      <div className="flex gap-2 bg-gray-100 p-1 rounded-2xl">
+      <div className="flex gap-1.5 bg-gray-100 p-1 rounded-2xl">
         <button
           onClick={() => setActiveTab('program')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-semibold transition-all ${
+          className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'program'
               ? 'bg-white text-blue-600 shadow-sm'
               : 'text-gray-500 hover:text-gray-700'
           }`}
         >
-          <Dumbbell size={14} />
-          프로그램 생성
+          <Dumbbell size={13} />
+          프로그램
         </button>
         <button
           onClick={() => setActiveTab('feedback')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-semibold transition-all ${
+          className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'feedback'
               ? 'bg-white text-purple-600 shadow-sm'
               : 'text-gray-500 hover:text-gray-700'
           }`}
         >
-          <Sparkles size={14} />
-          운동 피드백
+          <Sparkles size={13} />
+          피드백
+        </button>
+        <button
+          onClick={() => setActiveTab('suggest')}
+          className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === 'suggest'
+              ? 'bg-white text-green-600 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <PlusCircle size={13} />
+          종목 생성
         </button>
       </div>
 
@@ -576,6 +588,9 @@ export default function FitnessCoach({ onTabChange }: { onTabChange?: (tab: stri
           <FeedbackHistory feedbacks={feedbackHistory} onDelete={handleDeleteFeedback} />
         </div>
       )}
+
+      {/* 종목 생성 탭 */}
+      {activeTab === 'suggest' && <ExerciseSuggester />}
     </div>
   )
 }
