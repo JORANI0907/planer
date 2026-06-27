@@ -32,11 +32,11 @@ const LEVEL_ADD_LABEL: Partial<Record<PlanLevel, string>> = {
   weekly: '+ 주 추가',
 }
 
-// 레벨별 시각적 구분 색상
-const LEVEL_STYLE: Record<string, { bg: string; border: string; headerBg: string }> = {
-  quarterly: { bg: 'rgba(139,92,246,0.04)', border: '#a78bfa', headerBg: '#f5f3ff' },
-  monthly:   { bg: 'rgba(59,130,246,0.04)', border: '#93c5fd', headerBg: '#eff6ff' },
-  weekly:    { bg: 'rgba(34,197,94,0.04)',  border: '#86efac', headerBg: '#f0fdf4' },
+// 레벨별 시각적 구분 색상 (삼각 배색: 바이올렛 / 주황 / 청록)
+const LEVEL_STYLE: Record<string, { bg: string; border: string; headerBg: string; chevron: string }> = {
+  quarterly: { bg: 'rgba(124,58,237,0.08)',  border: '#7c3aed', headerBg: '#ede9fe', chevron: '#7c3aed' },
+  monthly:   { bg: 'rgba(234,88,12,0.08)',   border: '#ea580c', headerBg: '#ffedd5', chevron: '#ea580c' },
+  weekly:    { bg: 'rgba(8,145,178,0.08)',   border: '#0891b2', headerBg: '#cffafe', chevron: '#0891b2' },
 }
 
 export function DrillDownLevel({
@@ -100,7 +100,7 @@ export function DrillDownLevel({
   }
 
   const headerLabel = formatPeriodLabel(periodKey)
-  const ls = LEVEL_STYLE[level] ?? { bg: '#fafafa', border: '#e5e7eb', headerBg: '#f9fafb' }
+  const ls = LEVEL_STYLE[level] ?? { bg: '#fafafa', border: '#e5e7eb', headerBg: '#f9fafb', chevron: '#9ca3af' }
 
   return (
     <div
@@ -133,9 +133,9 @@ export function DrillDownLevel({
         }}
       >
         {expanded ? (
-          <ChevronDown size={13} color={ls.border} />
+          <ChevronDown size={13} color={ls.chevron} />
         ) : (
-          <ChevronRight size={13} color="#9ca3af" />
+          <ChevronRight size={13} color={ls.chevron} />
         )}
         <span
           style={{
