@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { ChevronRight, ChevronDown, Plus } from 'lucide-react'
+import { ChevronRight, ChevronDown, Plus, Trash2 } from 'lucide-react'
 import type { PlanItem, PlanLevel } from '@/lib/types'
 import { STATUS_CONFIG } from '@/lib/types'
-import { getPlanItems, createPlanItem } from '@/lib/api'
+import { getPlanItems, createPlanItem, deletePlanItem } from '@/lib/api'
 import {
   formatPeriodLabel,
   getChildPeriodKeys,
@@ -30,6 +30,13 @@ const LEVEL_ADD_LABEL: Partial<Record<PlanLevel, string>> = {
   quarterly: '+ 분기 추가',
   monthly: '+ 월 추가',
   weekly: '+ 주 추가',
+}
+
+// 레벨별 시각적 구분 색상
+const LEVEL_STYLE: Record<string, { bg: string; border: string; headerBg: string }> = {
+  quarterly: { bg: 'rgba(139,92,246,0.04)', border: '#a78bfa', headerBg: '#f5f3ff' },
+  monthly:   { bg: 'rgba(59,130,246,0.04)', border: '#93c5fd', headerBg: '#eff6ff' },
+  weekly:    { bg: 'rgba(34,197,94,0.04)',  border: '#86efac', headerBg: '#f0fdf4' },
 }
 
 export function DrillDownLevel({
@@ -93,38 +100,48 @@ export function DrillDownLevel({
   }
 
   const headerLabel = formatPeriodLabel(periodKey)
+  const ls = LEVEL_STYLE[level] ?? { bg: '#fafafa', border: '#e5e7eb', headerBg: '#f9fafb' }
 
   return (
-    <div style={{ marginLeft: indent }}>
+    <div
+      style={{
+        marginLeft: indent,
+        borderLeft: `2px solid ${ls.border}`,
+        borderRadius: 6,
+        marginBottom: 4,
+        overflow: 'hidden',
+      }}
+    >
       {/* 헤더 행: 분기/월/주 레이블 + 펼침/접힘 */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: 6,
-          padding: '5px 8px',
-          borderRadius: 6,
+          padding: '5px 10px',
+          backgroundColor: expanded ? ls.headerBg : 'transparent',
           cursor: 'pointer',
           userSelect: 'none',
+          transition: 'background-color 0.1s',
         }}
         onClick={() => setExpanded(prev => !prev)}
         onMouseEnter={e => {
-          e.currentTarget.style.backgroundColor = '#f3f4f6'
+          e.currentTarget.style.backgroundColor = ls.headerBg
         }}
         onMouseLeave={e => {
-          e.currentTarget.style.backgroundColor = 'transparent'
+          e.currentTarget.style.backgroundColor = expanded ? ls.headerBg : 'transparent'
         }}
       >
         {expanded ? (
-          <ChevronDown size={13} color="#6b7280" />
+          <ChevronDown size={13} color={ls.border} />
         ) : (
-          <ChevronRight size={13} color="#6b7280" />
+          <ChevronRight size={13} color="#9ca3af" />
         )}
         <span
           style={{
             fontSize: 12,
-            fontWeight: 600,
-            color: '#374151',
+            fontWeight: 700,
+            color: expanded ? '#1f2937' : '#374151',
             minWidth: 40,
           }}
         >
@@ -138,7 +155,7 @@ export function DrillDownLevel({
       </div>
 
       {expanded && (
-        <div style={{ marginLeft: 16 }}>
+        <div style={{ marginLeft: 12, backgroundColor: ls.bg, paddingRight: 4 }}>
           {loading && (
             <div style={{ fontSize: 11, color: '#9ca3af', padding: '4px 8px' }}>
               불러오는 중...
@@ -147,7 +164,7 @@ export function DrillDownLevel({
 
           {/* 아이템 목록 */}
           {!loading && items.map(item => (
-            <ItemRow key={item.id} item={item} />
+            <ItemRow key={item.id} item={item} onDeleted={() => { loadItems(); onChanged?.() }} />
           ))}
 
           {/* 하위 레벨 드릴다운 (월 아래 주, 분기 아래 월) */}
@@ -247,44 +264,82 @@ export function DrillDownLevel({
 
 // ─── 개별 아이템 행 ──────────────────────────────────────────
 
-function ItemRow({ item }: { item: PlanItem }) {
+function ItemRow({ item, onDeleted }: { item: PlanItem; onDeleted: () => void }) {
+  const [hovered, setHovered] = useState(false)
   const dot = STATUS_DOT[item.status] ?? STATUS_DOT.pending
   const statusLabel = STATUS_CONFIG[item.status]?.label ?? item.status
 
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm(`"${item.title}" 항목을 삭제하시겠습니까?`)) return
+    try {
+      await deletePlanItem(item.id)
+      onDeleted()
+    } catch {
+      // 조용히 실패
+    }
+  }
+
   return (
     <div
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 7,
-        padding: '5px 8px',
-        borderRadius: 6,
-        marginBottom: 2,
-      }}
-      onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f9fafb' }}
-      onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent' }}
+      style={{ padding: '5px 8px', borderRadius: 6, marginBottom: 2 }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
-      <span
-        style={{
-          width: 7,
-          height: 7,
-          borderRadius: '50%',
-          backgroundColor: dot,
-          flexShrink: 0,
-          marginTop: 4,
-        }}
-      />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: '#111827', lineHeight: 1.4 }}>
+      {/* 제목 + 상태 + 삭제 버튼 인라인 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+        <span
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: '50%',
+            backgroundColor: dot,
+            flexShrink: 0,
+          }}
+        />
+        <span
+          style={{
+            flex: 1,
+            fontSize: 13,
+            fontWeight: 500,
+            color: '#111827',
+            lineHeight: 1.4,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
           {item.title}
-        </div>
-        <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>
+        </span>
+        <span style={{ fontSize: 10, color: dot, fontWeight: 600, flexShrink: 0 }}>
           {statusLabel}
-          {item.description && (
-            <span style={{ marginLeft: 6 }}>{item.description}</span>
-          )}
-        </div>
+        </span>
+        {hovered && (
+          <button
+            onClick={handleDelete}
+            title="삭제"
+            style={{
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              padding: 2,
+              borderRadius: 4,
+              color: '#f87171',
+            }}
+          >
+            <Trash2 size={12} />
+          </button>
+        )}
       </div>
+      {/* 설명 (있을 경우에만 아래에 표시) */}
+      {item.description && (
+        <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2, paddingLeft: 14 }}>
+          {item.description}
+        </div>
+      )}
     </div>
   )
 }
