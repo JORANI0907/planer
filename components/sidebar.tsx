@@ -13,6 +13,7 @@ const ALL_NAV_ITEMS: { href: string; label: string; icon: React.ReactNode }[] = 
   { href: '/profile', label: '인적사항', icon: <User size={20} /> },
   { href: '/decade', label: '10년 계획', icon: <Rocket size={20} /> },
   { href: '/flowmap', label: '플로우맵', icon: <Map size={20} /> },
+  { href: '/flowmap-v2', label: 'FlowMap V2', icon: <Map size={20} /> },
   { href: '/brain', label: '생각확장', icon: <Brain size={20} /> },
   { href: '/routine', label: '필수과업', icon: <RefreshCw size={20} /> },
   { href: '/shopping', label: '구입 관리', icon: <ShoppingCart size={20} /> },
