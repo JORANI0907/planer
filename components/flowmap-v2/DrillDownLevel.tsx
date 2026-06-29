@@ -13,8 +13,8 @@ import {
 
 interface DrillDownLevelProps {
   parentId: string
-  periodKey: string      // e.g. '2026-Q1'
-  level: PlanLevel       // 'quarterly' | 'monthly' | 'weekly'
+  periodKey: string      // e.g. '2026-Q1', '2026-03-15'
+  level: PlanLevel       // 'quarterly' | 'monthly' | 'weekly' | 'daily'
   depth: number          // 들여쓰기 레벨 (0-base)
   onChanged?: () => void
 }
@@ -30,13 +30,15 @@ const LEVEL_ADD_LABEL: Partial<Record<PlanLevel, string>> = {
   quarterly: '+ 분기 추가',
   monthly: '+ 월 추가',
   weekly: '+ 주 추가',
+  daily: '+ 일 추가',
 }
 
-// 레벨별 시각적 구분 색상 (삼각 배색: 바이올렛 / 주황 / 청록)
+// 레벨별 시각적 구분 색상 (4단계: 바이올렛 / 주황 / 청록 / 핑크)
 const LEVEL_STYLE: Record<string, { bg: string; border: string; headerBg: string; chevron: string }> = {
   quarterly: { bg: 'rgba(124,58,237,0.08)',  border: '#7c3aed', headerBg: '#ede9fe', chevron: '#7c3aed' },
   monthly:   { bg: 'rgba(234,88,12,0.08)',   border: '#ea580c', headerBg: '#ffedd5', chevron: '#ea580c' },
   weekly:    { bg: 'rgba(8,145,178,0.08)',   border: '#0891b2', headerBg: '#cffafe', chevron: '#0891b2' },
+  daily:     { bg: 'rgba(219,39,119,0.07)',  border: '#db2777', headerBg: '#fce7f3', chevron: '#db2777' },
 }
 
 export function DrillDownLevel({
@@ -60,13 +62,17 @@ export function DrillDownLevel({
     setLoading(true)
     try {
       const results = await getPlanItems(level, periodKey)
-      setItems(results)
+      // daily는 현재 연간 부모 트리에 속한 것만 표시 (부모 없는 daily는 대시보드에만 노출)
+      const filtered = level === 'daily'
+        ? results.filter(i => i.parent_plan_item_id === parentId)
+        : results
+      setItems(filtered)
     } catch {
       // 조용히 실패 처리
     } finally {
       setLoading(false)
     }
-  }, [level, periodKey])
+  }, [level, periodKey, parentId])
 
   useEffect(() => {
     if (expanded) {

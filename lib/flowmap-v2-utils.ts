@@ -28,11 +28,21 @@ export interface ParsedWeekly {
   quarter: number
 }
 
+export interface ParsedDaily {
+  type: 'daily'
+  year: number
+  month: number
+  day: number
+  quarter: number
+  week: number
+}
+
 export type ParsedPeriod =
   | ParsedAnnual
   | ParsedQuarterly
   | ParsedMonthly
   | ParsedWeekly
+  | ParsedDaily
 
 // ─── 주차 → 월 계산 ──────────────────────────────────────────
 
@@ -88,10 +98,23 @@ export function parsePeriodKey(periodKey: string): ParsedPeriod | null {
     return { type: 'weekly', year, week, month, quarter }
   }
 
+  // '2026-03-15' — daily
+  const dayMatch = periodKey.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (dayMatch) {
+    const year = parseInt(dayMatch[1], 10)
+    const month = parseInt(dayMatch[2], 10)
+    const day = parseInt(dayMatch[3], 10)
+    const quarter = Math.ceil(month / 3)
+    const week = getISOWeek(new Date(year, month - 1, day))
+    return { type: 'daily', year, month, day, quarter, week }
+  }
+
   return null
 }
 
 // ─── formatPeriodLabel ───────────────────────────────────────
+
+const DAY_KOR = ['일', '월', '화', '수', '목', '금', '토']
 
 export function formatPeriodLabel(periodKey: string): string {
   const parsed = parsePeriodKey(periodKey)
@@ -106,6 +129,10 @@ export function formatPeriodLabel(periodKey: string): string {
       return `${parsed.month}월`
     case 'weekly':
       return `${parsed.week}주차`
+    case 'daily': {
+      const dow = new Date(parsed.year, parsed.month - 1, parsed.day).getDay()
+      return `${parsed.month}/${parsed.day}(${DAY_KOR[dow]})`
+    }
   }
 }
 
@@ -127,6 +154,10 @@ export function getParentPeriodKey(periodKey: string): string | null {
     case 'weekly': {
       const mm = String(parsed.month).padStart(2, '0')
       return `${parsed.year}-${mm}`
+    }
+    case 'daily': {
+      const ww = String(parsed.week).padStart(2, '0')
+      return `${parsed.year}-W${ww}`
     }
   }
 }
@@ -153,9 +184,31 @@ export function getChildPeriodKeys(periodKey: string): string[] {
       return getWeeksForMonth(parsed.year, parsed.month)
     }
 
-    case 'weekly':
+    case 'weekly': {
+      return getDaysForWeek(parsed.year, parsed.week)
+    }
+
+    case 'daily':
       return []
   }
+}
+
+function getDaysForWeek(year: number, week: number): string[] {
+  const jan4 = new Date(year, 0, 4)
+  const dayOfWeek = (jan4.getDay() + 6) % 7
+  const startOfWeek1 = new Date(jan4)
+  startOfWeek1.setDate(jan4.getDate() - dayOfWeek)
+  const start = new Date(startOfWeek1)
+  start.setDate(start.getDate() + (week - 1) * 7)
+
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start)
+    d.setDate(d.getDate() + i)
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  })
 }
 
 function getWeeksForMonth(year: number, month: number): string[] {
@@ -212,6 +265,7 @@ export function getChildLevel(level: PlanLevel): PlanLevel | null {
     annual: 'quarterly',
     quarterly: 'monthly',
     monthly: 'weekly',
+    weekly: 'daily',
   }
   return map[level] ?? null
 }

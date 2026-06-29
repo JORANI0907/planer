@@ -2,13 +2,14 @@
 
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
-export type ViewMode = 'basic' | 'quarterly' | 'monthly' | 'weekly'
+export type ViewMode = 'basic' | 'quarterly' | 'monthly' | 'weekly' | 'daily'
 
 const VIEW_MODES: { key: ViewMode; label: string }[] = [
   { key: 'basic', label: '기본보기' },
   { key: 'quarterly', label: '분기보기' },
   { key: 'monthly', label: '월간보기' },
   { key: 'weekly', label: '주간보기' },
+  { key: 'daily', label: '일간보기' },
 ]
 
 interface FlowMapV2ToolbarProps {

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { PlanItem, PlanLevel } from '@/lib/types'
 import { getCurrentYear } from '@/lib/types'
-import { getPlanItems } from '@/lib/api'
+import { getPlanItems, getDailyItemsForMonth } from '@/lib/api'
 import { getChildPeriodKeys } from '@/lib/flowmap-v2-utils'
 import { FlowMapV2Toolbar, type ViewMode } from '@/components/flowmap-v2/FlowMapV2Toolbar'
 import { AnnualListView } from '@/components/flowmap-v2/AnnualListView'
@@ -34,6 +34,20 @@ const VIEW_CONFIG: Record<
       return monthKeys.flatMap(m => getChildPeriodKeys(m))
     },
   },
+  daily: {
+    level: 'daily',
+    getPeriodKeys: (year) => {
+      const pad = (n: number) => String(n).padStart(2, '0')
+      const keys: string[] = []
+      for (let m = 1; m <= 12; m++) {
+        const lastDay = new Date(year, m, 0).getDate()
+        for (let d = 1; d <= lastDay; d++) {
+          keys.push(`${year}-${pad(m)}-${pad(d)}`)
+        }
+      }
+      return keys
+    },
+  },
 }
 
 export default function FlowMapV2Page() {
@@ -51,17 +65,29 @@ export default function FlowMapV2Page() {
     return items
   }, [year])
 
-  // 평면보기(분기/월/주) 로드
+  // 평면보기(분기/월/주/일) 로드
   const loadFlatView = useCallback(async (mode: Exclude<ViewMode, 'basic'>) => {
     const config = VIEW_CONFIG[mode]
     const keys = config.getPeriodKeys(year)
-
-    const results = await Promise.all(
-      keys.map(key => getPlanItems(config.level, key))
-    )
-
     const map = new Map<string, PlanItem[]>()
-    keys.forEach((key, i) => map.set(key, results[i]))
+
+    if (mode === 'daily') {
+      // 365번 호출 회피: 월별 일괄 조회 12번으로 처리
+      const monthLists = await Promise.all(
+        Array.from({ length: 12 }, (_, i) => getDailyItemsForMonth(year, i + 1))
+      )
+      keys.forEach(key => map.set(key, []))
+      monthLists.flat().forEach(item => {
+        const list = map.get(item.period_key)
+        if (list) list.push(item)
+      })
+    } else {
+      const results = await Promise.all(
+        keys.map(key => getPlanItems(config.level, key))
+      )
+      keys.forEach((key, i) => map.set(key, results[i]))
+    }
+
     setItemsByPeriod(map)
     return keys
   }, [year])
