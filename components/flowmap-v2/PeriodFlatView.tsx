@@ -1,11 +1,27 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Trash2, Check, History } from 'lucide-react'
+import { Plus, Trash2, Check, History, GripVertical } from 'lucide-react'
 import type { PlanItem, PlanLevel } from '@/lib/types'
 import { STATUS_CONFIG } from '@/lib/types'
 import { createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
 import { formatPeriodLabel } from '@/lib/flowmap-v2-utils'
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface PeriodFlatViewProps {
   level: PlanLevel
@@ -64,6 +80,16 @@ function PeriodCard({
   const ancestorTitle = findAnnualAncestorTitle(item, allItems)
   const isDone = item.status === 'completed'
 
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id })
+  const wrapStyle: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    position: isDragging ? 'relative' : undefined,
+    zIndex: isDragging ? 50 : undefined,
+  }
+
   const handleToggleDone = async (e: React.MouseEvent) => {
     e.stopPropagation()
     try {
@@ -88,6 +114,7 @@ function PeriodCard({
   }
 
   return (
+    <div ref={setNodeRef} style={wrapStyle}>
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -102,6 +129,28 @@ function PeriodCard({
         position: 'relative',
       }}
     >
+      {/* 드래그 핸들 (좌측 상단) */}
+      <button
+        {...attributes}
+        {...listeners}
+        title="드래그하여 순서 변경"
+        style={{
+          position: 'absolute',
+          top: 4,
+          left: 4,
+          opacity: hovered ? 0.7 : 0,
+          background: 'transparent',
+          border: 'none',
+          cursor: 'grab',
+          color: '#6b7280',
+          padding: 0,
+          touchAction: 'none',
+          transition: 'opacity 0.15s',
+        }}
+      >
+        <GripVertical size={12} />
+      </button>
+
       {/* 연간 목표 배지 */}
       {ancestorTitle && (
         <span
@@ -215,6 +264,7 @@ function PeriodCard({
           {item.description}
         </div>
       )}
+    </div>
     </div>
   )
 }
@@ -370,6 +420,28 @@ function PeriodColumn({
 }) {
   const label = formatPeriodLabel(periodKey)
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+  )
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIdx = items.findIndex(i => i.id === active.id)
+    const newIdx = items.findIndex(i => i.id === over.id)
+    if (oldIdx < 0 || newIdx < 0) return
+    const reordered = arrayMove(items, oldIdx, newIdx)
+    try {
+      await Promise.all(
+        reordered.map((it, idx) => updatePlanItem(it.id, { sort_order: idx })),
+      )
+      onChanged()
+    } catch {
+      // 조용히 실패
+    }
+  }
+
   return (
     <div
       style={{
@@ -407,10 +479,21 @@ function PeriodColumn({
         </span>
       </div>
 
-      {/* 카드 목록 */}
-      {items.map(item => (
-        <PeriodCard key={item.id} item={item} allItems={allItems} onChanged={onChanged} />
-      ))}
+      {/* 카드 목록 (드래그앤드롭) */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={items.map(i => i.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {items.map(item => (
+            <PeriodCard key={item.id} item={item} allItems={allItems} onChanged={onChanged} />
+          ))}
+        </SortableContext>
+      </DndContext>
 
       {/* 추가 입력 */}
       <AddItemInline
@@ -472,8 +555,27 @@ export function PeriodFlatView({
           title={showPast ? '지난 기간 숨기기' : `지난 ${pastKeys.length}개 펼치기`}
         >
           <History size={14} />
-          <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', letterSpacing: 1 }}>
-            {showPast ? '지난기간 접기' : `지난 ${pastKeys.length}개`}
+          <span
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 2,
+              lineHeight: 1.2,
+              textAlign: 'center',
+            }}
+          >
+            {showPast ? (
+              <>
+                <span>지난기간</span>
+                <span>접기</span>
+              </>
+            ) : (
+              <>
+                <span>지난</span>
+                <span>{pastKeys.length}개</span>
+              </>
+            )}
           </span>
         </button>
       )}
