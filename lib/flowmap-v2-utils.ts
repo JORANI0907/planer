@@ -308,19 +308,19 @@ export function getPeriodEndDate(periodKey: string): Date | null {
   }
 }
 
-// ─── 지난 기간 자동 감춤 필터 ───────────────────────────────
-// 분기 : 현재 분기 시작 이전 감춤
-// 월간 : 오늘 -7일 이전 끝나는 월 감춤
-// 주간 : 오늘 -7일 이전 끝나는 주 감춤
-// 일간 : 오늘 -3일 이전 일 감춤
-// (현재 연도가 아닐 때는 필터 미적용 — 사용자가 명시적으로 다른 연도를 봄)
-export function filterPastPeriodKeys(
+// ─── 지난 기간 분리 (active / past) ─────────────────────────
+// 분기 : 현재 분기 시작 이전 → past
+// 월간 : 오늘 -7일 이전 끝남 → past
+// 주간 : 오늘 -7일 이전 끝남 → past
+// 일간 : 오늘 -3일 이전 일자 → past
+// (현재 연도가 아닐 때는 모두 active — 사용자가 명시적으로 다른 연도를 봄)
+export function partitionPastPeriodKeys(
   keys: string[],
   level: PlanLevel,
   viewYear: number,
-): string[] {
+): { active: string[]; past: string[] } {
   const now = new Date()
-  if (viewYear !== now.getFullYear()) return keys
+  if (viewYear !== now.getFullYear()) return { active: keys, past: [] }
 
   let cutoff: Date
   if (level === 'daily') {
@@ -331,13 +331,16 @@ export function filterPastPeriodKeys(
     const currentQuarter = Math.ceil((now.getMonth() + 1) / 3)
     cutoff = new Date(now.getFullYear(), (currentQuarter - 1) * 3, 1)
   } else {
-    return keys
+    return { active: keys, past: [] }
   }
 
   const cutoffMs = cutoff.getTime()
-  return keys.filter(key => {
+  const active: string[] = []
+  const past: string[] = []
+  keys.forEach(key => {
     const end = getPeriodEndDate(key)
-    if (!end) return true
-    return end.getTime() >= cutoffMs
+    if (!end || end.getTime() >= cutoffMs) active.push(key)
+    else past.push(key)
   })
+  return { active, past }
 }

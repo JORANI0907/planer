@@ -1,15 +1,19 @@
 'use client'
 
+import { useState } from 'react'
+import { Plus, Trash2, Check, History } from 'lucide-react'
 import type { PlanItem, PlanLevel } from '@/lib/types'
 import { STATUS_CONFIG } from '@/lib/types'
+import { createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
 import { formatPeriodLabel } from '@/lib/flowmap-v2-utils'
 
 interface PeriodFlatViewProps {
   level: PlanLevel
-  periodKeys: string[]
+  activeKeys: string[]
+  pastKeys: string[]
   itemsByPeriod: Map<string, PlanItem[]>
   allItems: PlanItem[]          // 상위 연간 아이템 포함 전체 (배지 표시용)
-  onAddItem?: (periodKey: string) => void
+  onChanged: () => void         // 추가/삭제/상태 변경 시 호출
 }
 
 const STATUS_DOT: Record<string, string> = {
@@ -42,20 +46,51 @@ function findAnnualAncestorTitle(
   return null
 }
 
+// ─── 개별 카드 ──────────────────────────────────────────────
+
 function PeriodCard({
   item,
   allItems,
+  onChanged,
 }: {
   item: PlanItem
   allItems: PlanItem[]
+  onChanged: () => void
 }) {
+  const [hovered, setHovered] = useState(false)
   const sc = STATUS_BG[item.status] ?? STATUS_BG.pending
   const dot = STATUS_DOT[item.status] ?? STATUS_DOT.pending
   const statusLabel = STATUS_CONFIG[item.status]?.label ?? item.status
   const ancestorTitle = findAnnualAncestorTitle(item, allItems)
+  const isDone = item.status === 'completed'
+
+  const handleToggleDone = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await updatePlanItem(item.id, {
+        status: isDone ? 'pending' : 'completed',
+      })
+      onChanged()
+    } catch {
+      // 조용히 실패
+    }
+  }
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm(`"${item.title}" 항목을 삭제하시겠습니까?`)) return
+    try {
+      await deletePlanItem(item.id)
+      onChanged()
+    } catch {
+      // 조용히 실패
+    }
+  }
 
   return (
     <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         border: `1.5px solid ${sc.border}`,
         borderRadius: 10,
@@ -64,6 +99,7 @@ function PeriodCard({
         display: 'flex',
         flexDirection: 'column',
         gap: 5,
+        position: 'relative',
       }}
     >
       {/* 연간 목표 배지 */}
@@ -89,14 +125,37 @@ function PeriodCard({
         </span>
       )}
 
-      {/* 제목 + 상태 인라인 */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5 }}>
+      {/* 제목 + 액션 인라인 */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+        {/* 완료 체크박스 */}
+        <button
+          onClick={handleToggleDone}
+          title={isDone ? '미완료로 변경' : '완료 처리'}
+          style={{
+            flexShrink: 0,
+            width: 16,
+            height: 16,
+            borderRadius: '50%',
+            border: `1.5px solid ${isDone ? '#22c55e' : '#d1d5db'}`,
+            backgroundColor: isDone ? '#22c55e' : '#fff',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginTop: 2,
+            padding: 0,
+          }}
+        >
+          {isDone && <Check size={10} color="#fff" strokeWidth={3} />}
+        </button>
+
         <div
           style={{
             flex: 1,
             fontSize: 13,
             fontWeight: 600,
-            color: '#111827',
+            color: isDone ? '#9ca3af' : '#111827',
+            textDecoration: isDone ? 'line-through' : 'none',
             lineHeight: 1.4,
             overflow: 'hidden',
             display: '-webkit-box',
@@ -106,19 +165,37 @@ function PeriodCard({
         >
           {item.title}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0, paddingTop: 2 }}>
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              backgroundColor: dot,
-              flexShrink: 0,
-            }}
-          />
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            flexShrink: 0,
+            paddingTop: 2,
+          }}
+        >
           <span style={{ fontSize: 10, color: dot, fontWeight: 600, whiteSpace: 'nowrap' }}>
             {statusLabel}
           </span>
+          {hovered && (
+            <button
+              onClick={handleDelete}
+              title="삭제"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                padding: 2,
+                borderRadius: 4,
+                color: '#f87171',
+              }}
+            >
+              <Trash2 size={12} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -142,14 +219,154 @@ function PeriodCard({
   )
 }
 
+// ─── 추가 입력 폼 ───────────────────────────────────────────
+
+function AddItemInline({
+  level,
+  periodKey,
+  sortOrder,
+  onAdded,
+}: {
+  level: PlanLevel
+  periodKey: string
+  sortOrder: number
+  onAdded: () => void
+}) {
+  const [adding, setAdding] = useState(false)
+  const [title, setTitle] = useState('')
+
+  const handleAdd = async () => {
+    const t = title.trim()
+    if (!t) return
+    try {
+      await createPlanItem({
+        level,
+        period_key: periodKey,
+        title: t,
+        description: null,
+        categories: [],
+        status: 'pending',
+        priority: 'medium',
+        sort_order: sortOrder,
+        parent_plan_item_id: null,
+        section_id: null,
+      })
+      setTitle('')
+      setAdding(false)
+      onAdded()
+    } catch {
+      // 조용히 실패
+    }
+  }
+
+  if (adding) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+        <input
+          autoFocus
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') handleAdd()
+            if (e.key === 'Escape') { setAdding(false); setTitle('') }
+          }}
+          placeholder="제목 입력 후 Enter"
+          style={{
+            fontSize: 12,
+            padding: '6px 8px',
+            border: '1px solid #93c5fd',
+            borderRadius: 6,
+            outline: 'none',
+            color: '#111827',
+            backgroundColor: '#fff',
+          }}
+        />
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button
+            onClick={handleAdd}
+            style={{
+              flex: 1,
+              fontSize: 11,
+              padding: '4px 6px',
+              borderRadius: 6,
+              border: 'none',
+              backgroundColor: '#3b82f6',
+              color: '#fff',
+              cursor: 'pointer',
+            }}
+          >
+            추가
+          </button>
+          <button
+            onClick={() => { setAdding(false); setTitle('') }}
+            style={{
+              flex: 1,
+              fontSize: 11,
+              padding: '4px 6px',
+              borderRadius: 6,
+              border: '1px solid #e5e7eb',
+              backgroundColor: '#fff',
+              cursor: 'pointer',
+              color: '#6b7280',
+            }}
+          >
+            취소
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={() => setAdding(true)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 4,
+        fontSize: 11,
+        color: '#9ca3af',
+        padding: '6px 8px',
+        borderRadius: 8,
+        border: '1.5px dashed #e5e7eb',
+        background: 'transparent',
+        cursor: 'pointer',
+        transition: 'all 0.15s',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.borderColor = '#93c5fd'
+        e.currentTarget.style.color = '#3b82f6'
+        e.currentTarget.style.backgroundColor = '#f0f9ff'
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.borderColor = '#e5e7eb'
+        e.currentTarget.style.color = '#9ca3af'
+        e.currentTarget.style.backgroundColor = 'transparent'
+      }}
+    >
+      <Plus size={11} />
+      항목 추가
+    </button>
+  )
+}
+
+// ─── 컬럼 ───────────────────────────────────────────────────
+
 function PeriodColumn({
+  level,
   periodKey,
   items,
   allItems,
+  onChanged,
+  isPast,
 }: {
+  level: PlanLevel
   periodKey: string
   items: PlanItem[]
   allItems: PlanItem[]
+  onChanged: () => void
+  isPast?: boolean
 }) {
   const label = formatPeriodLabel(periodKey)
 
@@ -161,15 +378,16 @@ function PeriodColumn({
         display: 'flex',
         flexDirection: 'column',
         gap: 8,
+        opacity: isPast ? 0.85 : 1,
       }}
     >
       {/* 컬럼 헤더 */}
       <div
         style={{
           padding: '7px 12px',
-          backgroundColor: '#f8fafc',
+          backgroundColor: isPast ? '#f1f5f9' : '#f8fafc',
           borderRadius: 8,
-          border: '1px solid #e5e7eb',
+          border: `1px solid ${isPast ? '#cbd5e1' : '#e5e7eb'}`,
           fontWeight: 700,
           fontSize: 13,
           color: '#374151',
@@ -190,33 +408,33 @@ function PeriodColumn({
       </div>
 
       {/* 카드 목록 */}
-      {items.length === 0 ? (
-        <div
-          style={{
-            border: '1.5px dashed #e5e7eb',
-            borderRadius: 10,
-            padding: '16px 12px',
-            textAlign: 'center',
-            color: '#d1d5db',
-            fontSize: 12,
-          }}
-        >
-          항목 없음
-        </div>
-      ) : (
-        items.map(item => (
-          <PeriodCard key={item.id} item={item} allItems={allItems} />
-        ))
-      )}
+      {items.map(item => (
+        <PeriodCard key={item.id} item={item} allItems={allItems} onChanged={onChanged} />
+      ))}
+
+      {/* 추가 입력 */}
+      <AddItemInline
+        level={level}
+        periodKey={periodKey}
+        sortOrder={items.length}
+        onAdded={onChanged}
+      />
     </div>
   )
 }
 
+// ─── 메인 ───────────────────────────────────────────────────
+
 export function PeriodFlatView({
-  periodKeys,
+  level,
+  activeKeys,
+  pastKeys,
   itemsByPeriod,
   allItems,
+  onChanged,
 }: PeriodFlatViewProps) {
+  const [showPast, setShowPast] = useState(false)
+
   return (
     <div
       style={{
@@ -227,12 +445,61 @@ export function PeriodFlatView({
         alignItems: 'flex-start',
       }}
     >
-      {periodKeys.map(key => (
+      {/* 지난 기간 펼치기 토글 */}
+      {pastKeys.length > 0 && (
+        <button
+          onClick={() => setShowPast(s => !s)}
+          style={{
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            width: 56,
+            alignSelf: 'stretch',
+            minHeight: 80,
+            border: '1.5px dashed #cbd5e1',
+            backgroundColor: showPast ? '#e0e7ff' : '#f8fafc',
+            color: showPast ? '#4338ca' : '#6b7280',
+            borderRadius: 10,
+            cursor: 'pointer',
+            fontSize: 11,
+            fontWeight: 600,
+            padding: '8px 4px',
+            transition: 'all 0.15s',
+          }}
+          title={showPast ? '지난 기간 숨기기' : `지난 ${pastKeys.length}개 펼치기`}
+        >
+          <History size={14} />
+          <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', letterSpacing: 1 }}>
+            {showPast ? '지난기간 접기' : `지난 ${pastKeys.length}개`}
+          </span>
+        </button>
+      )}
+
+      {/* 지난 기간 컬럼 (펼친 경우에만) */}
+      {showPast && pastKeys.map(key => (
         <PeriodColumn
           key={key}
+          level={level}
           periodKey={key}
           items={itemsByPeriod.get(key) ?? []}
           allItems={allItems}
+          onChanged={onChanged}
+          isPast
+        />
+      ))}
+
+      {/* 활성 컬럼 */}
+      {activeKeys.map(key => (
+        <PeriodColumn
+          key={key}
+          level={level}
+          periodKey={key}
+          items={itemsByPeriod.get(key) ?? []}
+          allItems={allItems}
+          onChanged={onChanged}
         />
       ))}
     </div>

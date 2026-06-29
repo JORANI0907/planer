@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { PlanItem, PlanLevel } from '@/lib/types'
 import { getCurrentYear } from '@/lib/types'
 import { getPlanItems, getDailyItemsForMonth } from '@/lib/api'
-import { getChildPeriodKeys, filterPastPeriodKeys } from '@/lib/flowmap-v2-utils'
+import { getChildPeriodKeys, partitionPastPeriodKeys } from '@/lib/flowmap-v2-utils'
 import { FlowMapV2Toolbar, type ViewMode } from '@/components/flowmap-v2/FlowMapV2Toolbar'
 import { AnnualListView } from '@/components/flowmap-v2/AnnualListView'
 import { PeriodFlatView } from '@/components/flowmap-v2/PeriodFlatView'
@@ -65,15 +65,14 @@ export default function FlowMapV2Page() {
     return items
   }, [year])
 
-  // 평면보기(분기/월/주/일) 로드
+  // 평면보기(분기/월/주/일) 로드 — 전체 keys로 fetch (active/past 모두)
   const loadFlatView = useCallback(async (mode: Exclude<ViewMode, 'basic'>) => {
     const config = VIEW_CONFIG[mode]
-    const allKeys = config.getPeriodKeys(year)
-    const keys = filterPastPeriodKeys(allKeys, config.level, year)
+    const keys = config.getPeriodKeys(year)
     const map = new Map<string, PlanItem[]>()
 
     if (mode === 'daily') {
-      // 365번 호출 회피: 월별 일괄 조회 12번으로 처리 (필터링은 표시 단계에서만)
+      // 365번 호출 회피: 월별 일괄 조회 12번으로 처리
       const monthLists = await Promise.all(
         Array.from({ length: 12 }, (_, i) => getDailyItemsForMonth(year, i + 1))
       )
@@ -131,14 +130,18 @@ export default function FlowMapV2Page() {
     reload()
   }, [reload])
 
-  const periodKeys =
+  const { activeKeys, pastKeys } =
     viewMode !== 'basic'
-      ? filterPastPeriodKeys(
-          VIEW_CONFIG[viewMode].getPeriodKeys(year),
-          VIEW_CONFIG[viewMode].level,
-          year,
-        )
-      : []
+      ? (() => {
+          const all = VIEW_CONFIG[viewMode].getPeriodKeys(year)
+          const { active, past } = partitionPastPeriodKeys(
+            all,
+            VIEW_CONFIG[viewMode].level,
+            year,
+          )
+          return { activeKeys: active, pastKeys: past }
+        })()
+      : { activeKeys: [] as string[], pastKeys: [] as string[] }
 
   return (
     <div
@@ -180,10 +183,11 @@ export default function FlowMapV2Page() {
           >
             <PeriodFlatView
               level={VIEW_CONFIG[viewMode].level}
-              periodKeys={periodKeys}
+              activeKeys={activeKeys}
+              pastKeys={pastKeys}
               itemsByPeriod={itemsByPeriod}
               allItems={allItems}
-              onAddItem={() => reload()}
+              onChanged={() => reload()}
             />
           </div>
         )}
