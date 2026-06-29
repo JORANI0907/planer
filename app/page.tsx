@@ -1,14 +1,16 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { Map, Rocket, Brain, CheckSquare, ShoppingCart, Flag, Calendar } from 'lucide-react'
 import { getPlanItems } from '@/lib/api'
 import { getPendingCount } from '@/lib/shopping-api'
 import { getCurrentYear, getCurrentQuarter, getCurrentMonth } from '@/lib/types'
+import type { PlanItem } from '@/lib/types'
 import DailyPage from './daily/page'
 import { PeriodPlanSection } from '@/components/PeriodPlanSection'
 import { DashboardCalendar } from '@/components/DashboardCalendar'
+import { AnnualListView } from '@/components/flowmap-v2/AnnualListView'
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -33,8 +35,9 @@ export default function DashboardPage() {
   const [showTop, setShowTop] = useState(false)
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('daily')
   const [showCalendar, setShowCalendar] = useState(false)
+  const [annualItems, setAnnualItems] = useState<PlanItem[]>([])
 
-  useEffect(() => {
+  const reloadStats = useCallback(() => {
     const aKey = `${year}`
     const qKey = `${year}-Q${quarter}`
     const mKey = `${year}-${String(month).padStart(2, '0')}`
@@ -46,14 +49,18 @@ export default function DashboardPage() {
       getPlanItems('monthly', mKey),
       getPlanItems('daily', dKey),
     ]).then(([a, q, m, d]) => {
+      setAnnualItems(a)
       setAStats({ total: a.length, done: a.filter(i => i.status === 'completed').length })
       setQStats({ total: q.length, done: q.filter(i => i.status === 'completed').length })
       setMStats({ total: m.length, done: m.filter(i => i.status === 'completed').length })
       setDStats({ total: d.length, done: d.filter(i => i.status === 'completed').length })
     }).catch(() => {})
+  }, [year, quarter, month, today])
 
+  useEffect(() => {
+    reloadStats()
     getPendingCount().then(setShoppingPending).catch(() => {})
-  }, [])
+  }, [reloadStats])
 
   const aPct = aStats.total ? Math.round((aStats.done / aStats.total) * 100) : 0
   const qPct = qStats.total ? Math.round((qStats.done / qStats.total) * 100) : 0
@@ -154,7 +161,7 @@ export default function DashboardPage() {
         <div className="mt-2">
           {selectedPeriod === 'daily' && <DailyPage />}
           {selectedPeriod === 'annual' && (
-            <PeriodPlanSection period="annual" initYear={year} initQuarter={quarter} initMonth={month} />
+            <AnnualListView year={year} items={annualItems} onChanged={reloadStats} />
           )}
           {selectedPeriod === 'quarterly' && (
             <PeriodPlanSection period="quarterly" initYear={year} initQuarter={quarter} initMonth={month} />
