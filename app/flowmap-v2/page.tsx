@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { PlanItem, PlanLevel } from '@/lib/types'
 import { getCurrentYear } from '@/lib/types'
 import { getPlanItems, getDailyItemsForMonth } from '@/lib/api'
-import { getChildPeriodKeys } from '@/lib/flowmap-v2-utils'
+import { getChildPeriodKeys, filterPastPeriodKeys } from '@/lib/flowmap-v2-utils'
 import { FlowMapV2Toolbar, type ViewMode } from '@/components/flowmap-v2/FlowMapV2Toolbar'
 import { AnnualListView } from '@/components/flowmap-v2/AnnualListView'
 import { PeriodFlatView } from '@/components/flowmap-v2/PeriodFlatView'
@@ -68,11 +68,12 @@ export default function FlowMapV2Page() {
   // 평면보기(분기/월/주/일) 로드
   const loadFlatView = useCallback(async (mode: Exclude<ViewMode, 'basic'>) => {
     const config = VIEW_CONFIG[mode]
-    const keys = config.getPeriodKeys(year)
+    const allKeys = config.getPeriodKeys(year)
+    const keys = filterPastPeriodKeys(allKeys, config.level, year)
     const map = new Map<string, PlanItem[]>()
 
     if (mode === 'daily') {
-      // 365번 호출 회피: 월별 일괄 조회 12번으로 처리
+      // 365번 호출 회피: 월별 일괄 조회 12번으로 처리 (필터링은 표시 단계에서만)
       const monthLists = await Promise.all(
         Array.from({ length: 12 }, (_, i) => getDailyItemsForMonth(year, i + 1))
       )
@@ -131,7 +132,13 @@ export default function FlowMapV2Page() {
   }, [reload])
 
   const periodKeys =
-    viewMode !== 'basic' ? VIEW_CONFIG[viewMode].getPeriodKeys(year) : []
+    viewMode !== 'basic'
+      ? filterPastPeriodKeys(
+          VIEW_CONFIG[viewMode].getPeriodKeys(year),
+          VIEW_CONFIG[viewMode].level,
+          year,
+        )
+      : []
 
   return (
     <div

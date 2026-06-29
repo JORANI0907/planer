@@ -277,3 +277,67 @@ export function inferLevel(periodKey: string): PlanLevel | null {
   if (!parsed) return null
   return parsed.type as PlanLevel
 }
+
+// ─── period_key의 마지막 날짜 (필터링용) ─────────────────────
+
+export function getPeriodEndDate(periodKey: string): Date | null {
+  const parsed = parsePeriodKey(periodKey)
+  if (!parsed) return null
+  switch (parsed.type) {
+    case 'annual':
+      return new Date(parsed.year, 11, 31)
+    case 'quarterly': {
+      const endMonth = parsed.quarter * 3 // 1-12
+      return new Date(parsed.year, endMonth, 0)
+    }
+    case 'monthly':
+      return new Date(parsed.year, parsed.month, 0)
+    case 'weekly': {
+      const jan4 = new Date(parsed.year, 0, 4)
+      const dayOfWeek = (jan4.getDay() + 6) % 7
+      const startOfWeek1 = new Date(jan4)
+      startOfWeek1.setDate(jan4.getDate() - dayOfWeek)
+      const start = new Date(startOfWeek1)
+      start.setDate(start.getDate() + (parsed.week - 1) * 7)
+      const end = new Date(start)
+      end.setDate(start.getDate() + 6)
+      return end
+    }
+    case 'daily':
+      return new Date(parsed.year, parsed.month - 1, parsed.day)
+  }
+}
+
+// ─── 지난 기간 자동 감춤 필터 ───────────────────────────────
+// 분기 : 현재 분기 시작 이전 감춤
+// 월간 : 오늘 -7일 이전 끝나는 월 감춤
+// 주간 : 오늘 -7일 이전 끝나는 주 감춤
+// 일간 : 오늘 -3일 이전 일 감춤
+// (현재 연도가 아닐 때는 필터 미적용 — 사용자가 명시적으로 다른 연도를 봄)
+export function filterPastPeriodKeys(
+  keys: string[],
+  level: PlanLevel,
+  viewYear: number,
+): string[] {
+  const now = new Date()
+  if (viewYear !== now.getFullYear()) return keys
+
+  let cutoff: Date
+  if (level === 'daily') {
+    cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 3)
+  } else if (level === 'weekly' || level === 'monthly') {
+    cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7)
+  } else if (level === 'quarterly') {
+    const currentQuarter = Math.ceil((now.getMonth() + 1) / 3)
+    cutoff = new Date(now.getFullYear(), (currentQuarter - 1) * 3, 1)
+  } else {
+    return keys
+  }
+
+  const cutoffMs = cutoff.getTime()
+  return keys.filter(key => {
+    const end = getPeriodEndDate(key)
+    if (!end) return true
+    return end.getTime() >= cutoffMs
+  })
+}
