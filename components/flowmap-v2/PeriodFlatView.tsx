@@ -8,11 +8,12 @@ import { createPlanItem, updatePlanItem, deletePlanItem } from '@/lib/api'
 import { formatPeriodLabel } from '@/lib/flowmap-v2-utils'
 import {
   DndContext,
-  closestCenter,
+  closestCorners,
   PointerSensor,
   TouchSensor,
   useSensor,
   useSensors,
+  useDroppable,
   type DragEndEvent,
 } from '@dnd-kit/core'
 import {
@@ -419,31 +420,11 @@ function PeriodColumn({
   isPast?: boolean
 }) {
   const label = formatPeriodLabel(periodKey)
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
-  )
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const oldIdx = items.findIndex(i => i.id === active.id)
-    const newIdx = items.findIndex(i => i.id === over.id)
-    if (oldIdx < 0 || newIdx < 0) return
-    const reordered = arrayMove(items, oldIdx, newIdx)
-    try {
-      await Promise.all(
-        reordered.map((it, idx) => updatePlanItem(it.id, { sort_order: idx })),
-      )
-      onChanged()
-    } catch {
-      // 조용히 실패
-    }
-  }
+  const { setNodeRef, isOver } = useDroppable({ id: `col-${periodKey}` })
 
   return (
     <div
+      ref={setNodeRef}
       style={{
         minWidth: 200,
         flex: '0 0 220px',
@@ -451,19 +432,24 @@ function PeriodColumn({
         flexDirection: 'column',
         gap: 8,
         opacity: isPast ? 0.85 : 1,
+        borderRadius: 10,
+        outline: isOver ? '2px dashed #3b82f6' : 'none',
+        outlineOffset: 4,
+        transition: 'outline 0.1s',
       }}
     >
       {/* 컬럼 헤더 */}
       <div
         style={{
           padding: '7px 12px',
-          backgroundColor: isPast ? '#f1f5f9' : '#f8fafc',
+          backgroundColor: isOver ? '#dbeafe' : isPast ? '#f1f5f9' : '#f8fafc',
           borderRadius: 8,
           border: `1px solid ${isPast ? '#cbd5e1' : '#e5e7eb'}`,
           fontWeight: 700,
           fontSize: 13,
           color: '#374151',
           textAlign: 'center',
+          transition: 'background-color 0.1s',
         }}
       >
         {label}
@@ -479,21 +465,15 @@ function PeriodColumn({
         </span>
       </div>
 
-      {/* 카드 목록 (드래그앤드롭) */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
+      {/* 카드 목록 (SortableContext만; DndContext는 상위 PeriodFlatView 단일) */}
+      <SortableContext
+        items={items.map(i => i.id)}
+        strategy={verticalListSortingStrategy}
       >
-        <SortableContext
-          items={items.map(i => i.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {items.map(item => (
-            <PeriodCard key={item.id} item={item} allItems={allItems} onChanged={onChanged} />
-          ))}
-        </SortableContext>
-      </DndContext>
+        {items.map(item => (
+          <PeriodCard key={item.id} item={item} allItems={allItems} onChanged={onChanged} />
+        ))}
+      </SortableContext>
 
       {/* 추가 입력 */}
       <AddItemInline
@@ -518,7 +498,92 @@ export function PeriodFlatView({
 }: PeriodFlatViewProps) {
   const [showPast, setShowPast] = useState(false)
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+  )
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over) return
+    const activeId = String(active.id)
+    const overId = String(over.id)
+    if (activeId === overId) return
+
+    // active 카드의 현재 컬럼 찾기
+    let activePeriodKey: string | null = null
+    for (const [pk, list] of itemsByPeriod.entries()) {
+      if (list.some(i => i.id === activeId)) {
+        activePeriodKey = pk
+        break
+      }
+    }
+    if (!activePeriodKey) return
+
+    // over가 어느 컬럼인지 + 어느 인덱스인지 파악
+    let targetPeriodKey: string
+    let targetIdx: number
+    if (overId.startsWith('col-')) {
+      targetPeriodKey = overId.slice(4)
+      targetIdx = (itemsByPeriod.get(targetPeriodKey) ?? []).length
+    } else {
+      let foundKey: string | null = null
+      let foundIdx = -1
+      for (const [pk, list] of itemsByPeriod.entries()) {
+        const idx = list.findIndex(i => i.id === overId)
+        if (idx >= 0) {
+          foundKey = pk
+          foundIdx = idx
+          break
+        }
+      }
+      if (!foundKey || foundIdx < 0) return
+      targetPeriodKey = foundKey
+      targetIdx = foundIdx
+    }
+
+    try {
+      if (activePeriodKey === targetPeriodKey) {
+        // 같은 컬럼 내 순서 변경
+        const list = itemsByPeriod.get(activePeriodKey) ?? []
+        const oldIdx = list.findIndex(i => i.id === activeId)
+        if (oldIdx < 0) return
+        const reordered = arrayMove(list, oldIdx, targetIdx)
+        await Promise.all(
+          reordered.map((it, idx) => updatePlanItem(it.id, { sort_order: idx })),
+        )
+      } else {
+        // 다른 컬럼으로 이동 — 대상 컬럼 전체 sort_order 재부여 + active의 period_key 변경
+        const oldList = itemsByPeriod.get(activePeriodKey) ?? []
+        const movedItem = oldList.find(i => i.id === activeId)
+        if (!movedItem) return
+        const targetList = itemsByPeriod.get(targetPeriodKey) ?? []
+        const safeIdx = Math.max(0, Math.min(targetIdx, targetList.length))
+        const newList = [
+          ...targetList.slice(0, safeIdx),
+          movedItem,
+          ...targetList.slice(safeIdx),
+        ]
+        await Promise.all(
+          newList.map((it, idx) =>
+            it.id === activeId
+              ? updatePlanItem(it.id, { period_key: targetPeriodKey, sort_order: idx })
+              : updatePlanItem(it.id, { sort_order: idx }),
+          ),
+        )
+      }
+      onChanged()
+    } catch {
+      // 조용히 실패
+    }
+  }
+
   return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCorners}
+      onDragEnd={handleDragEnd}
+    >
     <div
       style={{
         display: 'flex',
@@ -605,5 +670,6 @@ export function PeriodFlatView({
         />
       ))}
     </div>
+    </DndContext>
   )
 }
