@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronRight, ChevronDown } from 'lucide-react'
+import { ChevronRight, ChevronDown, Trash2, Check } from 'lucide-react'
 import type { PlanItem } from '@/lib/types'
 import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/types'
-import { DrillDownLevel } from './DrillDownLevel'
+import { updatePlanItem, deletePlanItem } from '@/lib/api'
+import { AnnualDescendantsTree } from './AnnualDescendantsTree'
 
 interface AnnualItemRowProps {
   item: PlanItem
@@ -26,34 +27,57 @@ const STATUS_BG: Record<string, { bg: string; border: string }> = {
   pending: { bg: '#fff', border: '#e5e7eb' },
 }
 
-const QUARTER_KEYS = (year: number) =>
-  [1, 2, 3, 4].map(q => `${year}-Q${q}`)
-
 export function AnnualItemRow({ item, year, onChanged }: AnnualItemRowProps) {
   const [expanded, setExpanded] = useState(false)
+  const [hovered, setHovered] = useState(false)
 
   const sc = STATUS_BG[item.status] ?? STATUS_BG.pending
   const dot = STATUS_DOT[item.status] ?? STATUS_DOT.pending
   const statusLabel = STATUS_CONFIG[item.status]?.label ?? item.status
   const priorityColor = PRIORITY_CONFIG[item.priority]?.color ?? 'text-gray-400'
+  const isDone = item.status === 'completed'
+
+  const handleToggleDone = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await updatePlanItem(item.id, { status: isDone ? 'pending' : 'completed' })
+      onChanged()
+    } catch {
+      // 조용히 실패
+    }
+  }
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm(`"${item.title}" 항목을 삭제하시겠습니까?\n\n(관련된 하위 계획도 삭제될 수 있습니다)`)) return
+    try {
+      await deletePlanItem(item.id)
+      onChanged()
+    } catch {
+      // 조용히 실패
+    }
+  }
 
   return (
     <div
       style={{
-        border: `1.5px solid ${expanded ? '#93c5fd' : sc.border}`,
+        border: `1.5px solid ${expanded ? '#a78bfa' : sc.border}`,
         borderRadius: 10,
-        backgroundColor: expanded ? 'rgba(219,234,254,0.12)' : sc.bg,
+        backgroundColor: expanded ? 'rgba(245,243,255,0.6)' : sc.bg,
         overflow: 'hidden',
         transition: 'all 0.15s',
+        boxShadow: expanded ? '0 1px 3px rgba(124,58,237,0.08)' : 'none',
       }}
     >
       {/* 헤더 행 */}
       <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          padding: '10px 14px',
+          padding: '8px 12px',
           cursor: 'pointer',
           userSelect: 'none',
         }}
@@ -62,17 +86,38 @@ export function AnnualItemRow({ item, year, onChanged }: AnnualItemRowProps) {
         {/* 펼침/접힘 아이콘 */}
         <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
           {expanded ? (
-            <ChevronDown size={15} color="#3b82f6" />
+            <ChevronDown size={15} color="#7c3aed" />
           ) : (
             <ChevronRight size={15} color="#9ca3af" />
           )}
         </span>
 
+        {/* 완료 체크 */}
+        <button
+          onClick={handleToggleDone}
+          title={isDone ? '미완료로 변경' : '완료 처리'}
+          style={{
+            flexShrink: 0,
+            width: 16,
+            height: 16,
+            borderRadius: '50%',
+            border: `1.5px solid ${isDone ? '#22c55e' : '#d1d5db'}`,
+            backgroundColor: isDone ? '#22c55e' : '#fff',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+          }}
+        >
+          {isDone && <Check size={10} color="#fff" strokeWidth={3} />}
+        </button>
+
         {/* 상태 점 */}
         <span
           style={{
-            width: 8,
-            height: 8,
+            width: 7,
+            height: 7,
             borderRadius: '50%',
             backgroundColor: dot,
             flexShrink: 0,
@@ -84,10 +129,14 @@ export function AnnualItemRow({ item, year, onChanged }: AnnualItemRowProps) {
           style={{
             flex: 1,
             fontSize: 14,
-            fontWeight: 600,
-            color: '#111827',
+            fontWeight: 700,
+            color: isDone ? '#9ca3af' : '#111827',
+            textDecoration: isDone ? 'line-through' : 'none',
             lineHeight: 1.4,
             minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
           }}
         >
           {item.title}
@@ -117,17 +166,38 @@ export function AnnualItemRow({ item, year, onChanged }: AnnualItemRowProps) {
         >
           {statusLabel}
         </span>
+
+        {/* 삭제 (hover 시만) */}
+        <button
+          onClick={handleDelete}
+          title="삭제"
+          style={{
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 22,
+            height: 22,
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            borderRadius: 5,
+            color: '#f87171',
+            opacity: hovered ? 1 : 0,
+            transition: 'opacity 0.12s',
+          }}
+        >
+          <Trash2 size={13} />
+        </button>
       </div>
 
-      {/* 드릴다운 영역 */}
+      {/* 드릴다운 영역 (연간 항목 전용 후손 트리) */}
       {expanded && (
         <div
           style={{
-            borderTop: '1px solid #e5e7eb',
-            padding: '10px 14px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2,
+            borderTop: '1px solid #e9d5ff',
+            padding: '8px 10px 10px',
+            backgroundColor: '#fefeff',
           }}
         >
           {/* 설명 */}
@@ -144,17 +214,12 @@ export function AnnualItemRow({ item, year, onChanged }: AnnualItemRowProps) {
             </p>
           )}
 
-          {/* 4개 분기 드릴다운 */}
-          {QUARTER_KEYS(year).map(qKey => (
-            <DrillDownLevel
-              key={qKey}
-              parentId={item.id}
-              periodKey={qKey}
-              level="quarterly"
-              depth={0}
-              onChanged={onChanged}
-            />
-          ))}
+          {/* 후손 트리 (분기 → 월 → 주 → 일, 오늘 경로 자동 펼침) */}
+          <AnnualDescendantsTree
+            annualItemId={item.id}
+            year={year}
+            onChanged={onChanged}
+          />
         </div>
       )}
     </div>
