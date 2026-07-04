@@ -6,6 +6,7 @@ import type { PlanItem } from '@/lib/types'
 import { STATUS_CONFIG, PRIORITY_CONFIG } from '@/lib/types'
 import { updatePlanItem, deletePlanItem } from '@/lib/api'
 import { AnnualDescendantsTree } from './AnnualDescendantsTree'
+import { AnnualDescriptionEditor } from './AnnualDescriptionEditor'
 
 interface AnnualItemRowProps {
   item: PlanItem
@@ -200,19 +201,8 @@ export function AnnualItemRow({ item, year, onChanged }: AnnualItemRowProps) {
             backgroundColor: '#fefeff',
           }}
         >
-          {/* 설명 */}
-          {item.description && (
-            <p
-              style={{
-                fontSize: 12,
-                color: '#6b7280',
-                marginBottom: 8,
-                lineHeight: 1.5,
-              }}
-            >
-              {item.description}
-            </p>
-          )}
+          {/* 설명 (연간 항목 전용, 인라인 편집 가능, 줄바꿈 유지) */}
+          <AnnualDescriptionEditor item={item} onChanged={onChanged} />
 
           {/* 후손 트리 (분기 → 월 → 주 → 일, 오늘 경로 자동 펼침) */}
           <AnnualDescendantsTree
