@@ -16,6 +16,7 @@ import {
   formatPeriodLabel,
   getISOWeek,
 } from '@/lib/flowmap-v2-utils'
+import { getConnectionsForYear, type PlanConnection } from '@/lib/plan-connections'
 
 interface AnnualDescendantsTreeProps {
   annualItemId: string
@@ -73,25 +74,62 @@ function computeTodayPath(year: number): TodayPath | null {
   }
 }
 
+// ─── 레벨 우선순위 (상위→하위) ─────────────────────────────
+const LEVEL_PRIORITY: Record<PlanLevel, number> = {
+  annual: 0,
+  quarterly: 1,
+  monthly: 2,
+  weekly: 3,
+  daily: 4,
+}
+
 // ─── 후손 관계 계산 ─────────────────────────────────────────
-function buildDescendantSet(allItems: PlanItem[], annualItemId: string): Set<string> {
-  const childrenByParent = new Map<string, PlanItem[]>()
-  for (const it of allItems) {
-    const pid = it.parent_plan_item_id ?? ''
-    if (!pid) continue
-    const list = childrenByParent.get(pid) ?? []
-    list.push(it)
-    childrenByParent.set(pid, list)
+// 두 그래프를 병합해서 계산한다:
+//  (1) parent_plan_item_id 링크 — 신규 v2 트리에서 만든 것
+//  (2) plan_item_connections 링크 — 옛 플로우맵에서 만든 연결
+// 각 링크는 상위 레벨(annual→quarterly→…→daily) 방향으로만 트리에 반영한다.
+function buildDescendantSet(
+  allItems: PlanItem[],
+  connections: PlanConnection[],
+  annualItemId: string,
+): Set<string> {
+  const itemById = new Map(allItems.map(i => [i.id, i]))
+  const childrenOf = new Map<string, string[]>()
+
+  const addChild = (parentId: string, childId: string) => {
+    if (parentId === childId) return
+    const list = childrenOf.get(parentId) ?? []
+    if (!list.includes(childId)) list.push(childId)
+    childrenOf.set(parentId, list)
   }
+
+  // (1) parent_plan_item_id 그래프
+  for (const it of allItems) {
+    if (it.parent_plan_item_id) addChild(it.parent_plan_item_id, it.id)
+  }
+
+  // (2) plan_item_connections 그래프 — 레벨 낮은 쪽(상위)이 부모
+  for (const c of connections) {
+    const src = itemById.get(c.source_id)
+    const tgt = itemById.get(c.target_id)
+    if (!src || !tgt) continue
+    const ps = LEVEL_PRIORITY[src.level]
+    const pt = LEVEL_PRIORITY[tgt.level]
+    if (ps < pt) addChild(src.id, tgt.id)
+    else if (pt < ps) addChild(tgt.id, src.id)
+    // 같은 레벨끼리는 트리에 반영하지 않는다 (형제 관계로 간주)
+  }
+
+  // BFS로 후손 수집
   const set = new Set<string>()
   const stack: string[] = [annualItemId]
   while (stack.length > 0) {
     const cur = stack.pop() as string
-    const kids = childrenByParent.get(cur) ?? []
-    for (const k of kids) {
-      if (!set.has(k.id)) {
-        set.add(k.id)
-        stack.push(k.id)
+    const kids = childrenOf.get(cur) ?? []
+    for (const kid of kids) {
+      if (!set.has(kid)) {
+        set.add(kid)
+        stack.push(kid)
       }
     }
   }
@@ -120,16 +158,19 @@ export function AnnualDescendantsTree({
   onChanged,
 }: AnnualDescendantsTreeProps) {
   const [allItems, setAllItems] = useState<PlanItem[]>([])
+  const [connections, setConnections] = useState<PlanConnection[]>([])
   const [loading, setLoading] = useState(true)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [nonDaily, daily] = await Promise.all([
+      const [nonDaily, daily, conns] = await Promise.all([
         getPlanItemsForYear(year),
         getDailyItemsForYear(year),
+        getConnectionsForYear(year),
       ])
       setAllItems([...nonDaily, ...daily])
+      setConnections(conns)
     } catch {
       // 조용히 실패
     } finally {
@@ -147,8 +188,8 @@ export function AnnualDescendantsTree({
   }, [loadAll, onChanged])
 
   const descendantSet = useMemo(
-    () => buildDescendantSet(allItems, annualItemId),
-    [allItems, annualItemId],
+    () => buildDescendantSet(allItems, connections, annualItemId),
+    [allItems, connections, annualItemId],
   )
 
   const itemsByKey = useMemo(() => {
