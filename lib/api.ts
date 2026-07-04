@@ -148,6 +148,18 @@ export async function getDailyItemsForMonth(year: number, month: number): Promis
   return data ?? []
 }
 
+// 연도 전체의 일일 계획 조회 (연간 후손 트리 렌더링용)
+export async function getDailyItemsForYear(year: number): Promise<PlanItem[]> {
+  const { data, error } = await supabase.from('plan_items')
+    .select('*')
+    .eq('level', 'daily')
+    .gte('period_key', `${year}-01-01`)
+    .lte('period_key', `${year}-12-31`)
+    .order('period_key').order('sort_order')
+  if (error) throw error
+  return data ?? []
+}
+
 // ─── Plan Sections ────────────────────────────────────────────
 export async function getPlanSections(year: number): Promise<PlanSection[]> {
   const { data, error } = await supabase.from('plan_sections').select('*')
