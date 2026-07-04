@@ -83,7 +83,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.svg" alt="JDH" className="w-16 h-16 rounded-2xl mb-3 shadow-md" />
+          <img src="/logo.png" alt="JDH PLANER" className="w-16 h-16 rounded-2xl mb-3 shadow-md object-cover" />
           <h1 className="text-xl font-bold text-gray-900">인생 플래너</h1>
           <p className="text-sm text-gray-500 mt-1">푯대를 향해 나아가는 자</p>
         </div>
