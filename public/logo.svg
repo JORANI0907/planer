@@ -1,54 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#4338ca"/>
-      <stop offset="100%" stop-color="#7c3aed"/>
-    </linearGradient>
-    <linearGradient id="shine" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="rgba(255,255,255,0.18)"/>
-      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
-    </linearGradient>
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#4338ca" flood-opacity="0.35"/>
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#5b8fb2" flood-opacity="0.35"/>
     </filter>
   </defs>
 
-  <!-- 배경 (그림자 포함) -->
-  <rect x="4" y="4" width="112" height="112" rx="26" fill="url(#bg)" filter="url(#shadow)"/>
-  <!-- 상단 광택 -->
-  <rect x="4" y="4" width="112" height="60" rx="26" fill="url(#shine)"/>
+  <!-- 하늘색 정사각형 배경 -->
+  <rect x="4" y="4" width="112" height="112" rx="12" fill="#a4cee6" filter="url(#shadow)"/>
 
-  <!-- J -->
+  <!-- JDH: Sans-serif Bold -->
   <text
-    x="25" y="74"
-    font-family="'Arial Black', 'Arial', Helvetica, sans-serif"
-    font-size="44"
+    x="60" y="60"
+    font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif"
+    font-size="30"
     font-weight="900"
-    fill="white"
-    text-anchor="middle">J</text>
+    fill="#ffffff"
+    text-anchor="middle"
+    letter-spacing="1">JDH</text>
 
-  <!-- D -->
+  <!-- PLANER: Serif, 대문자, 넓은 자간 -->
   <text
-    x="60" y="74"
-    font-family="'Arial Black', 'Arial', Helvetica, sans-serif"
-    font-size="44"
-    font-weight="900"
-    fill="white"
-    text-anchor="middle">D</text>
-
-  <!-- H -->
-  <text
-    x="95" y="74"
-    font-family="'Arial Black', 'Arial', Helvetica, sans-serif"
-    font-size="44"
-    font-weight="900"
-    fill="white"
-    text-anchor="middle">H</text>
-
-  <!-- 골드 액센트 라인 -->
-  <rect x="28" y="84" width="64" height="4" rx="2" fill="#fbbf24"/>
-
-  <!-- 골드 닷 양쪽 -->
-  <circle cx="22" cy="86" r="3" fill="#fbbf24" opacity="0.6"/>
-  <circle cx="98" cy="86" r="3" fill="#fbbf24" opacity="0.6"/>
+    x="60" y="86"
+    font-family="'Times New Roman', Georgia, 'Noto Serif KR', serif"
+    font-size="15"
+    font-weight="500"
+    fill="#ffffff"
+    text-anchor="middle"
+    letter-spacing="3">PLANER</text>
 </svg>
