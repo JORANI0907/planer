@@ -10,9 +10,9 @@ export const metadata: Metadata = {
   title: '인생 플래너',
   description: '10년 계획부터 주간 계획까지 체계적으로 관리하는 플래너',
   icons: {
-    icon: '/icon.svg',
-    shortcut: '/icon.svg',
-    apple: '/icon.svg',
+    icon: '/icon.png',
+    shortcut: '/icon.png',
+    apple: '/icon.png',
   },
 }
 
