@@ -13,7 +13,8 @@ export function middleware(req: NextRequest) {
     pathname.startsWith('/api/slack') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
-    pathname === '/icon.svg' ||
+    pathname === '/icon.png' ||
+    pathname === '/logo.png' ||
     pathname.endsWith('.svg') ||
     pathname.endsWith('.ico') ||
     pathname.endsWith('.png')
