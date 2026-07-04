@@ -58,7 +58,7 @@ export function Sidebar() {
       <div className="p-5 border-b border-gray-100">
         <div className="flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.svg" alt="JDH" className="w-11 h-11 rounded-2xl flex-shrink-0" />
+          <img src="/logo.png" alt="JDH PLANER" className="w-11 h-11 rounded-2xl flex-shrink-0 object-cover" />
           <div>
             <h1 className="font-bold text-gray-900 text-sm leading-tight">인생 플래너</h1>
             <p className="text-xs text-gray-500 mt-0.5">푯대를 향해 나아가는 자</p>
