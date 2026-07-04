@@ -242,7 +242,7 @@ function getWeekWednesday(year: number, week: number): Date {
   return wednesday
 }
 
-function getISOWeek(date: Date): number {
+export function getISOWeek(date: Date): number {
   const tmp = new Date(date.getTime())
   tmp.setHours(0, 0, 0, 0)
   tmp.setDate(tmp.getDate() + 3 - ((tmp.getDay() + 6) % 7))
