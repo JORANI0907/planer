@@ -166,11 +166,13 @@ export default function FlowMapV2Page() {
               padding: '16px 20px',
             }}
           >
-            <AnnualListView
-              year={year}
-              items={annualItems}
-              onChanged={loadAnnual}
-            />
+            <div style={{ maxWidth: 880, margin: '0 auto' }}>
+              <AnnualListView
+                year={year}
+                items={annualItems}
+                onChanged={loadAnnual}
+              />
+            </div>
           </div>
         ) : (
           <div
