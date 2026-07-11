@@ -155,6 +155,45 @@ function childLevelOf(level: PlanLevel): PlanLevel | null {
 
 // ─── 메인 컴포넌트 ─────────────────────────────────────────
 
+// ─── 열림 상태 저장 키 ──────────────────────────────────────
+function openKeysStorageKey(annualItemId: string) {
+  return `planner-flowmap-v2-open-keys:${annualItemId}`
+}
+
+function loadOpenKeys(annualItemId: string): Set<string> | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(openKeysStorageKey(annualItemId))
+    if (!raw) return null
+    const arr = JSON.parse(raw) as string[]
+    if (!Array.isArray(arr)) return null
+    return new Set(arr)
+  } catch {
+    return null
+  }
+}
+
+function saveOpenKeys(annualItemId: string, keys: Set<string>) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(openKeysStorageKey(annualItemId), JSON.stringify([...keys]))
+  } catch {
+    // storage full 등은 조용히 무시
+  }
+}
+
+// 오늘 경로에 해당하는 기본 열림 키
+function defaultOpenKeys(todayPath: TodayPath | null): Set<string> {
+  const set = new Set<string>()
+  if (todayPath) {
+    set.add(`quarterly:${todayPath.quarter}`)
+    set.add(`monthly:${todayPath.month}`)
+    set.add(`weekly:${todayPath.week}`)
+    set.add(`daily:${todayPath.day}`)
+  }
+  return set
+}
+
 export function AnnualDescendantsTree({
   annualItemId,
   year,
@@ -162,10 +201,28 @@ export function AnnualDescendantsTree({
 }: AnnualDescendantsTreeProps) {
   const [allItems, setAllItems] = useState<PlanItem[]>([])
   const [connections, setConnections] = useState<PlanConnection[]>([])
-  const [loading, setLoading] = useState(true)
+  const [initialLoading, setInitialLoading] = useState(true)
 
-  const loadAll = useCallback(async () => {
-    setLoading(true)
+  const todayPath = useMemo(() => computeTodayPath(year), [year])
+
+  // 열림 상태: localStorage 우선, 없으면 오늘 경로가 기본
+  const [openKeys, setOpenKeys] = useState<Set<string>>(() => {
+    const stored = loadOpenKeys(annualItemId)
+    return stored ?? defaultOpenKeys(computeTodayPath(year))
+  })
+
+  const toggleOpen = useCallback((key: string) => {
+    setOpenKeys(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      saveOpenKeys(annualItemId, next)
+      return next
+    })
+  }, [annualItemId])
+
+  const loadAll = useCallback(async (silent: boolean) => {
+    if (!silent) setInitialLoading(true)
     try {
       const [nonDaily, daily, conns] = await Promise.all([
         getPlanItemsForYear(year),
@@ -177,16 +234,18 @@ export function AnnualDescendantsTree({
     } catch {
       // 조용히 실패
     } finally {
-      setLoading(false)
+      if (!silent) setInitialLoading(false)
     }
   }, [year])
 
   useEffect(() => {
-    loadAll()
+    // 첫 마운트: loading 표시
+    loadAll(false)
   }, [loadAll])
 
   const handleChanged = useCallback(() => {
-    loadAll()
+    // 재조회: flicker 방지를 위해 loading 표시 없이 백그라운드 갱신
+    loadAll(true)
     onChanged?.()
   }, [loadAll, onChanged])
 
@@ -211,9 +270,7 @@ export function AnnualDescendantsTree({
     return map
   }, [allItems, descendantSet])
 
-  const todayPath = useMemo(() => computeTodayPath(year), [year])
-
-  if (loading) {
+  if (initialLoading) {
     return (
       <div style={{ fontSize: 12, color: '#9ca3af', padding: '6px 4px' }}>
         불러오는 중...
@@ -233,7 +290,8 @@ export function AnnualDescendantsTree({
           annualItemId={annualItemId}
           itemsByKey={itemsByKey}
           todayPath={todayPath}
-          defaultOpen={todayPath?.quarter === qKey}
+          openKeys={openKeys}
+          onToggleOpen={toggleOpen}
           onChanged={handleChanged}
         />
       ))}
@@ -249,7 +307,8 @@ interface PeriodGroupProps {
   annualItemId: string
   itemsByKey: Map<string, PlanItem[]>
   todayPath: TodayPath | null
-  defaultOpen: boolean
+  openKeys: Set<string>
+  onToggleOpen: (key: string) => void
   onChanged: () => void
 }
 
@@ -259,10 +318,12 @@ function PeriodGroup({
   annualItemId,
   itemsByKey,
   todayPath,
-  defaultOpen,
+  openKeys,
+  onToggleOpen,
   onChanged,
 }: PeriodGroupProps) {
-  const [open, setOpen] = useState(defaultOpen)
+  const openKey = `${level}:${periodKey}`
+  const open = openKeys.has(openKey)
 
   const items = itemsByKey.get(`${level}:${periodKey}`) ?? []
   const childLevel = childLevelOf(level)
@@ -306,7 +367,7 @@ function PeriodGroup({
     >
       {/* 헤더 */}
       <div
-        onClick={() => setOpen(o => !o)}
+        onClick={() => onToggleOpen(openKey)}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -392,24 +453,19 @@ function PeriodGroup({
           {/* 자식 기간 그룹 */}
           {childLevel && childKeys.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 2 }}>
-              {childKeys.map(ck => {
-                const isTodayChild =
-                  (childLevel === 'monthly' && todayPath?.month === ck) ||
-                  (childLevel === 'weekly' && todayPath?.week === ck) ||
-                  (childLevel === 'daily' && todayPath?.day === ck)
-                return (
-                  <PeriodGroup
-                    key={ck}
-                    level={childLevel}
-                    periodKey={ck}
-                    annualItemId={annualItemId}
-                    itemsByKey={itemsByKey}
-                    todayPath={todayPath}
-                    defaultOpen={isTodayChild}
-                    onChanged={onChanged}
-                  />
-                )
-              })}
+              {childKeys.map(ck => (
+                <PeriodGroup
+                  key={ck}
+                  level={childLevel}
+                  periodKey={ck}
+                  annualItemId={annualItemId}
+                  itemsByKey={itemsByKey}
+                  todayPath={todayPath}
+                  openKeys={openKeys}
+                  onToggleOpen={onToggleOpen}
+                  onChanged={onChanged}
+                />
+              ))}
             </div>
           )}
         </div>
