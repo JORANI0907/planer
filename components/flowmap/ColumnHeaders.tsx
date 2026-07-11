@@ -11,6 +11,7 @@ const LEVEL_COLORS: Record<PlanLevel, string> = {
   monthly: '#06b6d4',
   weekly: '#10b981',
   daily: '#f59e0b',
+  todo: '#a855f7',
 }
 
 interface ColumnHeadersProps {

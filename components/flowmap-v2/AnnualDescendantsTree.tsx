@@ -32,6 +32,7 @@ const LEVEL_STYLE: Record<PlanLevel, { bar: string; headerBg: string; headerBgAc
   monthly:   { bar: '#ea580c', headerBg: '#fff7ed', headerBgActive: '#ffedd5', text: '#9a3412', badge: '#ffedd5' },
   weekly:    { bar: '#0891b2', headerBg: '#ecfeff', headerBgActive: '#cffafe', text: '#155e75', badge: '#cffafe' },
   daily:     { bar: '#db2777', headerBg: '#fdf2f8', headerBgActive: '#fce7f3', text: '#9d174d', badge: '#fce7f3' },
+  todo:      { bar: '#9333ea', headerBg: '#faf5ff', headerBgActive: '#ede9fe', text: '#6b21a8', badge: '#ede9fe' },
 }
 
 const LEVEL_ADD_LABEL: Record<PlanLevel, string> = {
@@ -40,6 +41,7 @@ const LEVEL_ADD_LABEL: Record<PlanLevel, string> = {
   monthly: '월 계획 추가',
   weekly: '주 계획 추가',
   daily: '일 계획 추가',
+  todo: 'TO-DO 추가',
 }
 
 const STATUS_DOT: Record<string, string> = {
@@ -81,6 +83,7 @@ const LEVEL_PRIORITY: Record<PlanLevel, number> = {
   monthly: 2,
   weekly: 3,
   daily: 4,
+  todo: 5,
 }
 
 // ─── 후손 관계 계산 ─────────────────────────────────────────

@@ -5,11 +5,12 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Home, User, Rocket, Map, Brain, RefreshCw,
-  ShoppingCart, LayoutGrid, Dumbbell, MoreHorizontal, X, Settings, Check,
+  ShoppingCart, LayoutGrid, Dumbbell, MoreHorizontal, X, Settings, Check, Inbox,
 } from 'lucide-react'
 
 const ALL_NAV_ITEMS: { href: string; label: string; icon: React.ReactNode }[] = [
   { href: '/', label: '대시보드', icon: <Home size={20} /> },
+  { href: '/todo', label: 'TO-DO', icon: <Inbox size={20} /> },
   { href: '/profile', label: '인적사항', icon: <User size={20} /> },
   { href: '/decade', label: '10년 계획', icon: <Rocket size={20} /> },
   { href: '/flowmap', label: '플로우맵', icon: <Map size={20} /> },

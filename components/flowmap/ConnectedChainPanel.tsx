@@ -18,6 +18,7 @@ const LEVEL_BADGE: Record<PlanLevel, { bg: string; color: string }> = {
   monthly:   { bg: '#374151', color: '#fff' },
   weekly:    { bg: '#4b5563', color: '#fff' },
   daily:     { bg: '#6b7280', color: '#fff' },
+  todo:      { bg: '#9333ea', color: '#fff' },
 }
 
 const STATUS_DOT: Record<string, string> = {

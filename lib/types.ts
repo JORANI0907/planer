@@ -1,4 +1,7 @@
-export type PlanLevel = 'annual' | 'quarterly' | 'monthly' | 'weekly' | 'daily'
+export type PlanLevel = 'annual' | 'quarterly' | 'monthly' | 'weekly' | 'daily' | 'todo'
+
+// TO-DO 항목은 날짜 없이 저장 — level='todo' + period_key=TODO_PERIOD_KEY 로 고정
+export const TODO_PERIOD_KEY = 'todo'
 export type PlanStatus = 'pending' | 'in_progress' | 'completed' | 'on_hold'
 export type PlanPriority = 'high' | 'medium' | 'low'
 export type AgeGroup = '30대' | '40대' | '50대' | '60대'

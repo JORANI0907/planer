@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import type { PlanItem, PlanMapping, PlanLevel, LifeGoal, LifeGoalAnnualMapping, AgeGroup, PlanItemTask, Profile, PlanSection } from './types'
+import { TODO_PERIOD_KEY } from './types'
 
 // ─── Life Goals ──────────────────────────────────────────────
 export async function getLifeGoals(ageGroup?: AgeGroup): Promise<LifeGoal[]> {
@@ -238,6 +239,31 @@ export async function getProfile(): Promise<Profile | null> {
 export async function updateProfile(id: string, updates: Partial<Omit<Profile, 'id' | 'created_at' | 'updated_at'>>): Promise<Profile> {
   const { data, error } = await supabase.from('profiles')
     .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
+// ─── TO-DO (level='todo', period_key='todo') ─────────────────
+export async function getTodoItems(): Promise<PlanItem[]> {
+  const { data, error } = await supabase.from('plan_items').select('*')
+    .eq('level', 'todo').eq('period_key', TODO_PERIOD_KEY)
+    .order('sort_order').order('created_at')
+  if (error) throw error
+  return data ?? []
+}
+
+export async function moveItemToTodo(id: string, sortOrder: number): Promise<PlanItem> {
+  const { data, error } = await supabase.from('plan_items')
+    .update({ level: 'todo', period_key: TODO_PERIOD_KEY, sort_order: sortOrder })
+    .eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
+export async function moveTodoToDaily(id: string, targetPeriodKey: string, sortOrder: number): Promise<PlanItem> {
+  const { data, error } = await supabase.from('plan_items')
+    .update({ level: 'daily', period_key: targetPeriodKey, sort_order: sortOrder })
     .eq('id', id).select().single()
   if (error) throw error
   return data

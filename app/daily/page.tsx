@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ClipboardList, CheckSquare } from 'lucide-react'
+import { ClipboardList, CheckSquare, Inbox } from 'lucide-react'
 import {
   getPlanItems, createPlanItem, updatePlanItem, deletePlanItem,
   getTasksForItem, createTask, updateTask, deleteTask,
+  getTodoItems, moveItemToTodo,
 } from '@/lib/api'
 import { useUndo } from '@/lib/undo-stack'
 import type { PlanItem, PlanItemTask } from '@/lib/types'
@@ -20,12 +21,13 @@ function formatDayKey(date: Date) {
 }
 
 // ─── 할 일 카드 ───────────────────────────────────────────────
-function DailyItemCard({ item, onToggle, onDelete, onRename, onCopy, dragHandle }: {
+function DailyItemCard({ item, onToggle, onDelete, onRename, onCopy, onMoveToTodo, dragHandle }: {
   item: PlanItem
   onToggle: () => void
   onDelete: () => void
   onRename: (title: string) => void
   onCopy: () => void
+  onMoveToTodo: () => void
   dragHandle?: React.ReactNode
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -107,6 +109,13 @@ function DailyItemCard({ item, onToggle, onDelete, onRename, onCopy, dragHandle 
           title="복사 (다른 날짜로 이동/복사)"
           className="flex-shrink-0 text-xs px-2 py-1 rounded-lg bg-gray-100 text-gray-500 hover:bg-blue-100 hover:text-blue-700 transition-all"
         ><ClipboardList size={14} /></button>
+
+        {/* TO-DO로 이동 */}
+        <button
+          onClick={onMoveToTodo}
+          title="TO-DO로 이동 (일정에서 삭제)"
+          className="flex-shrink-0 text-xs px-2 py-1 rounded-lg bg-gray-100 text-gray-500 hover:bg-purple-100 hover:text-purple-700 transition-all"
+        ><Inbox size={14} /></button>
 
         {/* 삭제 */}
         <button
@@ -269,6 +278,24 @@ export default function DailyPage() {
     }
   }
 
+  const handleMoveToTodo = async (item: PlanItem) => {
+    try {
+      const todoItems = await getTodoItems()
+      await moveItemToTodo(item.id, todoItems.length)
+      setItems(prev => prev.filter(i => i.id !== item.id))
+      pushUndo({
+        label: `"${item.title}" TO-DO 이동 되돌리기`,
+        restore: async () => {
+          await updatePlanItem(item.id, { level: 'daily', period_key: item.period_key, sort_order: item.sort_order })
+          if (item.period_key === periodKey) await load()
+        },
+      })
+    } catch (err) {
+      console.error('[daily → todo]', err)
+      alert('TO-DO 이동 중 오류가 발생했습니다.')
+    }
+  }
+
   const handleReorderItems = async (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -364,6 +391,7 @@ export default function DailyPage() {
                         onDelete={() => handleDelete(item.id)}
                         onRename={(title) => handleRename(item.id, title)}
                         onCopy={() => handleCopy(item)}
+                        onMoveToTodo={() => handleMoveToTodo(item)}
                         dragHandle={handle}
                       />
                     )}

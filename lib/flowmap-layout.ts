@@ -13,6 +13,7 @@ export const LEVEL_LABEL: Record<PlanLevel, string> = {
   monthly: '월간',
   weekly: '주간',
   daily: '일일',
+  todo: 'TO-DO',
 }
 
 export const NODE_WIDTH: Record<PlanLevel, number> = {
@@ -21,6 +22,7 @@ export const NODE_WIDTH: Record<PlanLevel, number> = {
   monthly: 152,
   weekly: 144,
   daily: 134,
+  todo: 134,
 }
 
 export const NODE_HEIGHT: Record<PlanLevel, number> = {
@@ -29,6 +31,7 @@ export const NODE_HEIGHT: Record<PlanLevel, number> = {
   monthly: 80,
   weekly: 70,
   daily: 60,
+  todo: 60,
 }
 
 export const COLUMN_GAP = 68
