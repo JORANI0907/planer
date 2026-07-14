@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ClipboardList, CheckSquare, Inbox } from 'lucide-react'
+import { CheckSquare } from 'lucide-react'
 import {
   getPlanItems, createPlanItem, updatePlanItem, deletePlanItem,
   getTasksForItem, createTask, updateTask, deleteTask,
@@ -51,7 +51,7 @@ function DailyItemCard({ item, onToggle, onDelete, onRename, onCopy, onMoveToTod
       isDone ? 'border-gray-100 bg-gray-50' : expanded ? 'border-blue-200 bg-white shadow-sm' : isRoutine ? 'border-orange-200 bg-white hover:border-orange-300' : 'border-gray-200 bg-white hover:border-gray-300'
     }`}>
       {/* 메인 행 */}
-      <div className="flex items-center gap-3 px-4 py-3.5">
+      <div className="flex items-center gap-2 px-3 py-3">
         {dragHandle}
         {/* 체크박스 */}
         <button
@@ -75,52 +75,51 @@ function DailyItemCard({ item, onToggle, onDelete, onRename, onCopy, onMoveToTod
             onChange={e => setTitle(e.target.value)}
             onBlur={saveTitle}
             onKeyDown={e => { if (e.key === 'Enter') saveTitle(); if (e.key === 'Escape') { setTitle(item.title); setEditing(false) } }}
-            className="flex-1 text-sm border border-blue-300 rounded-lg px-2 py-1 focus:outline-none"
+            className="flex-1 min-w-0 text-sm border border-blue-300 rounded-lg px-2 py-1 focus:outline-none"
           />
         ) : (
           <span
             onDoubleClick={() => !isDone && setEditing(true)}
-            className={`flex-1 text-sm font-medium cursor-default flex items-center gap-1.5 ${isDone ? 'line-through text-gray-400' : 'text-gray-800'}`}
+            className={`flex-1 min-w-0 text-sm font-medium cursor-default flex items-center gap-1.5 leading-normal break-keep ${isDone ? 'line-through text-gray-400' : 'text-gray-800'}`}
           >
             {isRoutine && !isDone && (
               <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 flex-shrink-0">
                 필수
               </span>
             )}
-            {item.title}
+            <span className="truncate">{item.title}</span>
           </span>
         )}
 
-        {/* 세부내용 토글 */}
+        {/* 액션 버튼들 — 이모지로 통일, w-7 h-7 소형화 */}
         {!isDone && (
           <button
             onClick={() => setExpanded(e => !e)}
-            className={`flex-shrink-0 text-xs px-2.5 py-1 rounded-lg transition-all ${
-              expanded ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            title={expanded ? '접기' : '세부내용'}
+            className={`flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-sm leading-none transition-all ${
+              expanded ? 'bg-blue-100' : 'bg-gray-50 hover:bg-gray-100'
             }`}
           >
-            {expanded ? '접기' : '세부내용'}
+            {expanded ? '➖' : '📝'}
           </button>
         )}
 
-        {/* 복사 */}
         <button
           onClick={onCopy}
-          title="복사 (다른 날짜로 이동/복사)"
-          className="flex-shrink-0 text-xs px-2 py-1 rounded-lg bg-gray-100 text-gray-500 hover:bg-blue-100 hover:text-blue-700 transition-all"
-        ><ClipboardList size={14} /></button>
+          title="다른 날짜로 이동/복사"
+          className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-sm leading-none bg-gray-50 hover:bg-blue-100 transition-all"
+        >📋</button>
 
-        {/* TO-DO로 이동 */}
         <button
           onClick={onMoveToTodo}
-          title="TO-DO로 이동 (일정에서 삭제)"
-          className="flex-shrink-0 text-xs px-2 py-1 rounded-lg bg-gray-100 text-gray-500 hover:bg-purple-100 hover:text-purple-700 transition-all"
-        ><Inbox size={14} /></button>
+          title="TO-DO로 이동"
+          className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-sm leading-none bg-gray-50 hover:bg-purple-100 transition-all"
+        >📥</button>
 
-        {/* 삭제 */}
         <button
           onClick={onDelete}
-          className="flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors text-sm"
+          title="삭제"
+          className="flex-shrink-0 w-6 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 text-sm transition-all"
         >✕</button>
       </div>
 

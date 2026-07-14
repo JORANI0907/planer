@@ -46,7 +46,7 @@ function TodoItemCard({ item, onToggle, onDelete, onRename, onMoveToDaily, dragH
     <div className={`rounded-2xl border transition-all overflow-hidden ${
       isDone ? 'border-gray-100 bg-gray-50' : expanded ? 'border-purple-200 bg-white shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300'
     }`}>
-      <div className="flex items-center gap-3 px-4 py-3.5">
+      <div className="flex items-center gap-2 px-3 py-3">
         {dragHandle}
         <button
           onClick={onToggle}
@@ -68,37 +68,40 @@ function TodoItemCard({ item, onToggle, onDelete, onRename, onMoveToDaily, dragH
             onChange={e => setTitle(e.target.value)}
             onBlur={saveTitle}
             onKeyDown={e => { if (e.key === 'Enter') saveTitle(); if (e.key === 'Escape') { setTitle(item.title); setEditing(false) } }}
-            className="flex-1 text-sm border border-purple-300 rounded-lg px-2 py-1 focus:outline-none"
+            className="flex-1 min-w-0 text-sm border border-purple-300 rounded-lg px-2 py-1 focus:outline-none"
           />
         ) : (
           <span
             onDoubleClick={() => !isDone && setEditing(true)}
-            className={`flex-1 text-sm font-medium cursor-default ${isDone ? 'line-through text-gray-400' : 'text-gray-800'}`}
+            className={`flex-1 min-w-0 text-sm font-medium cursor-default leading-normal break-keep ${isDone ? 'line-through text-gray-400' : 'text-gray-800'}`}
           >
-            {item.title}
+            <span className="truncate block">{item.title}</span>
           </span>
         )}
 
+        {/* 액션 버튼들 — 이모지로 통일, w-7 h-7 소형화 */}
         {!isDone && (
           <button
             onClick={() => setExpanded(e => !e)}
-            className={`flex-shrink-0 text-xs px-2.5 py-1 rounded-lg transition-all ${
-              expanded ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            title={expanded ? '접기' : '세부내용'}
+            className={`flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-sm leading-none transition-all ${
+              expanded ? 'bg-purple-100' : 'bg-gray-50 hover:bg-gray-100'
             }`}
           >
-            {expanded ? '접기' : '세부내용'}
+            {expanded ? '➖' : '📝'}
           </button>
         )}
 
         <button
           onClick={onMoveToDaily}
           title="일정으로 이동 (원본 삭제)"
-          className="flex-shrink-0 text-xs px-2 py-1 rounded-lg bg-gray-100 text-gray-500 hover:bg-purple-100 hover:text-purple-700 transition-all"
-        ><CalendarPlus size={14} /></button>
+          className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-sm leading-none bg-gray-50 hover:bg-purple-100 transition-all"
+        >📅</button>
 
         <button
           onClick={onDelete}
-          className="flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors text-sm"
+          title="삭제"
+          className="flex-shrink-0 w-6 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 text-sm transition-all"
         >✕</button>
       </div>
 
