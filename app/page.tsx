@@ -117,7 +117,7 @@ export default function DashboardPage() {
           <NavCard
             href="/shopping"
             icon={<ShoppingCart size={20} />}
-            title="구입 관리"
+            title="구입 목록"
             desc={shoppingPending > 0 ? `구입 예정 ${shoppingPending}건` : '필요한 물건 목록'}
             color="#f59e0b"
             badge={shoppingPending > 0 ? shoppingPending : undefined}

@@ -10,7 +10,7 @@ const TAB_OPTIONS = [
   { path: '/flowmap', label: '플로우맵' },
   { path: '/brain', label: '생각확장' },
   { path: '/routine', label: '필수과업' },
-  { path: '/shopping', label: '구입관리' },
+  { path: '/shopping', label: '구입목록' },
 ]
 
 function withEmbed(path: string): string {

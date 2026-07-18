@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { ShoppingItem, ShoppingStatus, ShoppingSite, LowStockItem } from './shopping-types'
+import type { ShoppingItem, ShoppingStatus, ShoppingSite } from './shopping-types'
 
 export async function getShoppingItems(status?: ShoppingStatus): Promise<ShoppingItem[]> {
   let q = supabase.from('shopping_items').select('*')
@@ -86,12 +86,4 @@ export async function updateShoppingSite(
 export async function deleteShoppingSite(id: string): Promise<void> {
   const { error } = await supabase.from('shopping_sites').delete().eq('id', id)
   if (error) throw error
-}
-
-// ─── BBK Inventory Low Stock ──────────────────────────────────
-
-export async function getLowStockItems(): Promise<LowStockItem[]> {
-  const { data, error } = await supabase.rpc('get_low_stock_items')
-  if (error) throw error
-  return (data ?? []) as LowStockItem[]
 }

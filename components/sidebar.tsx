@@ -17,7 +17,7 @@ const ALL_NAV_ITEMS: { href: string; label: string; icon: React.ReactNode }[] = 
   { href: '/flowmap-v2', label: 'FlowMap V2', icon: <Map size={20} /> },
   { href: '/brain', label: '생각확장', icon: <Brain size={20} /> },
   { href: '/routine', label: '필수과업', icon: <RefreshCw size={20} /> },
-  { href: '/shopping', label: '구입 관리', icon: <ShoppingCart size={20} /> },
+  { href: '/shopping', label: '구입 목록', icon: <ShoppingCart size={20} /> },
   { href: '/fitness', label: '운동 비서', icon: <Dumbbell size={20} /> },
   { href: '/split', label: '분할 보기', icon: <LayoutGrid size={20} /> },
 ]

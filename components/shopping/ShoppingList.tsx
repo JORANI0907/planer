@@ -8,7 +8,6 @@ import { getShoppingItems, getKnownCategories } from '@/lib/shopping-api'
 import { AddItemForm } from './AddItemForm'
 import { ShoppingItemCard } from './ShoppingItemCard'
 import { SitesList } from './SitesList'
-import { LowStockSection } from './LowStockSection'
 
 const PRIORITY_ORDER: Record<ShoppingPriority, number> = { urgent: 0, normal: 1, later: 2 }
 
@@ -65,7 +64,7 @@ export function ShoppingList() {
       <div>
         <div className="flex items-center gap-2 mb-1">
           <ShoppingCart size={20} />
-          <h1 className="text-xl font-bold text-gray-900">구입 관리</h1>
+          <h1 className="text-xl font-bold text-gray-900">구입 목록</h1>
         </div>
         <p className="text-xs text-gray-500">필요한 물건을 적어 두었다가 하나씩 체크해 나가세요</p>
       </div>
@@ -172,9 +171,6 @@ export function ShoppingList() {
           onCategoryAdded={name => setNewlyAddedCategories(p => p.includes(name) ? p : [...p, name])}
         />
       )}
-
-      {/* BBK 재고 부족 섹션 (구입예정 탭 전용) */}
-      {tab === 'pending' && <LowStockSection />}
 
       {/* 리스트 */}
       {loading ? (
