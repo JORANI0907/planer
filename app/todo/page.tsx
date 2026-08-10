@@ -73,9 +73,9 @@ function TodoItemCard({ item, onToggle, onDelete, onRename, onMoveToDaily, dragH
         ) : (
           <span
             onDoubleClick={() => !isDone && setEditing(true)}
-            className={`flex-1 min-w-0 text-sm font-medium cursor-default leading-normal break-keep ${isDone ? 'line-through text-gray-400' : 'text-gray-800'}`}
+            className={`flex-1 min-w-0 text-sm font-medium cursor-default leading-normal break-keep whitespace-pre-wrap ${isDone ? 'line-through text-gray-400' : 'text-gray-800'}`}
           >
-            <span className="truncate block">{item.title}</span>
+            {item.title}
           </span>
         )}
 
