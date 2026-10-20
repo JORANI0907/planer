@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { Inbox, CalendarPlus } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { Inbox, CalendarPlus, CheckCircle2, ListTodo, Layers } from 'lucide-react'
 import {
   createPlanItem, updatePlanItem, deletePlanItem,
   getTasksForItem, createTask,
@@ -110,6 +110,8 @@ function TodoItemCard({ item, onToggle, onDelete, onRename, onMoveToDaily, dragH
   )
 }
 
+type TodoFilter = 'active' | 'completed' | 'all'
+
 export default function TodoPage() {
   const [items, setItems] = useState<PlanItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -117,6 +119,7 @@ export default function TodoPage() {
   const [movingId, setMovingId] = useState<string | null>(null)
   const [moveDate, setMoveDate] = useState<string>(todayKey())
   const [moving, setMoving] = useState(false)
+  const [filter, setFilter] = useState<TodoFilter>('active')
   const { push: pushUndo } = useUndo()
 
   const load = useCallback(async () => {
@@ -224,7 +227,24 @@ export default function TodoPage() {
     await Promise.all(reordered.map((item, idx) => updatePlanItem(item.id, { sort_order: idx })))
   }
 
-  const completedCount = items.filter(i => i.status === 'completed').length
+  const activeItems = useMemo(() => items.filter(i => i.status !== 'completed'), [items])
+  const completedItems = useMemo(() => items.filter(i => i.status === 'completed'), [items])
+  const activeCount = activeItems.length
+  const completedCount = completedItems.length
+
+  const visibleItems = filter === 'active' ? activeItems : filter === 'completed' ? completedItems : items
+  const emptyMessage =
+    filter === 'completed'
+      ? { title: '완료된 TO-DO가 없어요', hint: '체크한 항목이 이곳에 모입니다' }
+      : filter === 'active'
+      ? { title: '진행중인 TO-DO가 없어요', hint: '아래 입력창에서 새로운 할 일을 추가하세요' }
+      : { title: 'TO-DO를 추가하세요', hint: '일정처럼 오늘 할 게 아닌, 언젠가 할 일을 모아두는 곳입니다' }
+
+  const tabs: { key: TodoFilter; label: string; count: number; icon: React.ReactNode }[] = [
+    { key: 'active', label: '진행중', count: activeCount, icon: <ListTodo size={14} /> },
+    { key: 'completed', label: '완료', count: completedCount, icon: <CheckCircle2 size={14} /> },
+    { key: 'all', label: '전체', count: items.length, icon: <Layers size={14} /> },
+  ]
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -241,20 +261,46 @@ export default function TodoPage() {
         )}
       </div>
 
+      {/* 필터 탭 — 진행중 / 완료 / 전체 */}
+      <div className="mb-3 flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+        {tabs.map(tab => {
+          const active = filter === tab.key
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setFilter(tab.key)}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                active
+                  ? 'bg-white text-purple-700 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <span className={active ? 'text-purple-600' : 'text-gray-400'}>{tab.icon}</span>
+              <span>{tab.label}</span>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                active ? 'bg-purple-100 text-purple-700' : 'bg-gray-200 text-gray-500'
+              }`}>{tab.count}</span>
+            </button>
+          )
+        })}
+      </div>
+
       {loading ? (
         <div className="text-center py-12 text-gray-400">불러오는 중...</div>
       ) : (
         <div className="space-y-2 mb-4">
-          {items.length === 0 ? (
+          {visibleItems.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
-              <div className="flex justify-center mb-2"><Inbox size={20} /></div>
-              <p className="text-gray-500 font-medium">TO-DO를 추가하세요</p>
-              <p className="text-xs text-gray-400 mt-1">일정처럼 오늘 할 게 아닌, 언젠가 할 일을 모아두는 곳입니다</p>
+              <div className="flex justify-center mb-2">
+                {filter === 'completed' ? <CheckCircle2 size={20} className="text-gray-300" /> : <Inbox size={20} />}
+              </div>
+              <p className="text-gray-500 font-medium">{emptyMessage.title}</p>
+              <p className="text-xs text-gray-400 mt-1">{emptyMessage.hint}</p>
             </div>
-          ) : (
+          ) : filter === 'active' ? (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleReorderItems}>
-              <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
-                {items.map(item => (
+              <SortableContext items={visibleItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                {visibleItems.map(item => (
                   <SortableRow key={item.id} id={item.id}>
                     {(handle) => (
                       <TodoItemCard
@@ -270,6 +316,17 @@ export default function TodoPage() {
                 ))}
               </SortableContext>
             </DndContext>
+          ) : (
+            visibleItems.map(item => (
+              <TodoItemCard
+                key={item.id}
+                item={item}
+                onToggle={() => handleToggle(item.id)}
+                onDelete={() => handleDelete(item.id)}
+                onRename={(title) => handleRename(item.id, title)}
+                onMoveToDaily={() => startMove(item.id)}
+              />
+            ))
           )}
         </div>
       )}
