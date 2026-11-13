@@ -7,8 +7,8 @@ import { getTopics, createTopic, deleteTopic } from '@/lib/brain-api'
 import { RootSelector } from '@/components/brain/RootSelector'
 import dynamic from 'next/dynamic'
 
-const BrainCanvas = dynamic(
-  () => import('@/components/brain/BrainCanvas').then(m => m.BrainCanvas),
+const MindMapCanvas = dynamic(
+  () => import('@/components/mindmap/MindMapCanvas').then(m => m.MindMapCanvas),
   { ssr: false, loading: () => <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">캔버스 로딩 중...</div> }
 )
 
@@ -62,7 +62,7 @@ export default function BrainPage() {
       {/* 본문 */}
       <div className="flex-1 min-h-0 bg-gray-50">
         {activeTopic ? (
-          <BrainCanvas topicId={activeTopic.id} topicTitle={activeTopic.title} />
+          <MindMapCanvas topicId={activeTopic.id} topicTitle={activeTopic.title} />
         ) : (
           <div className="h-full overflow-y-auto p-6">
             <RootSelector
