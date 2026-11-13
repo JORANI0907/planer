@@ -253,6 +253,15 @@ export async function getTodoItems(): Promise<PlanItem[]> {
   return data ?? []
 }
 
+// 메모장 = 전략에 연결되지 않은(strategy_node_id null) todo 항목만
+export async function getMemoItems(): Promise<PlanItem[]> {
+  const { data, error } = await supabase.from('plan_items').select('*')
+    .eq('level', 'todo').eq('period_key', TODO_PERIOD_KEY).is('strategy_node_id', null)
+    .order('sort_order').order('created_at')
+  if (error) throw error
+  return data ?? []
+}
+
 export async function moveItemToTodo(id: string, sortOrder: number): Promise<PlanItem> {
   const { data, error } = await supabase.from('plan_items')
     .update({ level: 'todo', period_key: TODO_PERIOD_KEY, sort_order: sortOrder })

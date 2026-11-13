@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 const TAB_OPTIONS = [
   { path: '/', label: '대시보드' },
   { path: '/profile', label: '인적사항' },
-  { path: '/decade', label: '10년 계획' },
+  { path: '/decade', label: '장기계획' },
   { path: '/flowmap-v2', label: '일정' },
   { path: '/brain', label: '생각확장' },
   { path: '/routine', label: '필수과업' },

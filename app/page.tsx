@@ -111,7 +111,7 @@ export default function DashboardPage() {
       {showTop && (
         <div className="grid grid-cols-2 gap-3 mb-4">
           <NavCard href="/flowmap-v2" icon={<Map size={20} />} title="일정" desc="연간~일간 계획" color="#3b82f6" />
-          <NavCard href="/decade" icon={<Rocket size={20} />} title="10년 계획" desc="장기 비전 & 목표" color="#8b5cf6" />
+          <NavCard href="/decade" icon={<Rocket size={20} />} title="장기계획" desc="장기 비전 & 목표" color="#8b5cf6" />
           <NavCard href="/brain" icon={<Brain size={20} />} title="생각 확장 맵" desc="아이디어 연결하기" color="#06b6d4" />
           <NavCard href="/daily" icon={<CheckSquare size={20} />} title="일일 계획" desc="오늘 할 일 관리" color="#22c55e" />
           <NavCard

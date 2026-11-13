@@ -57,7 +57,7 @@ export default function StrategyPage() {
       ) : groupGoals.length === 0 ? (
         <div className="bg-white border border-dashed border-gray-200 rounded-2xl py-12 text-center">
           <p className="text-sm text-gray-500">{ageGroup}에 등록된 10년 목표가 없습니다.</p>
-          <p className="text-xs text-gray-400 mt-1">먼저 &lsquo;10년 계획&rsquo;에서 목표를 추가하세요.</p>
+          <p className="text-xs text-gray-400 mt-1">먼저 &lsquo;장기계획&rsquo;에서 목표를 추가하세요.</p>
         </div>
       ) : (
         <>

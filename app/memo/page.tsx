@@ -1,0 +1,406 @@
+'use client'
+
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { StickyNote, CalendarPlus, CheckCircle2, ListTodo, Layers, Target } from 'lucide-react'
+import {
+  createPlanItem, updatePlanItem, deletePlanItem,
+  getTasksForItem, createTask,
+  getMemoItems, moveTodoToDaily, getPlanItems,
+} from '@/lib/api'
+import { TODO_PERIOD_KEY } from '@/lib/types'
+import type { PlanItem, PlanItemTask } from '@/lib/types'
+import { useUndo } from '@/lib/undo-stack'
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
+import { SubTaskPanel, SortableRow } from '@/components/SubTaskPanel'
+import { SendToStrategyDialog } from '@/components/memo/SendToStrategyDialog'
+
+function todayKey() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function MemoItemCard({ item, onToggle, onDelete, onRename, onMoveToDaily, onSendToStrategy, dragHandle }: {
+  item: PlanItem
+  onToggle: () => void
+  onDelete: () => void
+  onRename: (title: string) => void
+  onMoveToDaily: () => void
+  onSendToStrategy: () => void
+  dragHandle?: React.ReactNode
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [title, setTitle] = useState(item.title)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { if (editing) inputRef.current?.focus() }, [editing])
+
+  const saveTitle = () => {
+    const t = title.trim()
+    if (t && t !== item.title) onRename(t)
+    setEditing(false)
+  }
+
+  const isDone = item.status === 'completed'
+
+  return (
+    <div className={`rounded-2xl border transition-all overflow-hidden ${
+      isDone ? 'border-gray-100 bg-gray-50' : expanded ? 'border-amber-200 bg-white shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300'
+    }`}>
+      <div className="flex items-center gap-2 px-3 py-3">
+        {dragHandle}
+        <button
+          onClick={onToggle}
+          className={`flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+            isDone ? 'bg-green-500 border-green-500' : 'border-gray-300 hover:border-green-400'
+          }`}
+        >
+          {isDone && (
+            <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3">
+              <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+        </button>
+
+        {editing ? (
+          <input
+            ref={inputRef}
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            onBlur={saveTitle}
+            onKeyDown={e => { if (e.key === 'Enter') saveTitle(); if (e.key === 'Escape') { setTitle(item.title); setEditing(false) } }}
+            className="flex-1 min-w-0 text-sm border border-amber-300 rounded-lg px-2 py-1 focus:outline-none"
+          />
+        ) : (
+          <span
+            onDoubleClick={() => !isDone && setEditing(true)}
+            className={`flex-1 min-w-0 text-sm font-medium cursor-default leading-normal break-keep whitespace-pre-wrap ${isDone ? 'line-through text-gray-400' : 'text-gray-800'}`}
+          >
+            {item.title}
+          </span>
+        )}
+
+        {!isDone && (
+          <button
+            onClick={() => setExpanded(e => !e)}
+            title={expanded ? '접기' : '세부내용'}
+            className={`flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-sm leading-none transition-all ${
+              expanded ? 'bg-amber-100' : 'bg-gray-50 hover:bg-gray-100'
+            }`}
+          >
+            {expanded ? '➖' : '📝'}
+          </button>
+        )}
+
+        {!isDone && (
+          <button
+            onClick={onSendToStrategy}
+            title="세부전략으로 보내기"
+            className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center bg-gray-50 hover:bg-blue-100 text-gray-500 hover:text-blue-600 transition-all"
+          >
+            <Target size={15} />
+          </button>
+        )}
+
+        <button
+          onClick={onMoveToDaily}
+          title="일정으로 이동 (원본 삭제)"
+          className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-sm leading-none bg-gray-50 hover:bg-amber-100 transition-all"
+        >📅</button>
+
+        <button
+          onClick={onDelete}
+          title="삭제"
+          className="flex-shrink-0 w-6 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 text-sm transition-all"
+        >✕</button>
+      </div>
+
+      {expanded && !isDone && <SubTaskPanel itemId={item.id} />}
+    </div>
+  )
+}
+
+type MemoFilter = 'active' | 'completed' | 'all'
+
+export default function MemoPage() {
+  const [items, setItems] = useState<PlanItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [newTitle, setNewTitle] = useState('')
+  const [movingId, setMovingId] = useState<string | null>(null)
+  const [moveDate, setMoveDate] = useState<string>(todayKey())
+  const [moving, setMoving] = useState(false)
+  const [filter, setFilter] = useState<MemoFilter>('active')
+  const [sendingItem, setSendingItem] = useState<PlanItem | null>(null)
+  const { push: pushUndo } = useUndo()
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const data = await getMemoItems()
+    setItems(data)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+  )
+
+  const handleAdd = async () => {
+    const t = newTitle.trim()
+    if (!t) return
+    const item = await createPlanItem({
+      title: t, level: 'todo', period_key: TODO_PERIOD_KEY,
+      description: null, categories: [], status: 'pending', priority: 'medium',
+      sort_order: items.length,
+    })
+    setItems(prev => [...prev, item])
+    setNewTitle('')
+  }
+
+  const handleToggle = async (id: string) => {
+    const item = items.find(i => i.id === id)
+    if (!item) return
+    const updated = await updatePlanItem(id, { status: item.status === 'completed' ? 'pending' : 'completed' })
+    setItems(prev => prev.map(i => i.id === id ? updated : i))
+  }
+
+  const handleDelete = async (id: string) => {
+    const item = items.find(i => i.id === id)
+    if (!item) return
+    let tasks: PlanItemTask[] = []
+    try { tasks = await getTasksForItem(id) } catch { /* ignore */ }
+    await deletePlanItem(id)
+    setItems(prev => prev.filter(i => i.id !== id))
+    pushUndo({
+      label: `"${item.title}" 삭제됨`,
+      restore: async () => {
+        const restored = await createPlanItem({
+          title: item.title, description: item.description, categories: item.categories,
+          status: item.status, priority: item.priority, level: 'todo',
+          period_key: TODO_PERIOD_KEY, sort_order: item.sort_order,
+        })
+        await Promise.all(tasks.map((t, idx) => createTask(restored.id, t.title, idx)))
+        await load()
+      },
+    })
+  }
+
+  const handleRename = async (id: string, title: string) => {
+    const updated = await updatePlanItem(id, { title })
+    setItems(prev => prev.map(i => i.id === id ? updated : i))
+  }
+
+  const startMove = (id: string) => { setMovingId(id); setMoveDate(todayKey()) }
+
+  const confirmMove = async () => {
+    if (!movingId || !moveDate || moving) return
+    setMoving(true)
+    try {
+      const dailyItems = await getPlanItems('daily', moveDate)
+      const target = items.find(i => i.id === movingId)
+      await moveTodoToDaily(movingId, moveDate, dailyItems.length)
+      setItems(prev => prev.filter(i => i.id !== movingId))
+      if (target) {
+        pushUndo({
+          label: `"${target.title}" 이동 되돌리기 (${moveDate} → 메모장)`,
+          restore: async () => {
+            await updatePlanItem(movingId, { level: 'todo', period_key: TODO_PERIOD_KEY, sort_order: target.sort_order })
+            await load()
+          },
+        })
+      }
+      setMovingId(null)
+    } catch (err) {
+      console.error('[memo move]', err)
+      alert('일정으로 이동 중 오류가 발생했습니다.')
+    } finally {
+      setMoving(false)
+    }
+  }
+
+  // 세부전략으로 보내기 — strategy_node_id 설정 → 메모장에서 사라지고 세부전략 실행항목으로
+  const handleSend = async (strategyNodeId: string) => {
+    if (!sendingItem) return
+    const id = sendingItem.id
+    setSendingItem(null)
+    await updatePlanItem(id, { strategy_node_id: strategyNodeId })
+    setItems(prev => prev.filter(i => i.id !== id))
+  }
+
+  const handleReorderItems = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIdx = items.findIndex(i => i.id === active.id)
+    const newIdx = items.findIndex(i => i.id === over.id)
+    const reordered = arrayMove(items, oldIdx, newIdx)
+    setItems(reordered)
+    await Promise.all(reordered.map((item, idx) => updatePlanItem(item.id, { sort_order: idx })))
+  }
+
+  const activeItems = useMemo(() => items.filter(i => i.status !== 'completed'), [items])
+  const completedItems = useMemo(() => items.filter(i => i.status === 'completed'), [items])
+  const completedCount = completedItems.length
+
+  const visibleItems = filter === 'active' ? activeItems : filter === 'completed' ? completedItems : items
+  const emptyMessage =
+    filter === 'completed'
+      ? { title: '완료된 메모가 없어요', hint: '체크한 항목이 이곳에 모입니다' }
+      : filter === 'active'
+      ? { title: '메모가 없어요', hint: '아래 입력창에서 생각·메모를 추가하세요' }
+      : { title: '메모를 추가하세요', hint: '실행할 일은 🎯로 세부전략에 보내고, 그 외 생각은 여기 모아둡니다' }
+
+  const tabs: { key: MemoFilter; label: string; count: number; icon: React.ReactNode }[] = [
+    { key: 'active', label: '진행중', count: activeItems.length, icon: <ListTodo size={14} /> },
+    { key: 'completed', label: '완료', count: completedCount, icon: <CheckCircle2 size={14} /> },
+    { key: 'all', label: '전체', count: items.length, icon: <Layers size={14} /> },
+  ]
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      <div className="mb-4">
+        <div className="flex items-center gap-2 mb-1">
+          <StickyNote size={22} className="text-amber-500" />
+          <h1 className="text-2xl font-bold text-gray-900">메모장</h1>
+        </div>
+        <p className="text-sm text-gray-500 mt-1">
+          생각·아이디어·메모 — 실행할 일은 <span className="text-blue-600 font-medium">🎯 세부전략</span>으로, 그 외엔 여기 모아두세요
+        </p>
+        {items.length > 0 && (
+          <p className="text-xs text-gray-400 mt-2">{items.length}개 · 완료 {completedCount}개</p>
+        )}
+      </div>
+
+      <div className="mb-3 flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+        {tabs.map(tab => {
+          const active = filter === tab.key
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setFilter(tab.key)}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                active ? 'bg-white text-amber-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <span className={active ? 'text-amber-600' : 'text-gray-400'}>{tab.icon}</span>
+              <span>{tab.label}</span>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                active ? 'bg-amber-100 text-amber-700' : 'bg-gray-200 text-gray-500'
+              }`}>{tab.count}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {loading ? (
+        <div className="text-center py-12 text-gray-400">불러오는 중...</div>
+      ) : (
+        <div className="space-y-2 mb-4">
+          {visibleItems.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
+              <div className="flex justify-center mb-2">
+                {filter === 'completed' ? <CheckCircle2 size={20} className="text-gray-300" /> : <StickyNote size={20} className="text-gray-300" />}
+              </div>
+              <p className="text-gray-500 font-medium">{emptyMessage.title}</p>
+              <p className="text-xs text-gray-400 mt-1">{emptyMessage.hint}</p>
+            </div>
+          ) : filter === 'active' ? (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleReorderItems}>
+              <SortableContext items={visibleItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                {visibleItems.map(item => (
+                  <SortableRow key={item.id} id={item.id}>
+                    {(handle) => (
+                      <MemoItemCard
+                        item={item}
+                        onToggle={() => handleToggle(item.id)}
+                        onDelete={() => handleDelete(item.id)}
+                        onRename={(title) => handleRename(item.id, title)}
+                        onMoveToDaily={() => startMove(item.id)}
+                        onSendToStrategy={() => setSendingItem(item)}
+                        dragHandle={handle}
+                      />
+                    )}
+                  </SortableRow>
+                ))}
+              </SortableContext>
+            </DndContext>
+          ) : (
+            visibleItems.map(item => (
+              <MemoItemCard
+                key={item.id}
+                item={item}
+                onToggle={() => handleToggle(item.id)}
+                onDelete={() => handleDelete(item.id)}
+                onRename={(title) => handleRename(item.id, title)}
+                onMoveToDaily={() => startMove(item.id)}
+                onSendToStrategy={() => setSendingItem(item)}
+              />
+            ))
+          )}
+        </div>
+      )}
+
+      <div className="bg-white rounded-2xl border border-gray-200 p-4">
+        <div className="flex gap-2">
+          <input
+            value={newTitle}
+            onChange={e => setNewTitle(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleAdd() }}
+            placeholder="메모 입력 후 Enter 또는 추가 버튼..."
+            className="flex-1 text-sm border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          />
+          <button
+            onClick={handleAdd}
+            disabled={!newTitle.trim()}
+            className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl px-5 py-2.5 text-sm font-medium disabled:opacity-40 transition-colors"
+          >
+            추가
+          </button>
+        </div>
+      </div>
+
+      {movingId && (
+        <div className="fixed left-1/2 -translate-x-1/2 bottom-20 md:bottom-6 z-40 w-[calc(100%-2rem)] max-w-md">
+          <div className="bg-slate-900 text-white rounded-2xl shadow-2xl p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <CalendarPlus size={16} className="text-amber-300" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-gray-400 leading-none mb-0.5">일정으로 이동 (원본 삭제)</p>
+                <p className="text-xs font-medium truncate">{items.find(i => i.id === movingId)?.title}</p>
+              </div>
+              <button onClick={() => setMovingId(null)} disabled={moving} className="text-gray-400 hover:text-white text-sm px-1.5" title="취소">✕</button>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] text-gray-400 whitespace-nowrap">대상 날짜</label>
+              <input
+                type="date"
+                value={moveDate}
+                onChange={e => setMoveDate(e.target.value)}
+                disabled={moving}
+                className="flex-1 text-xs bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-white focus:outline-none focus:border-amber-400 min-w-0"
+                style={{ colorScheme: 'dark' }}
+              />
+              <button
+                onClick={confirmMove}
+                disabled={moving || !moveDate}
+                className="text-[11px] font-semibold bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
+              >
+                이동
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {sendingItem && (
+        <SendToStrategyDialog
+          itemTitle={sendingItem.title}
+          onClose={() => setSendingItem(null)}
+          onSend={handleSend}
+        />
+      )}
+    </div>
+  )
+}
