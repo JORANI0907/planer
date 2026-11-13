@@ -4,7 +4,7 @@ export type PlanLevel = 'annual' | 'quarterly' | 'monthly' | 'weekly' | 'daily' 
 export const TODO_PERIOD_KEY = 'todo'
 export type PlanStatus = 'pending' | 'in_progress' | 'completed' | 'on_hold'
 export type PlanPriority = 'high' | 'medium' | 'low'
-export type AgeGroup = '30대' | '40대' | '50대' | '60대'
+export type AgeGroup = '30대' | '40대' | '50대' | '60대' | '기타'
 export type GoalProgress = '1.진행 중' | '2.아이디어' | '3.완료'
 export type GoalType = '가족목표' | '개인목표' | '사업목표'
 

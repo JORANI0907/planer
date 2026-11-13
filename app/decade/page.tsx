@@ -188,6 +188,7 @@ const AGE_GROUPS: { key: AgeGroup; range: string; color: string }[] = [
   { key: '40대', range: '2036~2045', color: 'from-purple-500 to-purple-700' },
   { key: '50대', range: '2046~2055', color: 'from-orange-500 to-orange-700' },
   { key: '60대', range: '2056~2065', color: 'from-green-500 to-green-700' },
+  { key: '기타', range: '시기 미정', color: 'from-slate-500 to-slate-700' },
 ]
 
 interface GoalFormData {
@@ -496,8 +497,8 @@ export default function DecadePage() {
     <div className="max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-4 md:mb-6">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900">10년 단위 계획</h1>
-          <p className="hidden md:block text-gray-500 mt-1">노션 인생 목표 추적기 · {goals.length}개 목표</p>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">장기계획</h1>
+          <p className="hidden md:block text-gray-500 mt-1">인생 목표 추적기 · {goals.length}개 목표</p>
         </div>
         <Button onClick={() => setAddOpen(true)} className="text-xs md:text-sm px-3 md:px-4">+ 목표 추가</Button>
       </div>

@@ -1,24 +1,12 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
-import Link from 'next/link'
-import { Map, Rocket, Brain, CheckSquare, ShoppingCart, Flag, Calendar } from 'lucide-react'
-import { getPlanItems } from '@/lib/api'
-import { getPendingCount } from '@/lib/shopping-api'
+import { useState } from 'react'
+import { Flag, Calendar } from 'lucide-react'
 import { getCurrentYear, getCurrentQuarter, getCurrentMonth } from '@/lib/types'
-import type { PlanItem } from '@/lib/types'
 import DailyPage from './daily/page'
-import { PeriodPlanSection } from '@/components/PeriodPlanSection'
 import { DashboardCalendar } from '@/components/DashboardCalendar'
-import { AnnualListView } from '@/components/flowmap-v2/AnnualListView'
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토']
-
-function fmtPeriod(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
-
-type Period = 'annual' | 'quarterly' | 'monthly' | 'daily'
 
 export default function DashboardPage() {
   const today = new Date()
@@ -26,50 +14,10 @@ export default function DashboardPage() {
   const quarter = getCurrentQuarter()
   const month = getCurrentMonth()
   const dayName = DAY_NAMES[today.getDay()]
-
-  const [aStats, setAStats] = useState({ total: 0, done: 0 })
-  const [qStats, setQStats] = useState({ total: 0, done: 0 })
-  const [mStats, setMStats] = useState({ total: 0, done: 0 })
-  const [dStats, setDStats] = useState({ total: 0, done: 0 })
-  const [shoppingPending, setShoppingPending] = useState(0)
-  const [showTop, setShowTop] = useState(false)
-  const [selectedPeriod, setSelectedPeriod] = useState<Period>('daily')
   const [showCalendar, setShowCalendar] = useState(false)
-  const [annualItems, setAnnualItems] = useState<PlanItem[]>([])
-
-  const reloadStats = useCallback(() => {
-    const aKey = `${year}`
-    const qKey = `${year}-Q${quarter}`
-    const mKey = `${year}-${String(month).padStart(2, '0')}`
-    const dKey = fmtPeriod(today)
-
-    Promise.all([
-      getPlanItems('annual', aKey),
-      getPlanItems('quarterly', qKey),
-      getPlanItems('monthly', mKey),
-      getPlanItems('daily', dKey),
-    ]).then(([a, q, m, d]) => {
-      setAnnualItems(a)
-      setAStats({ total: a.length, done: a.filter(i => i.status === 'completed').length })
-      setQStats({ total: q.length, done: q.filter(i => i.status === 'completed').length })
-      setMStats({ total: m.length, done: m.filter(i => i.status === 'completed').length })
-      setDStats({ total: d.length, done: d.filter(i => i.status === 'completed').length })
-    }).catch(() => {})
-  }, [year, quarter, month, today])
-
-  useEffect(() => {
-    reloadStats()
-    getPendingCount().then(setShoppingPending).catch(() => {})
-  }, [reloadStats])
-
-  const aPct = aStats.total ? Math.round((aStats.done / aStats.total) * 100) : 0
-  const qPct = qStats.total ? Math.round((qStats.done / qStats.total) * 100) : 0
-  const mPct = mStats.total ? Math.round((mStats.done / mStats.total) * 100) : 0
-  const dPct = dStats.total ? Math.round((dStats.done / dStats.total) * 100) : 0
 
   return (
     <div className="max-w-2xl mx-auto">
-
       {/* 인사 헤더 */}
       <div className="mb-4">
         <p className="text-sm text-gray-400 mb-1">
@@ -81,9 +29,7 @@ export default function DashboardPage() {
             onClick={() => setShowCalendar(v => !v)}
             title="캘린더 보기"
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
-              showCalendar
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              showCalendar ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
             <Calendar size={15} />
@@ -93,145 +39,15 @@ export default function DashboardPage() {
         <p className="text-sm text-gray-500 mt-1">푯대를 향해 한 걸음씩 나아가고 있습니다</p>
       </div>
 
-      {/* 진행률 & 메뉴 토글 */}
-      <button
-        onClick={() => setShowTop(v => !v)}
-        className="w-full flex items-center justify-between bg-white rounded-xl border border-gray-200 px-4 py-2.5 mb-4 hover:bg-gray-50 transition-colors"
-        aria-expanded={showTop}
-      >
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-          진행률 & 메뉴
-        </span>
-        <span className="text-xs text-gray-400 flex items-center gap-1">
-          {showTop ? '접기' : '펼치기'}
-          <span className={`transition-transform ${showTop ? 'rotate-180' : ''}`}>▾</span>
-        </span>
-      </button>
-
-      {showTop && (
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <NavCard href="/flowmap-v2" icon={<Map size={20} />} title="일정" desc="연간~일간 계획" color="#3b82f6" />
-          <NavCard href="/decade" icon={<Rocket size={20} />} title="장기계획" desc="장기 비전 & 목표" color="#8b5cf6" />
-          <NavCard href="/brain" icon={<Brain size={20} />} title="생각 확장 맵" desc="아이디어 연결하기" color="#06b6d4" />
-          <NavCard href="/daily" icon={<CheckSquare size={20} />} title="일일 계획" desc="오늘 할 일 관리" color="#22c55e" />
-          <NavCard
-            href="/shopping"
-            icon={<ShoppingCart size={20} />}
-            title="구입 목록"
-            desc={shoppingPending > 0 ? `구입 예정 ${shoppingPending}건` : '필요한 물건 목록'}
-            color="#f59e0b"
-            badge={shoppingPending > 0 ? shoppingPending : undefined}
-          />
-        </div>
-      )}
-
-      {/* 진행률 게이지 + 기간 선택 버튼 4개 */}
-      <div className="grid grid-cols-4 gap-2 mb-4">
-        <StatButton
-          label="연간" pct={aPct} done={aStats.done} total={aStats.total} color="#6366f1"
-          isActive={selectedPeriod === 'annual'}
-          onClick={() => setSelectedPeriod('annual')}
-        />
-        <StatButton
-          label={`${quarter}분기`} pct={qPct} done={qStats.done} total={qStats.total} color="#3b82f6"
-          isActive={selectedPeriod === 'quarterly'}
-          onClick={() => setSelectedPeriod('quarterly')}
-        />
-        <StatButton
-          label={`${month}월`} pct={mPct} done={mStats.done} total={mStats.total} color="#8b5cf6"
-          isActive={selectedPeriod === 'monthly'}
-          onClick={() => setSelectedPeriod('monthly')}
-        />
-        <StatButton
-          label="오늘" pct={dPct} done={dStats.done} total={dStats.total} color="#22c55e"
-          isActive={selectedPeriod === 'daily'}
-          onClick={() => setSelectedPeriod('daily')}
-        />
-      </div>
-
-      {/* 캘린더 뷰 */}
-      {showCalendar && (
+      {showCalendar ? (
         <div className="mb-4">
           <DashboardCalendar />
         </div>
-      )}
-
-      {/* 기간별 계획 섹션 */}
-      {!showCalendar && (
+      ) : (
         <div className="mt-2">
-          {selectedPeriod === 'daily' && <DailyPage />}
-          {selectedPeriod === 'annual' && (
-            <AnnualListView year={year} items={annualItems} onChanged={reloadStats} />
-          )}
-          {selectedPeriod === 'quarterly' && (
-            <PeriodPlanSection period="quarterly" initYear={year} initQuarter={quarter} initMonth={month} />
-          )}
-          {selectedPeriod === 'monthly' && (
-            <PeriodPlanSection period="monthly" initYear={year} initQuarter={quarter} initMonth={month} />
-          )}
+          <DailyPage />
         </div>
       )}
     </div>
-  )
-}
-
-// ── 진행률 게이지 버튼 ────────────────────────────────────────
-
-function StatButton({ label, pct, done, total, color, isActive, onClick }: {
-  label: string; pct: number; done: number; total: number; color: string
-  isActive: boolean; onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="bg-white rounded-xl border text-center p-3 w-full transition-all hover:shadow-sm"
-      style={{
-        borderColor: isActive ? color : '#e5e7eb',
-        boxShadow: isActive ? `0 0 0 2px ${color}28` : 'none',
-      }}
-    >
-      <div className="text-xs text-gray-500 mb-1.5 truncate">{label}</div>
-      <div className="text-xl font-bold mb-1.5" style={{ color }}>{pct}%</div>
-      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mx-1">
-        <div
-          className="h-full rounded-full transition-all duration-700"
-          style={{ width: `${pct}%`, backgroundColor: color }}
-        />
-      </div>
-      <div className="text-xs text-gray-400 mt-1.5">{done}/{total}</div>
-    </button>
-  )
-}
-
-// ── 메뉴 카드 ────────────────────────────────────────────────
-
-function NavCard({ href, icon, title, desc, color, badge }: {
-  href: string; icon: React.ReactNode; title: string; desc: string; color: string; badge?: number
-}) {
-  return (
-    <Link
-      href={href}
-      className="group relative flex items-center gap-3 bg-white rounded-xl border border-gray-200 p-4 hover:border-transparent hover:shadow-md transition-all"
-      style={{ ['--hover-color' as string]: color }}
-    >
-      <div
-        className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 transition-colors"
-        style={{ backgroundColor: color + '18' }}
-      >
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-gray-900 group-hover:text-gray-900">{title}</p>
-        <p className="text-xs text-gray-400 mt-0.5 truncate">{desc}</p>
-      </div>
-      {badge !== undefined && badge > 0 && (
-        <span
-          className="absolute top-2 right-2 min-w-5 h-5 px-1.5 rounded-full text-[10px] font-bold text-white flex items-center justify-center"
-          style={{ backgroundColor: color }}
-        >
-          {badge}
-        </span>
-      )}
-    </Link>
   )
 }

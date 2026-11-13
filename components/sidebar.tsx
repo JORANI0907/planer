@@ -12,14 +12,14 @@ import {
 type NavGroup = 'home' | 'strategy' | 'schedule' | 'tools'
 const ALL_NAV_ITEMS: { href: string; label: string; icon: React.ReactNode; group: NavGroup }[] = [
   { href: '/', label: '대시보드', icon: <Home size={20} />, group: 'home' },
+  { href: '/memo', label: '메모장', icon: <StickyNote size={20} />, group: 'home' },
   // 전략축: 큰그림(장기계획) → 세부전략(+실행항목)
   { href: '/decade', label: '장기계획', icon: <Rocket size={20} />, group: 'strategy' },
   { href: '/strategy', label: '세부전략', icon: <Target size={20} />, group: 'strategy' },
   // 일정축
-  { href: '/flowmap-v2', label: '일정', icon: <Map size={20} />, group: 'schedule' },
+  { href: '/flowmap-v2', label: '세부일정', icon: <Map size={20} />, group: 'schedule' },
   // 도구/독립
   { href: '/brain', label: '생각확장', icon: <Brain size={20} />, group: 'tools' },
-  { href: '/memo', label: '메모장', icon: <StickyNote size={20} />, group: 'tools' },
   { href: '/routine', label: '필수과업', icon: <RefreshCw size={20} />, group: 'tools' },
   { href: '/profile', label: '인적사항', icon: <User size={20} />, group: 'tools' },
   { href: '/shopping', label: '구입 목록', icon: <ShoppingCart size={20} />, group: 'tools' },

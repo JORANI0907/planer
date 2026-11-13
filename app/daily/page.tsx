@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { CheckSquare, Square, Copy, MoveRight, ListTodo, X } from 'lucide-react'
+import { CheckSquare, Square, Copy, MoveRight, StickyNote, X } from 'lucide-react'
 import {
   getPlanItems, createPlanItem, updatePlanItem, deletePlanItem,
   getTasksForItem, createTask,
@@ -327,7 +327,7 @@ export default function DailyPage() {
       setItems(prev => prev.filter(i => !selectedIds.has(i.id)))
       clearSelection()
       pushUndo({
-        label: `${targets.length}개 항목이 TODO로 이동됨`,
+        label: `${targets.length}개 항목이 메모장으로 이동됨`,
         restore: async () => {
           for (const snap of snapshots) {
             await updatePlanItem(snap.id, {
@@ -338,8 +338,8 @@ export default function DailyPage() {
         },
       })
     } catch (err) {
-      console.error('[daily bulk todo]', err)
-      alert('TODO 이동 중 오류가 발생했습니다.')
+      console.error('[daily bulk memo]', err)
+      alert('메모장 이동 중 오류가 발생했습니다.')
     } finally { setBulkRunning(false) }
   }
 
@@ -357,8 +357,6 @@ export default function DailyPage() {
   const nextDay = () => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d) }
 
   const isToday = formatDayKey(selectedDate) === formatDayKey(today)
-  const completedCount = items.filter(i => i.status === 'completed').length
-  const progressPct = items.length ? Math.round((completedCount / items.length) * 100) : 0
   const allSelected = items.length > 0 && selectedIds.size === items.length
 
   return (
@@ -399,23 +397,6 @@ export default function DailyPage() {
         )}
       </div>
 
-      {/* 진행률 */}
-      {items.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-3">
-          <div className="flex justify-between text-sm mb-2.5">
-            <span className="text-gray-600 font-medium">오늘 진행률</span>
-            <span className="font-bold text-green-600">{progressPct}%</span>
-          </div>
-          <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-green-400 to-emerald-500 rounded-full transition-all duration-500"
-              style={{ width: `${progressPct}%` }}
-            />
-          </div>
-          <p className="text-xs text-gray-400 mt-2">{completedCount}/{items.length} 완료</p>
-        </div>
-      )}
-
       {/* 벌크 액션 툴바 — 항목 있을 때만 노출 */}
       {items.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-200 p-3 mb-3">
@@ -452,10 +433,10 @@ export default function DailyPage() {
               <button
                 onClick={runBulkToTodo}
                 disabled={selectedIds.size === 0 || bulkRunning}
-                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
-                title="선택한 항목을 TODO로 이동"
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                title="선택한 항목을 메모장으로 이동"
               >
-                <ListTodo size={12} /> TODO
+                <StickyNote size={12} /> 메모장
               </button>
             </div>
           </div>

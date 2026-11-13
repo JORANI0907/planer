@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { StickyNote, CalendarPlus, CheckCircle2, ListTodo, Layers, Target } from 'lucide-react'
+import { StickyNote, CalendarPlus, CheckCircle2, ListTodo, Layers } from 'lucide-react'
 import {
   createPlanItem, updatePlanItem, deletePlanItem,
   getTasksForItem, createTask,
@@ -13,20 +13,18 @@ import { useUndo } from '@/lib/undo-stack'
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import { SubTaskPanel, SortableRow } from '@/components/SubTaskPanel'
-import { SendToStrategyDialog } from '@/components/memo/SendToStrategyDialog'
 
 function todayKey() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function MemoItemCard({ item, onToggle, onDelete, onRename, onMoveToDaily, onSendToStrategy, dragHandle }: {
+function MemoItemCard({ item, onToggle, onDelete, onRename, onMoveToDaily, dragHandle }: {
   item: PlanItem
   onToggle: () => void
   onDelete: () => void
   onRename: (title: string) => void
   onMoveToDaily: () => void
-  onSendToStrategy: () => void
   dragHandle?: React.ReactNode
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -93,16 +91,6 @@ function MemoItemCard({ item, onToggle, onDelete, onRename, onMoveToDaily, onSen
           </button>
         )}
 
-        {!isDone && (
-          <button
-            onClick={onSendToStrategy}
-            title="세부전략으로 보내기"
-            className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center bg-gray-50 hover:bg-blue-100 text-gray-500 hover:text-blue-600 transition-all"
-          >
-            <Target size={15} />
-          </button>
-        )}
-
         <button
           onClick={onMoveToDaily}
           title="일정으로 이동 (원본 삭제)"
@@ -131,7 +119,6 @@ export default function MemoPage() {
   const [moveDate, setMoveDate] = useState<string>(todayKey())
   const [moving, setMoving] = useState(false)
   const [filter, setFilter] = useState<MemoFilter>('active')
-  const [sendingItem, setSendingItem] = useState<PlanItem | null>(null)
   const { push: pushUndo } = useUndo()
 
   const load = useCallback(async () => {
@@ -221,15 +208,6 @@ export default function MemoPage() {
     }
   }
 
-  // 세부전략으로 보내기 — strategy_node_id 설정 → 메모장에서 사라지고 세부전략 실행항목으로
-  const handleSend = async (strategyNodeId: string) => {
-    if (!sendingItem) return
-    const id = sendingItem.id
-    setSendingItem(null)
-    await updatePlanItem(id, { strategy_node_id: strategyNodeId })
-    setItems(prev => prev.filter(i => i.id !== id))
-  }
-
   const handleReorderItems = async (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -250,7 +228,7 @@ export default function MemoPage() {
       ? { title: '완료된 메모가 없어요', hint: '체크한 항목이 이곳에 모입니다' }
       : filter === 'active'
       ? { title: '메모가 없어요', hint: '아래 입력창에서 생각·메모를 추가하세요' }
-      : { title: '메모를 추가하세요', hint: '실행할 일은 🎯로 세부전략에 보내고, 그 외 생각은 여기 모아둡니다' }
+      : { title: '메모를 추가하세요', hint: '생각·아이디어·메모를 자유롭게 모아두는 곳입니다' }
 
   const tabs: { key: MemoFilter; label: string; count: number; icon: React.ReactNode }[] = [
     { key: 'active', label: '진행중', count: activeItems.length, icon: <ListTodo size={14} /> },
@@ -266,7 +244,7 @@ export default function MemoPage() {
           <h1 className="text-2xl font-bold text-gray-900">메모장</h1>
         </div>
         <p className="text-sm text-gray-500 mt-1">
-          생각·아이디어·메모 — 실행할 일은 <span className="text-blue-600 font-medium">🎯 세부전략</span>으로, 그 외엔 여기 모아두세요
+          생각·아이디어·메모를 자유롭게 모아두는 공간
         </p>
         {items.length > 0 && (
           <p className="text-xs text-gray-400 mt-2">{items.length}개 · 완료 {completedCount}개</p>
@@ -318,7 +296,6 @@ export default function MemoPage() {
                         onDelete={() => handleDelete(item.id)}
                         onRename={(title) => handleRename(item.id, title)}
                         onMoveToDaily={() => startMove(item.id)}
-                        onSendToStrategy={() => setSendingItem(item)}
                         dragHandle={handle}
                       />
                     )}
@@ -335,7 +312,6 @@ export default function MemoPage() {
                 onDelete={() => handleDelete(item.id)}
                 onRename={(title) => handleRename(item.id, title)}
                 onMoveToDaily={() => startMove(item.id)}
-                onSendToStrategy={() => setSendingItem(item)}
               />
             ))
           )}
@@ -394,13 +370,6 @@ export default function MemoPage() {
         </div>
       )}
 
-      {sendingItem && (
-        <SendToStrategyDialog
-          itemTitle={sendingItem.title}
-          onClose={() => setSendingItem(null)}
-          onSend={handleSend}
-        />
-      )}
     </div>
   )
 }

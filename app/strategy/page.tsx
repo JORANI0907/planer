@@ -6,7 +6,7 @@ import type { LifeGoal, AgeGroup } from '@/lib/types'
 import { GOAL_TYPE_CONFIG, GOAL_PROGRESS_CONFIG } from '@/lib/types'
 import { StrategyBoard } from '@/components/strategy/StrategyBoard'
 
-const AGE_GROUPS: AgeGroup[] = ['30대', '40대', '50대', '60대']
+const AGE_GROUPS: AgeGroup[] = ['30대', '40대', '50대', '60대', '기타']
 
 export default function StrategyPage() {
   const [goals, setGoals] = useState<LifeGoal[]>([])
