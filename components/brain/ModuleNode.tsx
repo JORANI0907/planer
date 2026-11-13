@@ -13,7 +13,7 @@ export type ModuleNodeData = {
 }
 
 function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeData; selected: boolean }) {
-  const { onUpdateTitle, onUpdateContent, onContextMenu } = useContext(BrainCtx)
+  const { onUpdateTitle, onUpdateContent, onOpenDetail, onContextMenu } = useContext(BrainCtx)
   const [nodeHovered, setNodeHovered] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
   const [editingContent, setEditingContent] = useState(false)
@@ -131,6 +131,7 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
     return (
       <div
         onContextMenu={handleContextMenu}
+        onDoubleClick={() => onOpenDetail(id)}
         onTouchStart={handleTouchStart}
         onTouchMove={clearLongPress}
         onTouchEnd={clearLongPress}
@@ -191,6 +192,7 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
   return (
     <div
       onContextMenu={handleContextMenu}
+      onDoubleClick={() => onOpenDetail(id)}
       onMouseEnter={() => setNodeHovered(true)}
       onMouseLeave={() => setNodeHovered(false)}
       style={{
@@ -264,19 +266,29 @@ function ModuleNodeInner({ id, data, selected }: { id: string; data: ModuleNodeD
                 resize: 'none', lineHeight: 1.5, fontFamily: 'inherit',
               }}
             />
+          ) : data.content && data.content.trim() ? (
+            <div
+              className="nodrag"
+              onClick={() => onOpenDetail(id)}
+              style={{
+                fontSize: 11, color: '#64748b',
+                lineHeight: 1.5, overflow: 'hidden',
+                display: '-webkit-box', WebkitLineClamp: 3,
+                WebkitBoxOrient: 'vertical', cursor: 'pointer',
+                minHeight: 16,
+              }}
+              dangerouslySetInnerHTML={{ __html: data.content }}
+            />
           ) : (
             <p
               className="nodrag"
-              onClick={() => setEditingContent(true)}
+              onClick={() => onOpenDetail(id)}
               style={{
                 fontSize: 11, color: '#64748b', margin: 0,
-                lineHeight: 1.5, overflow: 'hidden',
-                display: '-webkit-box', WebkitLineClamp: 3,
-                WebkitBoxOrient: 'vertical', cursor: 'text',
-                minHeight: 16,
+                lineHeight: 1.5, cursor: 'pointer', minHeight: 16,
               }}
             >
-              {data.content?.trim() || (selected ? '내용 클릭해서 입력...' : '')}
+              {selected ? '더블클릭해서 편집...' : ''}
             </p>
           )}
         </div>

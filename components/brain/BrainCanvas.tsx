@@ -18,6 +18,7 @@ import {
   addModuleToGroup, removeModuleFromGroup, updateGroupSize, parseGroupSize,
 } from '@/lib/brain-api'
 import { ModuleNode, type ModuleNodeData } from './ModuleNode'
+import { ModuleDetailModal } from './ModuleDetailModal'
 import { GroupNode, type GroupNodeData } from './GroupNode'
 import { ThoughtEdge as ThoughtEdgeComp, type ThoughtEdgeData } from './ThoughtEdge'
 import { BrainCtx } from './BrainContext'
@@ -189,6 +190,7 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
   const [proximityId, setProximityId] = useState<string | null>(null)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
   const [hoverGroupId, setHoverGroupId] = useState<string | null>(null)
+  const [detailNodeId, setDetailNodeId] = useState<string | null>(null)
   const paneLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const paneLongPressFired = useRef(false)
 
@@ -343,6 +345,7 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
         : n
       ))
     },
+    onOpenDetail: (nodeId: string) => setDetailNodeId(nodeId),
     onContextMenu: (nodeId: string, isWing: boolean, x: number, y: number, extra?: { isGroup?: boolean }) => {
       setCtxMenu({ x, y, type: 'node', nodeId, isWing, isGroup: extra?.isGroup })
     },
@@ -992,6 +995,20 @@ function CanvasInner({ topicId, topicTitle }: { topicId: string; topicTitle: str
           </div>
         )}
       </div>
+      {detailNodeId && (() => {
+        const dn = nodes.find((n) => n.id === detailNodeId)
+        if (!dn || (dn.data as GroupNodeData).isGroup) return null
+        const dd = dn.data as ModuleNodeData
+        return (
+          <ModuleDetailModal
+            title={dd.label}
+            content={dd.content ?? ''}
+            onClose={() => setDetailNodeId(null)}
+            onSaveTitle={(t) => brainCtxValue.onUpdateTitle(detailNodeId, t)}
+            onSaveContent={(html) => brainCtxValue.onUpdateContent(detailNodeId, html)}
+          />
+        )
+      })()}
     </BrainCtx.Provider>
   )
 }

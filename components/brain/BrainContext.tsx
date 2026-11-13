@@ -9,6 +9,7 @@ interface BrainContextValue {
   onDelete: (nodeId: string) => void
   onUpdateTitle: (nodeId: string, title: string) => void
   onUpdateContent: (nodeId: string, content: string) => void
+  onOpenDetail: (nodeId: string) => void
   onContextMenu: (nodeId: string, isWing: boolean, x: number, y: number, extra?: { isGroup?: boolean }) => void
   // Edge actions
   onEdgeChangeType: (edgeId: string, color: string) => void
@@ -25,6 +26,7 @@ export const BrainCtx = createContext<BrainContextValue>({
   onDelete: () => {},
   onUpdateTitle: () => {},
   onUpdateContent: () => {},
+  onOpenDetail: () => {},
   onContextMenu: () => {},
   onEdgeChangeType: () => {},
   onEdgeChangeLabel: () => {},
