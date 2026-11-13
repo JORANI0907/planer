@@ -9,11 +9,14 @@ import {
   pushMilestoneToSchedule,
   getScheduledMilestoneIds,
 } from '@/lib/strategy-api'
-import { STRATEGY_STATUS_CONFIG, type StrategyNode } from '@/lib/strategy-types'
+import { STRATEGY_STATUS_CONFIG, type StrategyNode, type StrategyStatus } from '@/lib/strategy-types'
 import { StrategyEditModal } from './StrategyEditModal'
 
 const bySort = (a: StrategyNode, b: StrategyNode) =>
   a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at)
+
+// 진행률: 완료 100% · 진행중 50% · 예정 0%
+const statusPct = (s: StrategyStatus) => (s === 'done' ? 1 : s === 'doing' ? 0.5 : 0)
 
 function periodLabel(key: string | null): string | null {
   if (!key) return null
@@ -57,6 +60,15 @@ export function StrategyBoard({ lifeGoalId }: { lifeGoalId: string }) {
   const strategies = nodes.filter((n) => n.kind === 'strategy').sort(bySort)
   const milestonesOf = (sid: string) =>
     nodes.filter((n) => n.kind === 'milestone' && n.parent_id === sid).sort(bySort)
+
+  // 전략 진행률 = 마일스톤 평균(없으면 전략 자신의 상태), 목표 진행률 = 전략 평균
+  const strategyProg = (sid: string, selfStatus: StrategyStatus) => {
+    const ms = milestonesOf(sid)
+    return ms.length ? ms.reduce((a, m) => a + statusPct(m.status), 0) / ms.length : statusPct(selfStatus)
+  }
+  const goalProg = strategies.length
+    ? strategies.reduce((a, s) => a + strategyProg(s.id, s.status), 0) / strategies.length
+    : 0
 
   async function addStrategy() {
     try {
@@ -118,6 +130,15 @@ export function StrategyBoard({ lifeGoalId }: { lifeGoalId: string }) {
         </div>
       ) : (
         <>
+          {/* 목표 진행률 롤업 */}
+          <div className="bg-white border border-gray-200 rounded-2xl px-4 py-3 flex items-center gap-3">
+            <span className="text-sm font-semibold text-gray-700 shrink-0">목표 진행률</span>
+            <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full bg-blue-500 transition-all" style={{ width: `${Math.round(goalProg * 100)}%` }} />
+            </div>
+            <span className="text-sm font-bold text-blue-600 shrink-0 w-10 text-right">{Math.round(goalProg * 100)}%</span>
+          </div>
+
           {strategies.map((s) => {
             const milestones = milestonesOf(s.id)
             const sConf = STRATEGY_STATUS_CONFIG[s.status]
@@ -144,6 +165,14 @@ export function StrategyBoard({ lifeGoalId }: { lifeGoalId: string }) {
                   <button onClick={() => setEditId(s.id)} className="shrink-0 text-gray-300 hover:text-gray-600 p-1" title="전략 편집">
                     <Pencil size={15} />
                   </button>
+                </div>
+
+                {/* 전략 진행률 */}
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-400 transition-all" style={{ width: `${Math.round(strategyProg(s.id, s.status) * 100)}%` }} />
+                  </div>
+                  <span className="text-[11px] font-semibold text-gray-500 w-8 text-right">{Math.round(strategyProg(s.id, s.status) * 100)}%</span>
                 </div>
 
                 {/* 마일스톤 플로우 */}

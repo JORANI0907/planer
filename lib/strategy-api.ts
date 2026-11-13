@@ -29,6 +29,7 @@ export async function createStrategyNode(input: {
   kind: StrategyKind
   parent_id?: string | null
   title?: string
+  description?: string | null
   target_period_key?: string | null
   sort_order?: number
 }): Promise<StrategyNode> {
@@ -39,6 +40,7 @@ export async function createStrategyNode(input: {
       kind: input.kind,
       parent_id: input.parent_id ?? null,
       title: input.title ?? '',
+      description: input.description ?? null,
       target_period_key: input.target_period_key ?? null,
       sort_order: input.sort_order ?? 0,
     })
