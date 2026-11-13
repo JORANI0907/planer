@@ -9,6 +9,7 @@ import {
 } from '@/lib/api'
 import { TODO_PERIOD_KEY } from '@/lib/types'
 import type { PlanItem, PlanItemTask } from '@/lib/types'
+import { getStrategyNodeMap } from '@/lib/strategy-api'
 import { useUndo } from '@/lib/undo-stack'
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
@@ -19,13 +20,14 @@ function todayKey() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function TodoItemCard({ item, onToggle, onDelete, onRename, onMoveToDaily, dragHandle }: {
+function TodoItemCard({ item, onToggle, onDelete, onRename, onMoveToDaily, dragHandle, source }: {
   item: PlanItem
   onToggle: () => void
   onDelete: () => void
   onRename: (title: string) => void
   onMoveToDaily: () => void
   dragHandle?: React.ReactNode
+  source?: { title: string; kind: string } | null
 }) {
   const [expanded, setExpanded] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -79,6 +81,15 @@ function TodoItemCard({ item, onToggle, onDelete, onRename, onMoveToDaily, dragH
           </span>
         )}
 
+        {source && (
+          <span
+            className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 font-semibold max-w-[120px] truncate"
+            title={`전략 출처: ${source.title}`}
+          >
+            🎯 {source.title}
+          </span>
+        )}
+
         {/* 액션 버튼들 — 이모지로 통일, w-7 h-7 소형화 */}
         {!isDone && (
           <button
@@ -120,12 +131,17 @@ export default function TodoPage() {
   const [moveDate, setMoveDate] = useState<string>(todayKey())
   const [moving, setMoving] = useState(false)
   const [filter, setFilter] = useState<TodoFilter>('active')
+  const [strategyMap, setStrategyMap] = useState<Record<string, { title: string; kind: string }>>({})
   const { push: pushUndo } = useUndo()
 
   const load = useCallback(async () => {
     setLoading(true)
     const data = await getTodoItems()
     setItems(data)
+    const sids = Array.from(new Set(data.map((i) => i.strategy_node_id).filter(Boolean))) as string[]
+    if (sids.length) {
+      try { setStrategyMap(await getStrategyNodeMap(sids)) } catch { /* noop */ }
+    }
     setLoading(false)
   }, [])
 
@@ -310,6 +326,7 @@ export default function TodoPage() {
                         onRename={(title) => handleRename(item.id, title)}
                         onMoveToDaily={() => startMove(item.id)}
                         dragHandle={handle}
+                        source={item.strategy_node_id ? strategyMap[item.strategy_node_id] : null}
                       />
                     )}
                   </SortableRow>
@@ -325,6 +342,7 @@ export default function TodoPage() {
                 onDelete={() => handleDelete(item.id)}
                 onRename={(title) => handleRename(item.id, title)}
                 onMoveToDaily={() => startMove(item.id)}
+                source={item.strategy_node_id ? strategyMap[item.strategy_node_id] : null}
               />
             ))
           )}

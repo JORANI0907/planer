@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { RichTextEditor } from '@/components/ui/RichTextEditor'
+import { StrategyTodoList } from './StrategyTodoList'
 import { updateStrategyNode, deleteStrategyNode, nextStatus } from '@/lib/strategy-api'
 import { STRATEGY_STATUS_CONFIG, type StrategyNode } from '@/lib/strategy-types'
 
@@ -174,9 +175,10 @@ export function StrategyEditModal({
           <button type="button" onClick={handleDelete} className="ml-auto text-xs text-red-500 hover:text-red-600 font-medium">삭제</button>
         </div>
 
-        {/* Description */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        {/* Description + 실행항목 */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-5">
           <RichTextEditor value={node.description ?? ''} onChange={handleDescChange} placeholder={isMilestone ? '이 단계의 할 일·완료조건을 적어보세요...' : '이 전략의 방향·핵심을 적어보세요...'} />
+          <StrategyTodoList nodeId={node.id} />
         </div>
       </div>
     </div>

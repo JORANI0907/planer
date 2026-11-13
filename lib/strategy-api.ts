@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import type { StrategyNode, StrategyKind, StrategyStatus } from './strategy-types'
-import type { PlanLevel } from './types'
+import type { PlanItem, PlanLevel } from './types'
+import { TODO_PERIOD_KEY } from './types'
 
 // 목표시점(period_key) 포맷으로 plan_items 의 level 판별
 export function periodKeyToLevel(key: string): PlanLevel {
@@ -111,6 +112,52 @@ export async function pushMilestoneToSchedule(
   })
   if (error) throw error
   return { created: true, level, periodKey }
+}
+
+// ─── 실행항목 (전략/마일스톤에 귀속된 TO-DO = plan_items) ──────────
+export async function getStrategyTodos(strategyNodeId: string): Promise<PlanItem[]> {
+  const { data, error } = await supabase
+    .from('plan_items')
+    .select('*')
+    .eq('strategy_node_id', strategyNodeId)
+    .eq('level', 'todo')
+    .order('sort_order')
+    .order('created_at')
+  if (error) throw error
+  return data ?? []
+}
+
+export async function createStrategyTodo(strategyNodeId: string, title: string, sortOrder = 0): Promise<PlanItem> {
+  const { data, error } = await supabase
+    .from('plan_items')
+    .insert({
+      level: 'todo',
+      period_key: TODO_PERIOD_KEY,
+      title,
+      categories: [],
+      status: 'pending',
+      priority: 'medium',
+      sort_order: sortOrder,
+      strategy_node_id: strategyNodeId,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+// TO-DO 탭 등에서 전략 출처 뱃지를 그리기 위한 전략노드 요약 조회
+export async function getStrategyNodeMap(
+  ids: string[],
+): Promise<Record<string, { title: string; kind: StrategyKind }>> {
+  if (ids.length === 0) return {}
+  const { data, error } = await supabase.from('strategy_nodes').select('id, title, kind').in('id', ids)
+  if (error) throw error
+  const map: Record<string, { title: string; kind: StrategyKind }> = {}
+  for (const r of (data ?? []) as { id: string; title: string; kind: StrategyKind }[]) {
+    map[r.id] = { title: r.title, kind: r.kind }
+  }
+  return map
 }
 
 // 주어진 마일스톤 중 이미 일정에 투입된 것들의 id 집합
