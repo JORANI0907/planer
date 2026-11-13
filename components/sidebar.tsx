@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  Home, User, Rocket, Map, Brain, RefreshCw,
+  Home, User, Rocket, Map, Brain, RefreshCw, Target,
   ShoppingCart, LayoutGrid, Dumbbell, MoreHorizontal, X, Settings, Check, Inbox,
 } from 'lucide-react'
 
@@ -12,8 +12,9 @@ import {
 type NavGroup = 'home' | 'strategy' | 'schedule' | 'tools'
 const ALL_NAV_ITEMS: { href: string; label: string; icon: React.ReactNode; group: NavGroup }[] = [
   { href: '/', label: '대시보드', icon: <Home size={20} />, group: 'home' },
-  // 전략축: 큰그림 → 발상 → 실행 (세부전략 /strategy 는 Phase 2 에서 추가)
+  // 전략축: 큰그림 → 세부전략 → 발상 → 실행
   { href: '/decade', label: '10년 계획', icon: <Rocket size={20} />, group: 'strategy' },
+  { href: '/strategy', label: '세부전략', icon: <Target size={20} />, group: 'strategy' },
   { href: '/brain', label: '생각확장', icon: <Brain size={20} />, group: 'strategy' },
   { href: '/todo', label: 'TO-DO', icon: <Inbox size={20} />, group: 'strategy' },
   // 일정축
