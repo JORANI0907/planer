@@ -1,5 +1,15 @@
 import { supabase } from './supabase'
 import type { StrategyNode, StrategyKind, StrategyStatus } from './strategy-types'
+import type { PlanLevel } from './types'
+
+// 목표시점(period_key) 포맷으로 plan_items 의 level 판별
+export function periodKeyToLevel(key: string): PlanLevel {
+  if (/^\d{4}$/.test(key)) return 'annual'
+  if (/^\d{4}-Q[1-4]$/.test(key)) return 'quarterly'
+  if (/^\d{4}-\d{2}$/.test(key)) return 'monthly'
+  if (/^\d{4}-W\d{2}$/.test(key)) return 'weekly'
+  return 'daily'
+}
 
 // ─── 세부전략 노드 (전략 + 마일스톤) ──────────────────────────────
 export async function getStrategyNodes(lifeGoalId: string): Promise<StrategyNode[]> {
@@ -68,4 +78,52 @@ export async function deleteStrategyNode(id: string): Promise<void> {
 
 export function nextStatus(s: StrategyStatus): StrategyStatus {
   return s === 'todo' ? 'doing' : s === 'doing' ? 'done' : 'todo'
+}
+
+// ─── 마일스톤 → 일정(plan_items) 투입 ─────────────────────────────
+// 마일스톤을 그 목표시점의 일정 항목으로 생성한다. 이미 투입돼 있으면 재생성하지 않는다.
+export async function pushMilestoneToSchedule(
+  m: StrategyNode,
+): Promise<{ created: boolean; level: PlanLevel; periodKey: string }> {
+  if (!m.target_period_key) throw new Error('목표시점을 먼저 설정하세요.')
+  const periodKey = m.target_period_key
+  const level = periodKeyToLevel(periodKey)
+
+  const { data: existing, error: selErr } = await supabase
+    .from('plan_items')
+    .select('id')
+    .eq('strategy_node_id', m.id)
+    .eq('period_key', periodKey)
+    .limit(1)
+  if (selErr) throw selErr
+  if (existing && existing.length > 0) return { created: false, level, periodKey }
+
+  const { error } = await supabase.from('plan_items').insert({
+    level,
+    period_key: periodKey,
+    title: m.title || '(단계)',
+    description: m.description,
+    categories: [],
+    status: 'pending',
+    priority: 'medium',
+    sort_order: 0,
+    strategy_node_id: m.id,
+  })
+  if (error) throw error
+  return { created: true, level, periodKey }
+}
+
+// 주어진 마일스톤 중 이미 일정에 투입된 것들의 id 집합
+export async function getScheduledMilestoneIds(milestoneIds: string[]): Promise<Set<string>> {
+  if (milestoneIds.length === 0) return new Set()
+  const { data, error } = await supabase
+    .from('plan_items')
+    .select('strategy_node_id')
+    .in('strategy_node_id', milestoneIds)
+  if (error) throw error
+  return new Set(
+    (data ?? [])
+      .map((r: { strategy_node_id: string | null }) => r.strategy_node_id)
+      .filter((v): v is string => !!v),
+  )
 }

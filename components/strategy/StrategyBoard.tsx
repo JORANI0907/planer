@@ -6,6 +6,8 @@ import {
   getStrategyNodes,
   createStrategyNode,
   swapStrategyOrder,
+  pushMilestoneToSchedule,
+  getScheduledMilestoneIds,
 } from '@/lib/strategy-api'
 import { STRATEGY_STATUS_CONFIG, type StrategyNode } from '@/lib/strategy-types'
 import { StrategyEditModal } from './StrategyEditModal'
@@ -27,15 +29,28 @@ export function StrategyBoard({ lifeGoalId }: { lifeGoalId: string }) {
   const [nodes, setNodes] = useState<StrategyNode[]>([])
   const [loading, setLoading] = useState(true)
   const [editId, setEditId] = useState<string | null>(null)
+  const [scheduledIds, setScheduledIds] = useState<Set<string>>(new Set())
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      setNodes(await getStrategyNodes(lifeGoalId))
+      const ns = await getStrategyNodes(lifeGoalId)
+      setNodes(ns)
+      const mIds = ns.filter((n) => n.kind === 'milestone').map((n) => n.id)
+      setScheduledIds(await getScheduledMilestoneIds(mIds))
     } finally {
       setLoading(false)
     }
   }, [lifeGoalId])
+
+  async function pushToSchedule(m: StrategyNode) {
+    try {
+      await pushMilestoneToSchedule(m)
+      setScheduledIds((prev) => new Set(prev).add(m.id)) // 버튼 → "✓ 일정 연결됨"
+    } catch (e) {
+      alert('일정 투입 실패: ' + (e instanceof Error ? e.message : String(e)))
+    }
+  }
 
   useEffect(() => { load() }, [load])
 
@@ -151,6 +166,18 @@ export function StrategyBoard({ lifeGoalId }: { lifeGoalId: string }) {
                               {m.title || '(단계)'}
                             </button>
                             {pLabel && <p className="text-[10px] text-gray-400 mt-1">🎯 {pLabel}</p>}
+                            {m.target_period_key && (
+                              scheduledIds.has(m.id) ? (
+                                <p className="text-[10px] text-green-600 mt-1 font-semibold">✓ 일정 연결됨</p>
+                              ) : (
+                                <button
+                                  onClick={() => pushToSchedule(m)}
+                                  className="mt-1.5 w-full text-[10px] font-semibold text-blue-600 border border-blue-200 rounded-md py-1 hover:bg-blue-50"
+                                >
+                                  📅 일정에 투입
+                                </button>
+                              )
+                            )}
                           </div>
                           {i < milestones.length - 1 && <span className="text-gray-300 shrink-0">→</span>}
                         </div>

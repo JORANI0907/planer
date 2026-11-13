@@ -80,6 +80,7 @@ export interface PlanItem {
   section_id: string | null
   routine_task_id?: string | null
   scheduled_time?: string | null  // 'HH:MM' 형식, daily 항목에만 사용
+  strategy_node_id?: string | null // 세부전략(전략/마일스톤)에서 투입/귀속된 항목
   created_at: string
   updated_at: string
 }
