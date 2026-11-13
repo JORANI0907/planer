@@ -28,12 +28,12 @@ function buildPeriodKey(gran: Gran, year: number, q: number, month: number): str
 export function StrategyEditModal({
   node,
   onClose,
-  onSaved,
+  onPatch,
   onDeleted,
 }: {
   node: StrategyNode
   onClose: () => void
-  onSaved: (updated: StrategyNode) => void
+  onPatch: (id: string, updates: Partial<StrategyNode>) => void
   onDeleted: (id: string) => void
 }) {
   const isMilestone = node.kind === 'milestone'
@@ -56,9 +56,12 @@ export function StrategyEditModal({
   useEffect(() => () => { if (descTimer.current) clearTimeout(descTimer.current) }, [])
 
   async function patch(updates: Partial<StrategyNode>) {
-    const updated = await updateStrategyNode(node.id, updates)
-    onSaved(updated)
-    return updated
+    onPatch(node.id, updates) // 낙관적: 바뀐 필드만 즉시 반영
+    try {
+      await updateStrategyNode(node.id, updates)
+    } catch (e) {
+      alert('저장 실패: ' + (e instanceof Error ? e.message : String(e)))
+    }
   }
 
   function commitTitle() {

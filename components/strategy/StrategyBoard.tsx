@@ -68,8 +68,9 @@ export function StrategyBoard({ lifeGoalId }: { lifeGoalId: string }) {
     }
   }
 
-  function onSaved(u: StrategyNode) {
-    setNodes((ns) => ns.map((n) => (n.id === u.id ? u : n)))
+  // 필드 단위 병합(낙관적 업데이트). 여러 필드를 동시에 저장해도 서로 덮어쓰지 않는다.
+  function onPatch(id: string, updates: Partial<StrategyNode>) {
+    setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, ...updates } : n)))
   }
 
   function onDeleted(id: string) {
@@ -175,7 +176,7 @@ export function StrategyBoard({ lifeGoalId }: { lifeGoalId: string }) {
         <StrategyEditModal
           node={editing}
           onClose={() => setEditId(null)}
-          onSaved={onSaved}
+          onPatch={onPatch}
           onDeleted={onDeleted}
         />
       )}
