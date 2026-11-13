@@ -7,7 +7,7 @@ const TAB_OPTIONS = [
   { path: '/', label: '대시보드' },
   { path: '/profile', label: '인적사항' },
   { path: '/decade', label: '10년 계획' },
-  { path: '/flowmap', label: '플로우맵' },
+  { path: '/flowmap-v2', label: '일정' },
   { path: '/brain', label: '생각확장' },
   { path: '/routine', label: '필수과업' },
   { path: '/shopping', label: '구입목록' },
@@ -21,7 +21,7 @@ function withEmbed(path: string): string {
 function SplitInner() {
   const params = useSearchParams()
   const router = useRouter()
-  const initialLeft = params.get('left') || '/flowmap'
+  const initialLeft = params.get('left') || '/flowmap-v2'
   const initialRight = params.get('right') || '/brain'
   const [left, setLeft] = useState(initialLeft)
   const [right, setRight] = useState(initialRight)

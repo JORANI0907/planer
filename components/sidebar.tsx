@@ -8,21 +8,33 @@ import {
   ShoppingCart, LayoutGrid, Dumbbell, MoreHorizontal, X, Settings, Check, Inbox,
 } from 'lucide-react'
 
-const ALL_NAV_ITEMS: { href: string; label: string; icon: React.ReactNode }[] = [
-  { href: '/', label: '대시보드', icon: <Home size={20} /> },
-  { href: '/todo', label: 'TO-DO', icon: <Inbox size={20} /> },
-  { href: '/profile', label: '인적사항', icon: <User size={20} /> },
-  { href: '/decade', label: '10년 계획', icon: <Rocket size={20} /> },
-  { href: '/flowmap', label: '플로우맵', icon: <Map size={20} /> },
-  { href: '/flowmap-v2', label: 'FlowMap V2', icon: <Map size={20} /> },
-  { href: '/brain', label: '생각확장', icon: <Brain size={20} /> },
-  { href: '/routine', label: '필수과업', icon: <RefreshCw size={20} /> },
-  { href: '/shopping', label: '구입 목록', icon: <ShoppingCart size={20} /> },
-  { href: '/fitness', label: '운동 비서', icon: <Dumbbell size={20} /> },
-  { href: '/split', label: '분할 보기', icon: <LayoutGrid size={20} /> },
+// 탭 2계열(전략축/일정축) 정리. 그룹 순서·라벨은 GROUP_ORDER/GROUP_LABELS 로 렌더.
+type NavGroup = 'home' | 'strategy' | 'schedule' | 'tools'
+const ALL_NAV_ITEMS: { href: string; label: string; icon: React.ReactNode; group: NavGroup }[] = [
+  { href: '/', label: '대시보드', icon: <Home size={20} />, group: 'home' },
+  // 전략축: 큰그림 → 발상 → 실행 (세부전략 /strategy 는 Phase 2 에서 추가)
+  { href: '/decade', label: '10년 계획', icon: <Rocket size={20} />, group: 'strategy' },
+  { href: '/brain', label: '생각확장', icon: <Brain size={20} />, group: 'strategy' },
+  { href: '/todo', label: 'TO-DO', icon: <Inbox size={20} />, group: 'strategy' },
+  // 일정축
+  { href: '/flowmap-v2', label: '일정', icon: <Map size={20} />, group: 'schedule' },
+  // 도구/독립
+  { href: '/routine', label: '필수과업', icon: <RefreshCw size={20} />, group: 'tools' },
+  { href: '/profile', label: '인적사항', icon: <User size={20} />, group: 'tools' },
+  { href: '/shopping', label: '구입 목록', icon: <ShoppingCart size={20} />, group: 'tools' },
+  { href: '/fitness', label: '운동 비서', icon: <Dumbbell size={20} />, group: 'tools' },
+  { href: '/split', label: '분할 보기', icon: <LayoutGrid size={20} />, group: 'tools' },
 ]
 
-const DEFAULT_BOTTOM_HREFS = ['/', '/profile', '/decade', '/flowmap']
+const GROUP_ORDER: NavGroup[] = ['home', 'strategy', 'schedule', 'tools']
+const GROUP_LABELS: Record<NavGroup, string | null> = {
+  home: null,
+  strategy: '전략축',
+  schedule: '일정축',
+  tools: '도구',
+}
+
+const DEFAULT_BOTTOM_HREFS = ['/', '/decade', '/brain', '/flowmap-v2']
 const STORAGE_KEY = 'planner-bottom-nav-hrefs'
 
 function useBottomNavHrefs() {
@@ -68,24 +80,38 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {ALL_NAV_ITEMS.map((item) => {
-          const isActive =
-            pathname === item.href ||
-            (item.href !== '/' && pathname.startsWith(item.href))
+      <nav className="flex-1 p-4 overflow-y-auto">
+        {GROUP_ORDER.map((group) => {
+          const items = ALL_NAV_ITEMS.filter((i) => i.group === group)
+          if (items.length === 0) return null
+          const groupLabel = GROUP_LABELS[group]
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-blue-50 text-blue-700 border border-blue-100'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-              }`}
-            >
-              <span className="flex items-center justify-center">{item.icon}</span>
-              {item.label}
-            </Link>
+            <div key={group} className="space-y-1 mb-1">
+              {groupLabel && (
+                <p className="px-3 pt-4 pb-1 text-[11px] font-semibold text-gray-400 tracking-wide">
+                  {groupLabel}
+                </p>
+              )}
+              {items.map((item) => {
+                const isActive =
+                  pathname === item.href ||
+                  (item.href !== '/' && pathname.startsWith(item.href))
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <span className="flex items-center justify-center">{item.icon}</span>
+                    {item.label}
+                  </Link>
+                )
+              })}
+            </div>
           )
         })}
       </nav>

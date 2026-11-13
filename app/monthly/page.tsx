@@ -1,2 +1,2 @@
 import { redirect } from 'next/navigation'
-export default function MonthlyPage() { redirect('/flowmap') }
+export default function MonthlyPage() { redirect('/flowmap-v2') }

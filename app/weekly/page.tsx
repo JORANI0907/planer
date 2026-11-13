@@ -1,2 +1,2 @@
 import { redirect } from 'next/navigation'
-export default function WeeklyPage() { redirect('/flowmap') }
+export default function WeeklyPage() { redirect('/flowmap-v2') }
