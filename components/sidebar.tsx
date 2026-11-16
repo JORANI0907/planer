@@ -35,8 +35,10 @@ const GROUP_LABELS: Record<NavGroup, string | null> = {
   tools: '도구',
 }
 
-const DEFAULT_BOTTOM_HREFS = ['/', '/decade', '/strategy', '/memo']
-const STORAGE_KEY = 'planner-bottom-nav-hrefs'
+// 모바일 하단 탭 기본 4개: 대시보드 · 메모장 · 세부전략 · 세부일정
+const DEFAULT_BOTTOM_HREFS = ['/', '/memo', '/strategy', '/flowmap-v2']
+// 키 버전을 올리면 예전에 저장된 탭 구성(삭제된 /flowmap 등)을 무시하고 새 기본값을 쓴다
+const STORAGE_KEY = 'planner-bottom-nav-hrefs-v2'
 
 function useBottomNavHrefs() {
   const [hrefs, setHrefs] = useState<string[]>(DEFAULT_BOTTOM_HREFS)
@@ -46,8 +48,12 @@ function useBottomNavHrefs() {
       const saved = localStorage.getItem(STORAGE_KEY)
       if (saved) {
         const parsed = JSON.parse(saved) as string[]
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setHrefs(parsed.slice(0, 4))
+        // 현재 존재하는 메뉴만 남긴다 (삭제된 경로가 저장돼 있으면 탭이 비는 문제 방지)
+        const valid = Array.isArray(parsed)
+          ? parsed.filter((h) => ALL_NAV_ITEMS.some((item) => item.href === h))
+          : []
+        if (valid.length > 0) {
+          setHrefs(valid.slice(0, 4))
         }
       }
     } catch {}
