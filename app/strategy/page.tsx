@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { FileText } from 'lucide-react'
 import { getLifeGoals } from '@/lib/api'
 import type { LifeGoal, AgeGroup } from '@/lib/types'
 import { GOAL_TYPE_CONFIG, GOAL_PROGRESS_CONFIG } from '@/lib/types'
 import { StrategyBoard } from '@/components/strategy/StrategyBoard'
+import { GoalDetailModal } from '@/components/decade/GoalDetailModal'
 
 const AGE_GROUPS: AgeGroup[] = ['30대', '40대', '50대', '60대', '기타']
 
@@ -13,6 +15,7 @@ export default function StrategyPage() {
   const [loading, setLoading] = useState(true)
   const [ageGroup, setAgeGroup] = useState<AgeGroup>('30대')
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null)
+  const [bodyOpen, setBodyOpen] = useState(false) // 장기계획 본문 모달 열림 여부
 
   useEffect(() => {
     getLifeGoals()
@@ -86,8 +89,17 @@ export default function StrategyPage() {
           {/* 선택한 목표의 전략 보드 */}
           {selected ? (
             <div className="mt-1">
-              <div className="mb-2 text-xs text-gray-400">
-                큰그림: <span className="font-semibold text-gray-600">{selected.title}</span>
+              <div className="mb-2 flex items-center gap-2 text-xs text-gray-400">
+                <span>
+                  큰그림: <span className="font-semibold text-gray-600">{selected.title}</span>
+                </span>
+                <button
+                  onClick={() => setBodyOpen(true)}
+                  title="장기계획에서 작성한 본문 보기"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-gray-200 bg-white text-xs font-medium text-gray-500 hover:text-blue-600 hover:border-blue-300 transition-colors"
+                >
+                  <FileText size={12} /> 본문보기
+                </button>
               </div>
               <StrategyBoard key={selected.id} lifeGoalId={selected.id} />
             </div>
@@ -95,6 +107,15 @@ export default function StrategyPage() {
             <div className="py-10 text-center text-sm text-gray-400">목표를 선택하세요.</div>
           )}
         </>
+      )}
+
+      {/* 장기계획 본문 모달 — 장기계획 페이지와 동일한 에디터, 수정 내용은 즉시 저장됨 */}
+      {bodyOpen && selected && (
+        <GoalDetailModal
+          goal={selected}
+          onClose={() => setBodyOpen(false)}
+          onUpdate={(updated) => setGoals((prev) => prev.map((g) => (g.id === updated.id ? updated : g)))}
+        />
       )}
     </div>
   )
