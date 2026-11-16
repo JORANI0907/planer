@@ -4,11 +4,14 @@ import type { ShoppingItem, ShoppingStatus, ShoppingSite } from './shopping-type
 // BBK 서비스 관리에서 자동 등록된 아이템은 memo에 이 문자열이 포함됨
 // Planner 개인 목록에서는 배제한다
 const BBK_SERVICE_MARKER = '[BBK 서비스 연동]'
+// memo가 NULL인 행은 `NOT (memo ILIKE ...)`가 NULL로 평가돼 결과에서 빠진다.
+// 그래서 "memo 없음" 또는 "마커 미포함" 두 조건을 OR로 묶어 조회한다.
+const EXCLUDE_BBK_FILTER = `memo.is.null,memo.not.ilike."%${BBK_SERVICE_MARKER}%"`
 
 export async function getShoppingItems(status?: ShoppingStatus): Promise<ShoppingItem[]> {
   let q = supabase.from('shopping_items').select('*')
   if (status) q = q.eq('status', status)
-  q = q.not('memo', 'ilike', `%${BBK_SERVICE_MARKER}%`)
+  q = q.or(EXCLUDE_BBK_FILTER)
   const { data, error } = await q.order('created_at', { ascending: false })
   if (error) throw error
   return data ?? []
@@ -18,7 +21,7 @@ export async function getKnownCategories(): Promise<string[]> {
   const { data, error } = await supabase
     .from('shopping_items').select('category')
     .not('category', 'is', null)
-    .not('memo', 'ilike', `%${BBK_SERVICE_MARKER}%`)
+    .or(EXCLUDE_BBK_FILTER)
   if (error) throw error
   const set = new Set<string>()
   for (const row of data ?? []) if (row.category) set.add(row.category as string)
@@ -60,7 +63,7 @@ export async function getPendingCount(): Promise<number> {
   const { count, error } = await supabase
     .from('shopping_items').select('id', { count: 'exact', head: true })
     .eq('status', 'pending')
-    .not('memo', 'ilike', `%${BBK_SERVICE_MARKER}%`)
+    .or(EXCLUDE_BBK_FILTER)
   if (error) throw error
   return count ?? 0
 }
